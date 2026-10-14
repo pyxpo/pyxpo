@@ -21,6 +21,25 @@ def _a11y(props: Dict[str, Any]) -> Dict[str, Any]:
     return {k: props[k] for k in _A11Y if k in props}
 
 
+class PressState(int):
+    """What `Pressable` passes to `style(...)` / `render(...)`: truthy while pressed, so a plain bool test still
+    works. RN spellings: `state.pressed`, `state["pressed"]`."""
+    hovered = False
+    focused = False
+
+    @property
+    def pressed(self) -> bool:
+        return bool(self)
+
+    def __getitem__(self, k: str) -> bool:
+        if k in ("pressed", "hovered", "focused"):
+            return getattr(self, k)
+        raise KeyError(k)
+
+
+_PRESSED, _IDLE = PressState(1), PressState(0)
+
+
 @component
 def Pressable(*children: Any, on_press: Optional[Callable[[], Any]] = None,
               on_long_press: Optional[Callable[[], Any]] = None,
@@ -31,7 +50,8 @@ def Pressable(*children: Any, on_press: Optional[Callable[[], Any]] = None,
               pressed_opacity: float = 0.6, **props: Any):
     """Touchable View. `style` may be a callable taking `pressed`; `render(pressed)` returns the children."""
     pressed, set_pressed = use_state(False)
-    base = style(pressed) if callable(style) else style
+    state = _PRESSED if pressed else _IDLE
+    base = style(state) if callable(style) else style
     st = flatten(base)
     if pressed and not disabled:
         if pressed_style is not None:
@@ -40,7 +60,7 @@ def Pressable(*children: Any, on_press: Optional[Callable[[], Any]] = None,
             st = {**st, "opacity": st.get("opacity", 1.0) * pressed_opacity}
     if disabled:
         st = {**st, "opacity": st.get("opacity", 1.0) * 0.4}
-    kids = [render(pressed)] if render else list(children)
+    kids = [render(state)] if render else list(children)
     extra: Dict[str, Any] = _a11y(props)
     if disabled:
         extra["accessibility_state"] = {**extra.get("accessibility_state", {}), "disabled": True}
@@ -51,6 +71,9 @@ def Pressable(*children: Any, on_press: Optional[Callable[[], Any]] = None,
             extra["on_long_press"] = on_long_press
         extra["on_press_in"] = lambda *a: (set_pressed(True), on_press_in and on_press_in())[0]
         extra["on_press_out"] = lambda *a: (set_pressed(False), on_press_out and on_press_out())[0]
+    for k in ("test_id", "native_id", "on_layout"):
+        if k in props:
+            extra[k] = props[k]
     return View(*kids, style=st, **extra)
 
 

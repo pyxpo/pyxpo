@@ -63,10 +63,57 @@ class Back:
         call("Back", "exit")  # nobody consumed it: leave the app
 
 
+class _Sub:
+    def __init__(self, off: Any) -> None:
+        self._off = off
+
+    def remove(self) -> None:
+        self._off()
+
+
+class BackHandler:
+    """RN BackHandler: `add_event_listener("hardwareBackPress", fn)`; the newest listener returning True consumes it."""
+
+    @staticmethod
+    def add_event_listener(event: str, fn: Any) -> _Sub:
+        if event not in ("hardwareBackPress", "hardware_back_press"):
+            raise ValueError("BackHandler: only 'hardwareBackPress', got %r" % (event,))
+        return _Sub(Back.add(fn))
+
+    addEventListener = add_event_listener
+
+    @staticmethod
+    def exit_app() -> None:
+        call("Back", "exit")
+
+    exitApp = exit_app
+
+
 class Keyboard:
     @staticmethod
     def dismiss() -> None:
         call("Keyboard", "dismiss")
+
+    @staticmethod
+    def add_listener(event: str, fn: Any) -> _Sub:
+        """`keyboardDidShow` / `keyboardDidHide`; `fn({"height"})` fires when the keyboard visibility flips."""
+        if event not in ("keyboardDidShow", "keyboardDidHide"):
+            raise ValueError("Keyboard.add_listener: 'keyboardDidShow' or 'keyboardDidHide', got %r" % (event,))
+        from .env import current
+        want = event == "keyboardDidShow"
+        last = [bool(current._data["keyboard"]["visible"])]
+
+        def on_env() -> None:
+            kb = current._data["keyboard"]
+            vis = bool(kb["visible"])
+            if vis != last[0]:
+                last[0] = vis
+                if vis == want:
+                    fn({"height": kb["height"]})
+
+        return _Sub(current.subscribe(on_env))
+
+    addListener = add_listener
 
 
 class Clipboard:
@@ -84,6 +131,8 @@ class Linking:
     def open_url(url: str) -> None:
         call("Linking", "open_url", str(url))
 
+    openURL = open_url
+
 
 class Vibration:
     @staticmethod
@@ -93,11 +142,31 @@ class Vibration:
 
 class Alert:
     @staticmethod
-    async def alert(title: str, message: str = "", buttons: Optional[list] = None) -> int:
-        """Shows a native dialog. Returns the index of the pressed button."""
-        labels = [str(b) for b in (buttons or ["OK"])]
-        v = await call("Alert", "alert", str(title), str(message), labels, reply=True)
-        return int(v or 0)
+    def alert(title: str, message: str = "", buttons: Optional[list] = None) -> Any:
+        """Shows a native dialog and returns an awaitable that resolves to the pressed button index.
+
+        `buttons`: labels, or RN dicts `{"text", "onPress"/"on_press", "style"}`. Button callbacks run when the
+        dialog closes, so it works with or without `await`.
+        """
+        items = list(buttons or ["OK"])
+        labels = [str(b.get("text", "OK")) if isinstance(b, dict) else str(b) for b in items]
+
+        async def run() -> int:
+            v = int(await call("Alert", "alert", str(title), str(message), labels, reply=True) or 0)
+            b = items[v] if 0 <= v < len(items) else None
+            cb = (b.get("on_press") or b.get("onPress")) if isinstance(b, dict) else None
+            if cb is not None:
+                r = cb()
+                if hasattr(r, "__await__"):
+                    await r
+            return v
+
+        loop = getattr(_app, "loop", None)
+        if loop is None:
+            return run()  # no loop yet (tests / desktop): caller awaits it
+        task = loop.create_task(run())
+        task.add_done_callback(_alert_done)
+        return task
 
 
 class Toast:
@@ -105,6 +174,11 @@ class Toast:
     def show(message: str, long: bool = False) -> None:
         """Shows the platform toast (android.widget.Toast)."""
         call("Toast", "show", str(message), bool(long))
+
+
+def _alert_done(task: Any) -> None:
+    if not task.cancelled() and task.exception() is not None and getattr(_app, "on_error", None):
+        _app.on_error(task.exception())
 
 
 def spawn(coro: Any) -> None:

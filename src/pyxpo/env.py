@@ -84,6 +84,14 @@ def set_current(env: Env) -> None:
 
 
 # -- React-Native-style statics -------------------------------------------
+class _Subscription:
+    def __init__(self, off: Callable[[], None]) -> None:
+        self._off = off
+
+    def remove(self) -> None:
+        self._off()
+
+
 class Dimensions:
     @staticmethod
     def get(which: str = "window") -> Dict[str, float]:
@@ -91,7 +99,24 @@ class Dimensions:
             raise ValueError("Dimensions.get: 'window' or 'screen', got %r" % (which,))
         d = current._data
         return {"width": d[which]["width"], "height": d[which]["height"], "scale": d["scale"],
-                "font_scale": d["font_scale"]}
+                "font_scale": d["font_scale"], "fontScale": d["font_scale"]}
+
+    @staticmethod
+    def add_event_listener(event: str, fn: Callable[[Dict[str, Any]], Any]) -> Any:
+        """`fn({"window", "screen"})` on every size change. Returns a subscription with `.remove()`."""
+        if event != "change":
+            raise ValueError("Dimensions.add_event_listener: only 'change', got %r" % (event,))
+        last = [Dimensions.get("window"), Dimensions.get("screen")]
+
+        def on_env() -> None:
+            now = [Dimensions.get("window"), Dimensions.get("screen")]
+            if now != last:
+                last[:] = now
+                fn({"window": now[0], "screen": now[1]})
+
+        return _Subscription(current.subscribe(on_env))
+
+    addEventListener = add_event_listener
 
 
 class PixelRatio:
@@ -113,7 +138,19 @@ class PixelRatio:
         return round(dp * s) / s
 
 
-class Platform:
+class _PlatformMeta(type):
+    @property
+    def OS(cls) -> str:
+        return current._data["os"]
+
+    @property
+    def Version(cls) -> Any:
+        return current._data.get("os_version")
+
+
+class Platform(metaclass=_PlatformMeta):
+    """`Platform.OS` ("android" | "ios" | ...), `Platform.os()`, `Platform.select({...})`."""
+
     @staticmethod
     def os() -> str:
         return current._data["os"]
