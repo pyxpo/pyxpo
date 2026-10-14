@@ -8,6 +8,8 @@ import re
 import sys
 from typing import Any, Dict, List
 
+from ._keys import to_snake
+
 # shorthand -> the longhand keys it expands to (in order)
 _EDGES = ("top", "right", "bottom", "left")
 _EDGE_FAMILIES = ("margin", "padding")
@@ -30,6 +32,11 @@ transform rotate scale scale_x scale_y translate_x translate_y
 color font_size font_weight font_style font_family line_height letter_spacing text_align
 text_decoration text_transform number_of_lines allow_font_scaling
 text_shadow_color text_shadow_offset_x text_shadow_offset_y text_shadow_radius
+""".split())
+
+# React Native style keys native does not implement: a clearer dev warning than "unknown"
+RN_UNSUPPORTED = frozenset("""
+border_style font_variant include_font_padding text_align_vertical tint_color resize_mode direction
 """.split())
 
 NAMED_COLORS: Dict[str, int] = {
@@ -130,7 +137,7 @@ def _merge(out: Dict[str, Any], style: Any) -> None:
         return
     if isinstance(style, dict):
         for k, v in style.items():
-            out[k] = v
+            out[k if k.islower() else to_snake(k)] = v
         return
     if isinstance(style, (list, tuple)):
         for s in style:
@@ -171,9 +178,17 @@ def expand(style: Dict[str, Any]) -> Dict[str, Any]:
     tf = style.get("transform")
     if isinstance(tf, (list, tuple)):  # RN style: transform=[{"translate_y": 10}, {"scale": 2}]
         for item in tf:
-            out.update(item)
+            for tk, tv in item.items():
+                out[to_snake(tk)] = tv
+    for sk in ("shadow_offset", "text_shadow_offset"):  # RN style: shadowOffset={"width": 0, "height": 2}
+        off = style.get(sk)
+        if isinstance(off, dict):
+            out[sk + "_x"] = off.get("width", 0)
+            out[sk + "_y"] = off.get("height", 0)
     for k, v in style.items():
         if k == "transform" and isinstance(tf, (list, tuple)):
+            continue
+        if k in ("shadow_offset", "text_shadow_offset") and isinstance(v, dict):
             continue
         if k in ("margin", "padding", "border_width", "border_color", "border_radius", "gap", "flex") \
                 or k.endswith(("_horizontal", "_vertical")) and k.rsplit("_", 1)[0] in _EDGE_FAMILIES:
@@ -241,9 +256,23 @@ def _dict_key(style: Dict[str, Any]) -> Any:
         for v in style.values():
             if getattr(v, "_is_animated", False):
                 return None
-    key = (tuple(style.items()), types)
+    if _PLAIN_TYPES.issuperset(types):
+        key = (tuple(style.items()), types)
+    else:
+        key = (tuple((k, _freeze(v)) for k, v in style.items()), types)
     hash(key)
     return key
+
+
+def _freeze(v: Any) -> Any:
+    """Hashable stand-in for nested dict/list values (transform, shadowOffset, gradients); animated values are rejected."""
+    if isinstance(v, dict):
+        return ("d", tuple((k, _freeze(x)) for k, x in v.items()))
+    if isinstance(v, (list, tuple)):
+        return ("l", tuple(_freeze(x) for x in v))
+    if getattr(v, "_is_animated", False):
+        raise TypeError("animated value")  # caught by _cache_key: never cached
+    return (v.__class__, v)
 
 
 def _normalize(style: Any, warn: bool) -> Dict[str, Any]:
@@ -253,7 +282,10 @@ def _normalize(style: Any, warn: bool) -> Dict[str, Any]:
         if v is None:
             continue
         if warn and k not in KNOWN_KEYS and k not in out:
-            _warn("unknown style key %r" % k)
+            _warn("style key %r is not supported on this platform, ignored" % k if k in RN_UNSUPPORTED
+                  else "unknown style key %r" % k)
+        if k == "rotate" and isinstance(v, str):
+            v = _angle(v)
         if getattr(v, "_is_animated", False):
             v = v._wire()
         elif k == "color" or k == "background_color" or k.endswith("_color"):
@@ -268,6 +300,17 @@ def _normalize(style: Any, warn: bool) -> Dict[str, Any]:
         if path:
             out["font_file"] = path
     return out
+
+
+def _angle(v: str) -> float:
+    """'45deg' / '0.5rad' / '45' -> degrees."""
+    t = v.strip().lower()
+    try:
+        if t.endswith("rad"):
+            return float(t[:-3]) * 57.29577951308232
+        return float(t[:-3] if t.endswith("deg") else t)
+    except ValueError:
+        raise StyleError("bad angle %r (use '45deg' or '0.5rad')" % (v,))
 
 
 def _gradient(g: Any) -> Dict[str, Any]:
@@ -293,24 +336,48 @@ def _warn(msg: str) -> None:
         sys.stderr.write("[pyxpo] style warning: %s\n" % msg)
 
 
+class StyleSheetDict(dict):
+    """Result of `StyleSheet.create`: a plain dict that also allows `styles.title` (RN spelling)."""
+
+    def __getattr__(self, name: str) -> Any:
+        if name.startswith("__"):
+            raise AttributeError(name)
+        try:
+            return self[name]
+        except KeyError:
+            raise AttributeError("no style named %r" % name) from None
+
+    def __dir__(self) -> List[str]:
+        return list(super().__dir__()) + [k for k in self if isinstance(k, str)]
+
+
 class StyleSheet:
-    """Like React Native's StyleSheet: validates once, returns plain dicts."""
+    """Like React Native's StyleSheet: validates once, returns plain dicts (`styles.title` or `styles["title"]`).
+    Style keys may be camelCase (`fontSize`) or snake_case (`font_size`)."""
 
     @staticmethod
-    def create(styles: Dict[str, Dict[str, Any]]) -> Dict[str, Dict[str, Any]]:
-        out: Dict[str, Dict[str, Any]] = {}
+    def create(styles: Dict[str, Dict[str, Any]]) -> StyleSheetDict:
+        out = StyleSheetDict()
         for name, s in styles.items():
             normalize(s, warn=True)  # validate (raises StyleError on bad values)
+            if hasattr(dict, name):
+                _warn("style name %r shadows a dict method, use styles[%r]" % (name, name))
             out[name] = dict(s)
         return out
 
     @staticmethod
     def flatten(style: Any) -> Dict[str, Any]:
+        """Merged style with canonical snake_case keys."""
         return flatten(style)
 
     @staticmethod
-    def compose(a: Any, b: Any) -> List[Any]:
+    def compose(a: Any, b: Any) -> Any:
+        if a is None or a is False:
+            return b
+        if b is None or b is False:
+            return a
         return [a, b]
 
     absolute_fill: Dict[str, Any] = {"position": "absolute", "top": 0, "right": 0, "bottom": 0, "left": 0}
-    hairline_width = 1.0 / 3  # refined natively via PixelRatio
+    absoluteFill = absoluteFillObject = absolute_fill
+    hairline_width = hairlineWidth = 1.0 / 3  # refined natively via PixelRatio
