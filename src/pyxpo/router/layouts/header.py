@@ -5,9 +5,10 @@ from typing import Any, Callable, Dict, Optional
 
 from ...component import Component, component
 from ...components.pressable import Pressable
+from ...components.status_bar import StatusBar
 from ...components.text import Text
 from ...components.view import View
-from ...hooks import create_context, use_context, use_safe_area_insets
+from ...hooks import create_context, use_context, use_effect, use_safe_area_insets
 from ...vector_icons import Feather
 from ..theme import useTheme
 
@@ -28,6 +29,7 @@ def Header(title: Any = "", can_back: bool = False, on_back: Optional[Callable[[
     o = options or {}
     theme = useTheme()
     colors = theme["colors"]
+    use_effect(lambda: StatusBar.set_bar_style("light-content" if theme.get("dark") else "dark-content"), [theme.get("dark")])
     inset = use_safe_area_insets()["top"] if use_context(TopInset) else 0
     tint = o.get("headerTintColor") or colors["primary"]
     bar = {"height": 48 + inset, "padding_top": inset, "flex_direction": "row", "align_items": "center",

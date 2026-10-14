@@ -7,9 +7,10 @@ from ..apis import _bridge
 from ..apis.back_handler import BackHandler
 from ..component import ErrorBoundary, component
 from ..components.button import Button
+from ..components.status_bar import StatusBar
 from ..components.text import Text
 from ..components.view import View
-from ..hooks import use_effect, use_ref, use_state
+from ..hooks import use_color_scheme, use_effect, use_ref, use_state
 from .discovery import Navigator, RouteTree, discover, load_module
 from .matching import Href
 from .router import router
@@ -56,6 +57,8 @@ def RouterRoot(tree: Optional[RouteTree] = None, root_dir: str = "", initial_hre
     router._bind(rt.store)
     use_effect(lambda: BackHandler.addEventListener("hardwareBackPress", rt.store.back).remove, [])
     use_effect(lambda: _on_hot_refresh(lambda: rt.store.set_tree(discover(root_dir))), [])
+    scheme = use_color_scheme()
+    use_effect(lambda: StatusBar.set_bar_style("light-content" if scheme == "dark" else "dark-content"), [scheme])
     nav = rt.store.tree.root
     return ErrorBoundary(RuntimeContext.Provider(NavigatorHost(nav=nav, node_key=rt.store.state["key"]), value=rt),
                          fallback=_crash)

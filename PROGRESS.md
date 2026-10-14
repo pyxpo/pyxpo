@@ -15,4 +15,5 @@
 - Still unverified on device: Drawer item tap, edge pan, swipe-back, route add/delete reload, deep links, new call() cases, release/API24.
 - Safe-area/gesture pass DONE: hooks Context.Consumer, SafeAreaInsets/FrameContext, use_safe_area_frame; pyxpo.safe_area (SafeAreaProvider); pyxpo.gesture_handler (Gesture.Pan/Tap/LongPress/Fling, Race/Simultaneous/Exclusive, GestureDetector); Drawer items use insets; iOS StatusBar.set_hidden. 228 tests pass. iOS tb app renders, no bottom strip seen; drawer open not tapped on iOS (no tap tool).
 - Dev reload DONE: double-R (Android debuggable, 800ms window) / Cmd+R or double-R (iOS DEBUG) -> native event dev_reload -> App.reload (re-exec modules + remount, state resets). Android emu verified (count 2 -> 0). iOS Swift written, NOT built/run. launch() uses am start -S. 229 tests pass.
+- Router auto status bar style (RouterRoot + Header set_bar_style from theme/scheme). Android emu verified: light/dark icons, Drawer open+item tap -> nested Tabs, tab switch, RR reload (resets to Home).
 - TODO next: Animated audit vs RN, fps measure, Drawer/Tabs device taps, router tests, D3 review.
