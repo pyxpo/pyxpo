@@ -11,7 +11,7 @@ from pathlib import Path
 from typing import Dict, List, Optional
 
 from ..config import load_config, pip_index_args
-from .android import BuildError, _run, _skip_runtime_file, _zip_tree  # noqa: F401  (shared helpers)
+from .android import BuildError, _run, _skip_runtime_file  # noqa: F401  (shared helpers)
 
 REPO = Path(__file__).resolve().parents[3]
 DIST = Path(os.environ.get("PYXPO_IOS_DIST", REPO / "dist" / "ios"))

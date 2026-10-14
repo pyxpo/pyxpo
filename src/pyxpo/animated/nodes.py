@@ -9,7 +9,6 @@ from typing import Any, Callable, Dict, List, Optional
 
 from ..ops import ANode, AListen, ASet
 from ..style import parse_color
-from . import easing as easing_mod
 from . import runtime
 
 

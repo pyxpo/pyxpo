@@ -6,7 +6,7 @@ from __future__ import annotations
 
 import re
 import sys
-from typing import Any, Dict, Iterable, List, Optional
+from typing import Any, Dict, List
 
 # shorthand -> the longhand keys it expands to (in order)
 _EDGES = ("top", "right", "bottom", "left")
@@ -200,13 +200,6 @@ def _gradient(g: Any) -> Dict[str, Any]:
     elif len(stops) != len(colors):
         raise StyleError("linear_gradient stops must match colors")
     return {"angle": float(g.get("angle", 180)), "colors": colors, "stops": [float(x) for x in stops]}
-
-
-def diff(old: Dict[str, Any], new: Dict[str, Any]):
-    """Return (changed, removed) between two normalized style dicts."""
-    changed = {k: v for k, v in new.items() if k not in old or old[k] != v}
-    removed = [k for k in old if k not in new]
-    return changed, removed
 
 
 _warned: set = set()

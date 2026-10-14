@@ -6,7 +6,7 @@ so every colour, size and radius is a style the app can override.
 from __future__ import annotations
 
 import time
-from typing import Any, Callable, Dict, List, Optional
+from typing import Any, Callable, Dict, Optional
 
 from .component import component
 from .element import Text, View, _Modal

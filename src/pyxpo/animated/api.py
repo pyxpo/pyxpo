@@ -6,7 +6,7 @@ from typing import Any, Callable, Dict, List, Optional
 from ..ops import Animate, AStop
 from . import easing as easing_mod
 from . import runtime
-from .nodes import AnimatedNode, Value
+from .nodes import Value
 
 
 class Animation:

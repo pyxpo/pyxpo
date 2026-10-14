@@ -7,8 +7,7 @@ from . import modules
 from .component import component
 from .element import ScrollView, View
 from .env import use_window_dimensions
-from .hooks import use_callback, use_memo, use_ref, use_state
-from .style import flatten
+from .hooks import use_memo, use_ref, use_state
 
 
 class ScrollRef:

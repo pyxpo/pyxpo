@@ -5,7 +5,6 @@ import json
 import os
 import sys
 import threading
-import time
 import urllib.error
 import urllib.request
 from typing import Any, Optional

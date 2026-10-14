@@ -277,24 +277,6 @@ def _Header(title: str = "", can_back: bool = False, on_back: Any = None, header
 
 
 @component
-def _Slide(*children: Any, leaving: bool = False, animate: bool = False, width: float = 360.0,
-           on_enter: Any = None, on_exit: Any = None, hidden: bool = False, style: Any = None):
-    """Screen wrapper that slides in from the right on mount and out to the right when `leaving`."""
-    x = use_animated_value(width if animate else 0.0)
-
-    def enter() -> None:
-        if animate:
-            Animated.timing(x, 0, 240, Easing.out(Easing.cubic)).start(lambda r: on_enter() if on_enter else None)
-    use_effect(enter, [])
-
-    def leave() -> None:
-        if leaving:
-            Animated.timing(x, width, 200, Easing.in_(Easing.cubic)).start(lambda r: on_exit() if on_exit else None)
-    use_effect(leave, [leaving])
-    return View(*children, style=[style, _HIDDEN if hidden else None, {"translate_x": x}])
-
-
-@component
 def Stack(screens: Optional[Dict[str, Any]] = None, initial: Optional[str] = None,
           screen_options: Optional[Dict[str, Dict[str, Any]]] = None, header: bool = True,
           header_style: Any = None, title_style: Any = None, animate: bool = True, style: Any = None):
@@ -305,7 +287,6 @@ def Stack(screens: Optional[Dict[str, Any]] = None, initial: Optional[str] = Non
     opts = screen_options or {}
     names = list(screens)
     bg = use_theme()["colors"]["background"]
-    width = use_window_dimensions()["width"]
     parent = use_context(_NavContext)
     _, tick = use_state(0)  # hooks before any early return: `screens` may toggle between empty and not
     holder = use_ref(None)

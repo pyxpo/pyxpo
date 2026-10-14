@@ -5,7 +5,7 @@ import weakref
 from typing import Any, Callable, Dict, List, Optional
 
 from . import engine
-from ..ops import ANodeDel, Animate, AStop, ASet, Op
+from ..ops import ANodeDel, ASet, Op
 
 _app: Any = None
 _queue: List[Op] = []

@@ -12,7 +12,7 @@ from .animated import Animated, Easing, use_animated_value
 from .app import App, create_app, run_app
 from .channel import Channel, LocalChannel
 from .component import Component, component, memo
-from .modules import Alert, Clipboard, Keyboard, Linking, Picker, StatusBar, Toast, Vibration
+from .modules import Clipboard, Keyboard, Linking, Picker, StatusBar, Toast, Vibration
 from .element import Button, Element, Image, Path, ScrollView, Text, TextInput, View
 from .theme import ThemeProvider, create_theme, dark_theme, light_theme, use_theme
 from .kit import AppButton, Avatar, Badge, Card, Divider, Field, ListItem, ProgressBar, Screen, Typography
