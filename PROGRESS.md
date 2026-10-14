@@ -13,3 +13,5 @@
 - Gaps: iOS Swift controls + NavStack; Modal in hidden Stack screen; render error w/o boundary leaves partial ops; real-device fps unmeasured; SectionList no sticky headers.
 - Device-verified (Android emu): Stack/Tabs/Drawer open+render, Switch, TextInput, FlatList, live hot reload, error overlay show/clear. Fixes: overlay ids must be < 2**30 (native CONTENT bit); launch() force-stops app so dev extras apply.
 - Still unverified on device: Drawer item tap, edge pan, swipe-back, route add/delete reload, deep links, new call() cases, release/API24.
+- Safe-area/gesture pass DONE: hooks Context.Consumer, SafeAreaInsets/FrameContext, use_safe_area_frame; pyxpo.safe_area (SafeAreaProvider); pyxpo.gesture_handler (Gesture.Pan/Tap/LongPress/Fling, Race/Simultaneous/Exclusive, GestureDetector); Drawer items use insets; iOS StatusBar.set_hidden. 228 tests pass. iOS tb app renders, no bottom strip seen; drawer open not tapped on iOS (no tap tool).
+- TODO next: Animated audit vs RN, fps measure, Drawer/Tabs device taps, router tests, D3 review.

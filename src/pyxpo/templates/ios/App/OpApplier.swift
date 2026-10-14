@@ -472,6 +472,8 @@ final class OpApplier {
             scrollTo(args[0] as? Int ?? 0, (args[1] as? NSNumber)?.doubleValue, (args[2] as? NSNumber)?.doubleValue,
                      args.count > 3 ? args[3] as? Bool ?? true : true)
         case "Scroll.to_end": scrollTo(args[0] as? Int ?? 0, nil, nil, args.count > 1 ? args[1] as? Bool ?? true : true)
+        case "StatusBar.set_hidden":
+            PxRootViewController.shared?.setBarHidden((args.first as? Bool) ?? false)
         case "StatusBar.set_style":
             PxRootViewController.shared?.setBarStyle(light: (args.first as? String) == "light")
         case "Back.set_enabled", "Back.exit": break  // iOS has no hardware back

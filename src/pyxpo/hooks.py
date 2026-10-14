@@ -177,6 +177,7 @@ class Context:
     def __init__(self, default: Any) -> None:
         self.default = default
         self.Provider = Component(lambda *children, value=None: list(children), name="Provider")
+        self.Consumer = Component(lambda children=None: children(use_context(self)) if children else None, name="Consumer")
 
 
 def create_context(default: Any = None) -> Context:
@@ -395,9 +396,22 @@ def use_color_scheme() -> str:
     return _use_env(lambda e: e["color_scheme"])
 
 
+SafeAreaInsetsContext = create_context(None)  # set by `pyxpo.safe_area.SafeAreaProvider`; None means "read the device"
+SafeAreaFrameContext = create_context(None)
+
+
 def use_safe_area_insets():
     """`{"top", "right", "bottom", "left"}` in dp."""
-    return _use_env(lambda e: dict(e["insets"]))
+    override = use_context(SafeAreaInsetsContext)
+    live = _use_env(lambda e: dict(e["insets"]))
+    return live if override is None else override
+
+
+def use_safe_area_frame():
+    """`{"x", "y", "width", "height"}` of the safe-area root in dp."""
+    override = use_context(SafeAreaFrameContext)
+    live = _use_env(lambda e: {"x": 0, "y": 0, "width": e["window"]["width"], "height": e["window"]["height"]})
+    return live if override is None else override
 
 
 def _use_keyboard_state():
@@ -407,3 +421,4 @@ def _use_keyboard_state():
 useWindowDimensions = use_window_dimensions
 useColorScheme = use_color_scheme
 useSafeAreaInsets = use_safe_area_insets
+useSafeAreaFrame = use_safe_area_frame

@@ -68,6 +68,15 @@ final class PxRootViewController: UIViewController {
 
     override func viewDidLoad() { super.viewDidLoad(); Self.shared = self }
     override var preferredStatusBarStyle: UIStatusBarStyle { barStyle }
+    private var barHidden = false
+    override var prefersStatusBarHidden: Bool { barHidden }
+    override var preferredStatusBarUpdateAnimation: UIStatusBarAnimation { .fade }
+
+    /// `StatusBar.set_hidden` from Python.
+    func setBarHidden(_ hidden: Bool) {
+        barHidden = hidden
+        UIView.animate(withDuration: 0.2) { self.setNeedsStatusBarAppearanceUpdate() }
+    }
 
     /// light=true means light (white) glyphs for dark backgrounds.
     func setBarStyle(light: Bool) {

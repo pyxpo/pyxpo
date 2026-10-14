@@ -9,7 +9,7 @@ from ...component import component
 from ...components.pressable import Pressable
 from ...components.text import Text
 from ...components.view import View
-from ...hooks import use_effect, use_memo, use_ref, use_state, use_window_dimensions
+from ...hooks import use_effect, use_memo, use_ref, use_safe_area_insets, use_state, use_window_dimensions
 from ...vector_icons import Feather
 from ..screen import EdgeLock, Screen, route_element, route_options, use_navigator
 from ..theme import useTheme
@@ -20,6 +20,7 @@ from .stack import FILL, HIDDEN
 @component
 def DrawerItems(items: Any = (), index: int = 0, on_select: Any = None, title: str = ""):
     c = useTheme()["colors"]
+    inset = use_safe_area_insets()
     rows = []
     for i, it in enumerate(items):
         on = i == index
@@ -28,9 +29,10 @@ def DrawerItems(items: Any = (), index: int = 0, on_select: Any = None, title: s
                               on_press=lambda i=i: on_select(i), key=it["key"], accessibility_role="menuitem",
                               style={"paddingVertical": 12, "paddingHorizontal": 16, "marginHorizontal": 8,
                                      "borderRadius": 8, "backgroundColor": c["border"] if on else None}))
-    return View(Text(title, style={"fontSize": 20, "fontWeight": "700", "padding": 16, "paddingTop": 48,
-                                   "color": c["text"]}) if title else View(style={"height": 48}), *rows,
-                style={"flex": 1})
+    return View(Text(title, style={"fontSize": 20, "fontWeight": "700", "padding": 16,
+                                   "paddingTop": 16 + inset["top"], "color": c["text"]})
+                if title else View(style={"height": 16 + inset["top"]}), *rows,
+                style={"flex": 1, "paddingBottom": inset["bottom"]})
 
 
 @component
