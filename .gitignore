@@ -1,7 +1,20 @@
+# Python
 __pycache__/
+*.py[cod]
 *.egg-info/
 .pytest_cache/
+.venv/
+
+# Build outputs and caches (CPython source, toolchains, emulator logs, screenshots)
 build/
 dist/
-.venv/
 .cache/
+
+# OS / editor / Android
+.DS_Store
+.idea/
+.vscode/
+*.apk
+*.aab
+local.properties
+.gradle/

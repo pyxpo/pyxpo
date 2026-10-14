@@ -26,6 +26,10 @@ def _git_index(src: Path) -> None:
     # android.py `package` lists Android/ files with `git ls-files`; release tarballs have no repo.
     if not (src / ".git").exists():
         subprocess.run(["git", "init", "-q"], cwd=str(src), check=True)
+    # Hide the ~10K untracked source files from editors; only Android/ needs to be indexed.
+    exclude = src / ".git" / "info" / "exclude"
+    exclude.parent.mkdir(exist_ok=True)
+    exclude.write_text("*\n")
     subprocess.run(["git", "add", "Android"], cwd=str(src), check=True)
 
 
