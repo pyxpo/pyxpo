@@ -179,3 +179,25 @@ def test_scroll_ref_swap_unbinds_old_ref():
     assert a.id == sv.id
     box["set"](1)
     assert a.id is None and b.id == sv.id
+
+
+def test_flatlist_render_item_arity():
+    from pyxpo.scroll import adapt_render_item
+    assert adapt_render_item(lambda p: (p["item"], p["index"]))("a", 3) == ("a", 3)
+    assert adapt_render_item(lambda item, index: (item, index))("a", 3) == ("a", 3)
+    assert adapt_render_item(lambda item, index=0, *r: (item, index))("a", 3) == ("a", 3)
+
+
+def test_section_list_rows_keys_and_empty_sections():
+    from pyxpo import SectionList, Text
+    from pyxpo.scroll import FlatList
+    secs = [{"title": "A", "data": [{"id": 1}, {"id": 2}]}, {"title": "B", "data": []}]
+    @component
+    def App():
+        return SectionList(sections=secs, render_item=lambda p: Text("i%d" % p["item"]["id"]),
+                           render_section_header=lambda p: Text("h" + p["section"]["title"]),
+                           render_section_footer=lambda p: Text("f" + p["section"]["title"]))
+
+    app, r = mount(App)
+    texts = [n.props["text"] for n in r.find_all("Text")]
+    assert texts == ["hA", "i1", "i2", "fA", "hB", "fB"]

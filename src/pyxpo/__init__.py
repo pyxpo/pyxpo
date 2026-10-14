@@ -19,7 +19,7 @@ from .kit import AppButton, Avatar, Badge, Card, Divider, Field, ListItem, Progr
 from .widgets import (Alert, Chip, DatePicker, Dropdown, Icon, InputField, LabeledCheckbox, MultiSelect, NumberInput,
                       PasswordInput, Radio, RadioGroup, SearchInput, Sheet, Stepper, TabBar, TextArea, TimePicker)
 from .navigation import Drawer, Navigation, Stack, Tabs, TopTabs, use_navigation
-from .scroll import FlatList, ScrollRef, use_scroll_ref
+from .scroll import FlatList, SectionList, ScrollRef, use_scroll_ref
 from .ui import (ActivityIndicator, Checkbox, Gesture, KeyboardAvoidingView, Modal, Pressable, SafeArea, Slider, Switch,
                  use_pan_responder)
 from .env import (Dimensions, Platform, PixelRatio, responsive, use_breakpoint, use_color_scheme, use_keyboard,
@@ -44,7 +44,7 @@ __version__ = "0.1.0"
 __all__ = [
     "Animated", "Easing", "use_animated_value",
     "App", "create_app", "run_app", "Channel", "LocalChannel", "Component", "component", "memo", "Element",
-    "Alert", "Picker", "Toast", "StatusBar", "Clipboard", "Keyboard", "Linking", "Vibration", "FlatList", "ScrollRef", "use_scroll_ref", "SafeArea", "KeyboardAvoidingView", "Navigation", "Stack", "Tabs", "TopTabs", "Drawer", "use_navigation", "Modal", "Slider", "Gesture", "use_pan_responder", "Pressable", "Switch", "Checkbox", "ActivityIndicator", "View", "Text", "Button", "Image", "Path", "TextInput", "ScrollView", "HookError", "create_context",
+    "Alert", "Picker", "Toast", "StatusBar", "Clipboard", "Keyboard", "Linking", "Vibration", "FlatList", "SectionList", "ScrollRef", "use_scroll_ref", "SafeArea", "KeyboardAvoidingView", "Navigation", "Stack", "Tabs", "TopTabs", "Drawer", "use_navigation", "Modal", "Slider", "Gesture", "use_pan_responder", "Pressable", "Switch", "Checkbox", "ActivityIndicator", "View", "Text", "Button", "Image", "Path", "TextInput", "ScrollView", "HookError", "create_context",
     "Alert", "Chip", "DatePicker", "Dropdown", "Icon", "InputField", "LabeledCheckbox", "MultiSelect", "NumberInput", "PasswordInput", "Radio", "RadioGroup", "SearchInput", "Sheet", "Stepper", "TabBar", "TextArea", "TimePicker",
     "ThemeProvider", "create_theme", "dark_theme", "light_theme", "use_theme", "AppButton", "Avatar", "Badge", "Card", "Divider", "Field", "ListItem", "ProgressBar", "Screen", "Typography",
     "StyleSheet", "parse_color", "Dimensions", "Platform", "PixelRatio", "responsive", "use_breakpoint",

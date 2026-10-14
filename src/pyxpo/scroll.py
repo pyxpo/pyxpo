@@ -46,6 +46,28 @@ def _key_of(item: Any, index: int, key_extractor: Optional[Callable[[Any, int], 
     return index
 
 
+def _takes_one(fn: Callable) -> bool:
+    """True when `fn` declares exactly one positional parameter (RN style `({item, index}) => ...`)."""
+    code = getattr(fn, "__code__", None)
+    if code is None:
+        import inspect
+        try:
+            ps = [p for p in inspect.signature(fn).parameters.values()
+                  if p.kind in (p.POSITIONAL_ONLY, p.POSITIONAL_OR_KEYWORD)]
+            var = any(p.kind == p.VAR_POSITIONAL for p in inspect.signature(fn).parameters.values())
+        except (TypeError, ValueError):
+            return False
+        return len(ps) == 1 and not var
+    return code.co_argcount - (1 if hasattr(fn, "__self__") else 0) == 1 and not code.co_flags & 0x04
+
+
+def adapt_render_item(fn: Callable) -> Callable[[Any, int], Any]:
+    """`render_item(item, index)` stays as is; a one-parameter function gets `{"item", "index"}` like React Native."""
+    if _takes_one(fn):
+        return lambda item, index: fn({"item": item, "index": index})
+    return fn
+
+
 def _node(x: Any) -> Any:
     return x() if callable(x) and not hasattr(x, "type") else x
 
@@ -74,6 +96,8 @@ def FlatList(data: Optional[List[Any]] = None, render_item: Optional[Callable[[A
     `separator_size` is the extent of `item_separator` (needed to place the window).
     """
     data = list(data or [])
+    if render_item is not None:
+        render_item = adapt_render_item(render_item)
     n = len(data)
     cols = 1 if horizontal else max(1, int(num_columns))
     rows = -(-n // cols)
@@ -162,3 +186,45 @@ def FlatList(data: Optional[List[Any]] = None, render_item: Optional[Callable[[A
         handler = AnimatedEvent(ae.map, listener=on_scroll_evt, use_native_driver=True)
     return ScrollView(*out, horizontal=horizontal, style=style, content_container_style=content_container_style,
                       on_scroll=handler, ref=list_ref, **props)
+
+
+@component
+def SectionList(sections: Optional[List[Dict[str, Any]]] = None, render_item: Optional[Callable] = None,
+                render_section_header: Optional[Callable] = None, render_section_footer: Optional[Callable] = None,
+                key_extractor: Optional[Callable[[Any, int], Any]] = None, **props: Any):
+    """Sectioned list: `sections=[{"title": ..., "data": [...]}]`, built on FlatList (no sticky headers).
+
+    `render_item` takes `(item, index)` or one `{"item", "index", "section"}` dict; the section renderers take one
+    `{"section"}` dict. A section may carry its own `render_item` and `key_extractor`.
+    """
+    rows: List[Any] = []
+    for si, sec in enumerate(sections or []):
+        if render_section_header is not None:
+            rows.append(("h", si, sec, None, 0))
+        for ii, item in enumerate(sec.get("data") or []):
+            rows.append(("i", si, sec, item, ii))
+        if render_section_footer is not None:
+            rows.append(("f", si, sec, None, 0))
+
+    def render(row: Any, _i: int) -> Any:
+        kind, si, sec, item, ii = row
+        if kind == "h":
+            return render_section_header({"section": sec})
+        if kind == "f":
+            return render_section_footer({"section": sec})
+        fn = sec.get("render_item") or sec.get("renderItem") or render_item
+        if fn is None:
+            raise TypeError("SectionList needs render_item (or a render_item on the section)")
+        if _takes_one(fn):
+            return fn({"item": item, "index": ii, "section": sec})
+        return fn(item, ii)
+
+    def key(row: Any, _i: int) -> Any:
+        kind, si, sec, item, ii = row
+        if kind != "i":
+            return (kind, si)
+        ke = sec.get("key_extractor") or sec.get("keyExtractor") or key_extractor
+        return ("i", si, _key_of(item, ii, ke))
+
+    return FlatList(data=rows, render_item=render, key_extractor=key, **props)
+
