@@ -76,3 +76,46 @@ def test_checkbox_toggles_and_shows_check():
     assert r.texts() == []
     r.press(r.find_all("View")[1])
     assert r.texts() == ["✓"]
+
+
+def test_safe_area_and_keyboard():
+    from pyxpo import KeyboardAvoidingView, SafeArea
+    from pyxpo.env import Env  # noqa: F401
+
+    def root():
+        return SafeArea(Text("x"), avoid_keyboard=True, style={"padding": 4})
+
+    app, r = mount(root)
+    app.env.update({"insets": {"top": 30, "bottom": 20, "left": 0, "right": 0}})
+    app.flush()
+    st = r.find_all("View")[0].props["style"]
+    assert st["padding_top"] == 34 and st["padding_bottom"] == 24 and "padding" not in st
+    app.env.update({"keyboard": {"visible": True, "height": 300}})
+    app.flush()
+    assert r.find_all("View")[0].props["style"]["padding_bottom"] == 304
+
+    app2, r2 = mount(lambda: KeyboardAvoidingView(Text("y"), offset=20))
+    app2.env.update({"keyboard": {"visible": True, "height": 300}})
+    app2.flush()
+    assert r2.find_all("View")[0].props["style"]["padding_bottom"] == 280
+
+
+def test_call_op_and_result():
+    import asyncio
+    from pyxpo import Clipboard, Keyboard
+    app, r = mount(lambda: Text("a"))
+    Keyboard.dismiss()
+    assert r.calls[-1].module == "Keyboard" and r.calls[-1].method == "dismiss"
+    loop = asyncio.new_event_loop()
+    app.loop = loop
+
+    async def go():
+        t = asyncio.ensure_future(Clipboard.get_string())
+        await asyncio.sleep(0)
+        c = r.calls[-1]
+        assert c.reply and c.method == "get_string"
+        app._handle_event('{"event":"call_result","id":%d,"payload":{"value":"hi"}}' % c.id)
+        return await t
+
+    assert loop.run_until_complete(go()) == "hi"
+    loop.close()

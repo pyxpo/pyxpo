@@ -49,6 +49,11 @@ final class PxRoot: UIView {
         onSize?(bounds.size)
     }
 
+    override func safeAreaInsetsDidChange() {
+        super.safeAreaInsetsDidChange()
+        onTraits?()
+    }
+
     override func traitCollectionDidChange(_ previous: UITraitCollection?) {
         super.traitCollectionDidChange(previous)
         onTraits?()
@@ -88,6 +93,14 @@ final class PxLabel: UILabel {
 
 final class PxTextField: UITextField {
     var insets = UIEdgeInsets.zero
+    var maxLength = 0
+    var selectOnFocus = false
+
+    override func becomeFirstResponder() -> Bool {
+        let ok = super.becomeFirstResponder()
+        if ok && selectOnFocus { DispatchQueue.main.async { self.selectAll(nil) } }
+        return ok
+    }
 
     override func textRect(forBounds bounds: CGRect) -> CGRect { bounds.inset(by: insets) }
     override func editingRect(forBounds bounds: CGRect) -> CGRect { bounds.inset(by: insets) }

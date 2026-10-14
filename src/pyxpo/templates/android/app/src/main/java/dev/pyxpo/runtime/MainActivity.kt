@@ -3,6 +3,7 @@ package dev.pyxpo.runtime
 import android.app.Activity
 import android.os.Bundle
 import android.widget.FrameLayout
+import kotlin.math.max
 
 class MainActivity : Activity() {
     private var runtime: PyxpoRuntime? = null
@@ -11,13 +12,22 @@ class MainActivity : Activity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         val root = FrameLayout(this)
-        // targetSdk 35+ draws edge-to-edge; inset the root so content clears status/action bars.
+        // Edge-to-edge: the app draws under system bars. Insets and keyboard height go to Python (SafeArea).
+        if (android.os.Build.VERSION.SDK_INT >= 30) window.setDecorFitsSystemWindows(false)
         root.setOnApplyWindowInsetsListener { v, insets ->
-            val top = if (android.os.Build.VERSION.SDK_INT >= 30)
-                insets.getInsets(android.view.WindowInsets.Type.systemBars()).top else insets.systemWindowInsetTop
-            val bottom = if (android.os.Build.VERSION.SDK_INT >= 30)
-                insets.getInsets(android.view.WindowInsets.Type.systemBars()).bottom else insets.systemWindowInsetBottom
-            v.setPadding(0, top, 0, bottom)
+            var l = 0; var t = 0; var r = 0; var b = 0; var kb = 0
+            if (android.os.Build.VERSION.SDK_INT >= 30) {
+                val sb = insets.getInsets(android.view.WindowInsets.Type.systemBars() or android.view.WindowInsets.Type.displayCutout())
+                l = sb.left; t = sb.top; r = sb.right; b = sb.bottom
+                if (insets.isVisible(android.view.WindowInsets.Type.ime())) kb = insets.getInsets(android.view.WindowInsets.Type.ime()).bottom
+            } else {
+                l = insets.systemWindowInsetLeft; t = insets.systemWindowInsetTop
+                r = insets.systemWindowInsetRight; b = insets.systemWindowInsetBottom
+                val vis = android.graphics.Rect(); window.decorView.getWindowVisibleDisplayFrame(vis)
+                kb = max(0, v.rootView.height - vis.bottom).let { if (it > v.rootView.height / 5) it else 0 }
+                if (kb > 0) b = 0
+            }
+            applier?.setInsets(l, t, r, b, kb)
             insets
         }
         setContentView(root)

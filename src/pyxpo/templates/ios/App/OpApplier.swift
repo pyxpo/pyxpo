@@ -1,4 +1,5 @@
 import UIKit
+import AudioToolbox
 
 /// Applies JSON op batches (wire v2) on the main thread. Styles arrive normalized (pt, ARGB ints).
 /// Layout is done by the shared C engine; this class only places frames, measures leaves and paints boxes.
@@ -19,6 +20,7 @@ final class OpApplier {
     private let root = PxRoot()
     private var rootSize = CGSize.zero
     private var sentEnv: String?
+    private var kbHeight: CGFloat = 0
     private var batching = false
     private let sendEvent: (String) -> Void
     private var scale: CGFloat { UIScreen.main.scale }
@@ -27,8 +29,12 @@ final class OpApplier {
     static var fontScale: CGFloat { UIFontMetrics.default.scaledValue(for: 100) / 100 }
 
     /// Env snapshot for the Python side (before the first op). Sizes in pt.
-    static func envJson(window: CGSize, screen: CGSize, dark: Bool) -> [String: Any] {
+    static func envJson(window: CGSize, screen: CGSize, dark: Bool, insets: UIEdgeInsets = .zero,
+                        keyboard: CGFloat = 0) -> [String: Any] {
         [
+            "insets": ["left": Double(insets.left), "top": Double(insets.top), "right": Double(insets.right),
+                       "bottom": Double(insets.bottom)],
+            "keyboard": ["visible": keyboard > 0, "height": Double(keyboard)],
             "os": "ios",
             "window": ["width": Double(window.width), "height": Double(window.height)],
             "screen": ["width": Double(screen.width), "height": Double(screen.height)],
@@ -50,12 +56,12 @@ final class OpApplier {
         // Root id 1 is implicit in the ops protocol: it is never created by the reconciler.
         root.translatesAutoresizingMaskIntoConstraints = false
         container.addSubview(root)
-        let g = container.safeAreaLayoutGuide
+        // Edge to edge: the app draws under the status bar / home indicator. Insets go to Python (SafeArea).
         NSLayoutConstraint.activate([
-            root.leadingAnchor.constraint(equalTo: g.leadingAnchor),
-            root.trailingAnchor.constraint(equalTo: g.trailingAnchor),
-            root.topAnchor.constraint(equalTo: g.topAnchor),
-            root.bottomAnchor.constraint(equalTo: g.bottomAnchor),
+            root.leadingAnchor.constraint(equalTo: container.leadingAnchor),
+            root.trailingAnchor.constraint(equalTo: container.trailingAnchor),
+            root.topAnchor.constraint(equalTo: container.topAnchor),
+            root.bottomAnchor.constraint(equalTo: container.bottomAnchor),
         ])
         views[1] = root
         types[1] = "Root"
@@ -63,6 +69,18 @@ final class OpApplier {
         root.onTraits = { [weak self] in self?.configChanged() }
         NotificationCenter.default.addObserver(forName: UIContentSizeCategory.didChangeNotification, object: nil,
                                                queue: .main) { [weak self] _ in self?.configChanged() }
+        let kbChange: (Notification) -> Void = { [weak self] n in
+            guard let self = self else { return }
+            if n.name == UIResponder.keyboardWillHideNotification { self.kbHeight = 0 }
+            else if let f = n.userInfo?[UIResponder.keyboardFrameEndUserInfoKey] as? CGRect {
+                self.kbHeight = max(0, UIScreen.main.bounds.height - f.minY)
+            }
+            self.sendEnv()
+            self.flush()
+        }
+        for name in [UIResponder.keyboardWillChangeFrameNotification, UIResponder.keyboardWillHideNotification] {
+            NotificationCenter.default.addObserver(forName: name, object: nil, queue: .main, using: kbChange)
+        }
     }
 
     deinit { px_tree_free(tree) }
@@ -81,6 +99,8 @@ final class OpApplier {
             case "insert": insert(o["parent"] as? Int ?? 0, id, o["index"] as? Int ?? 0)
             case "remove": remove(o["parent"] as? Int ?? 0, id)
             case "delete": delete(id)
+            case "call": call(id, o["module"] as? String ?? "", o["method"] as? String ?? "",
+                              o["args"] as? [Any] ?? [], o["reply"] as? Bool ?? false)
             default: break
             }
         }
@@ -107,8 +127,14 @@ final class OpApplier {
         case "TextInput":
             let t = PxTextField()
             t.addAction(UIAction { [weak self, weak t] _ in
-                self?.event("change_text", id, ["value": t?.text ?? ""])
+                guard let t = t else { return }
+                if t.maxLength > 0, let s = t.text, s.count > t.maxLength { t.text = String(s.prefix(t.maxLength)) }
+                self?.event("change_text", id, ["value": t.text ?? ""])
             }, for: .editingChanged)
+            t.addAction(UIAction { [weak self] _ in self?.event("focus", id) }, for: .editingDidBegin)
+            t.addAction(UIAction { [weak self] _ in self?.event("blur", id) }, for: .editingDidEnd)
+            t.addAction(UIAction { [weak self, weak t] _ in self?.event("submit", id, ["value": t?.text ?? ""]) },
+                        for: .editingDidEndOnExit)
             v = t
         case "Image": v = UIImageView()
         case "ScrollView": v = ScrollHost()
@@ -154,6 +180,13 @@ final class OpApplier {
                     if t.text != s { t.text = s; px_node_mark_dirty(tree, Int32(id)) }
                 }
             case "placeholder": (v as? UITextField)?.placeholder = val as? String
+            case "placeholder_color":
+                if let t = v as? UITextField, let c = Self.hexColor(val as? String) {
+                    t.attributedPlaceholder = NSAttributedString(string: t.placeholder ?? "", attributes: [.foregroundColor: c])
+                }
+            case "keyboard_type", "secure", "auto_capitalize", "auto_correct", "return_key", "max_length", "editable",
+                 "auto_focus", "select_on_focus":
+                if let t = v as? PxTextField { applyInput(t, k, val) }
             case "style": applyStyle(id, v, val as? [String: Any] ?? [:])
             case "on_press", "on_press_in", "on_press_out", "on_long_press":
                 if let g = v as? PxGroup, g.onTouch == nil {
@@ -239,6 +272,87 @@ final class OpApplier {
         texts.removeValue(forKey: id)
         spans.removeValue(forKey: id)
         a11y.removeValue(forKey: id)
+    }
+
+    // -- TextInput -----------------------------------------------------------------------------------
+    static func hexColor(_ s: String?) -> UIColor? {
+        guard var h = s?.trimmingCharacters(in: .whitespaces), h.hasPrefix("#") else { return nil }
+        h.removeFirst()
+        if h.count == 3 { h = h.map { "\($0)\($0)" }.joined() }
+        guard let n = UInt32(h, radix: 16), h.count == 6 else { return nil }
+        return UIColor(red: CGFloat((n >> 16) & 255) / 255, green: CGFloat((n >> 8) & 255) / 255,
+                       blue: CGFloat(n & 255) / 255, alpha: 1)
+    }
+
+    private func applyInput(_ t: PxTextField, _ k: String, _ val: Any) {
+        switch k {
+        case "keyboard_type":
+            switch val as? String ?? "default" {
+            case "number": t.keyboardType = .numberPad
+            case "decimal": t.keyboardType = .decimalPad
+            case "phone": t.keyboardType = .phonePad
+            case "email": t.keyboardType = .emailAddress
+            case "url": t.keyboardType = .URL
+            default: t.keyboardType = .default
+            }
+        case "secure": t.isSecureTextEntry = val as? Bool ?? false
+        case "auto_capitalize":
+            switch val as? String ?? "none" {
+            case "sentences": t.autocapitalizationType = .sentences
+            case "words": t.autocapitalizationType = .words
+            case "characters": t.autocapitalizationType = .allCharacters
+            default: t.autocapitalizationType = .none
+            }
+        case "auto_correct": t.autocorrectionType = (val as? Bool ?? true) ? .yes : .no
+        case "return_key":
+            switch val as? String ?? "done" {
+            case "go": t.returnKeyType = .go
+            case "next": t.returnKeyType = .next
+            case "search": t.returnKeyType = .search
+            case "send": t.returnKeyType = .send
+            default: t.returnKeyType = .done
+            }
+        case "max_length": t.maxLength = val as? Int ?? 0
+        case "editable": t.isEnabled = val as? Bool ?? true
+        case "select_on_focus": t.selectOnFocus = val as? Bool ?? false
+        case "auto_focus": if val as? Bool == true { DispatchQueue.main.async { t.becomeFirstResponder() } }
+        default: break
+        }
+    }
+
+    // -- native modules ------------------------------------------------------------------------------
+    private func reply(_ id: Int, _ value: Any?, error: String? = nil) {
+        if let e = error { event("call_result", id, ["error": e]) }
+        else { event("call_result", id, ["value": value ?? NSNull()]) }
+    }
+
+    private func call(_ id: Int, _ module: String, _ method: String, _ args: [Any], _ wantReply: Bool) {
+        switch "\(module).\(method)" {
+        case "Keyboard.dismiss":
+            UIApplication.shared.sendAction(#selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil)
+        case "Clipboard.set_string": UIPasteboard.general.string = args.first as? String ?? ""
+        case "Clipboard.get_string": if wantReply { reply(id, UIPasteboard.general.string ?? ""); return }
+        case "Linking.open_url":
+            if let u = URL(string: args.first as? String ?? "") { UIApplication.shared.open(u) }
+        case "Vibration.vibrate": AudioServicesPlaySystemSound(kSystemSoundID_Vibrate)
+        case "Alert.alert":
+            let labels = (args.count > 2 ? args[2] as? [String] : nil) ?? ["OK"]
+            let a = UIAlertController(title: args.first as? String, message: args.count > 1 ? args[1] as? String : nil,
+                                      preferredStyle: .alert)
+            for (i, l) in labels.enumerated() {
+                a.addAction(UIAlertAction(title: l, style: .default) { [weak self] _ in
+                    if wantReply { self?.reply(id, i) }
+                })
+            }
+            var top = root.window?.rootViewController
+            while let p = top?.presentedViewController { top = p }
+            top?.present(a, animated: true)
+            return
+        default:
+            if wantReply { reply(id, nil, error: "unknown native call \(module).\(method)") }
+            return
+        }
+        if wantReply { reply(id, nil) }
     }
 
     // -- style ---------------------------------------------------------------------------------------
@@ -502,7 +616,8 @@ final class OpApplier {
     func sendEnv() {
         if rootSize.width <= 0 { return }
         var j = Self.envJson(window: rootSize, screen: UIScreen.main.bounds.size,
-                             dark: root.traitCollection.userInterfaceStyle == .dark)
+                             dark: root.traitCollection.userInterfaceStyle == .dark,
+                             insets: root.safeAreaInsets, keyboard: kbHeight)
         j.removeValue(forKey: "os")
         guard let d = try? JSONSerialization.data(withJSONObject: j, options: [.sortedKeys]),
               let str = String(data: d, encoding: .utf8), str != sentEnv else { return }

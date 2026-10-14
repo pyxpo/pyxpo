@@ -53,7 +53,18 @@ class Delete(Op):
     op = "delete"
 
 
-_BY_NAME = {c.op: c for c in (Create, Update, Insert, Remove, Delete)}
+@dataclass
+class Call(Op):
+    """Python -> native module call. Native answers with a `call_result` event (id = call id) when `reply` is set."""
+    id: int
+    module: str
+    method: str
+    args: List[Any] = field(default_factory=list)
+    reply: bool = False
+    op = "call"
+
+
+_BY_NAME = {c.op: c for c in (Create, Update, Insert, Remove, Delete, Call)}
 
 
 def op_from_dict(d: Dict[str, Any]) -> Op:

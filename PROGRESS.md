@@ -36,3 +36,5 @@ Also pending: generic wheels (test Pillow, sdist auto-build, CI+index, iOS wheel
 
 - UI M6 DONE: text/fonts. Nested Text spans, text_transform, letter_spacing, font_family/file (fonts.py scans app/fonts), text_shadow, line_height, allow_font_scaling. Verified Android + iOS. iOS: PxLabel renders BoxLayer itself (sublayers draw above label text); line_height via lineSpacing. Next: M7 Pressable/Button/Checkbox/Switch/a11y.
 - UI M7 DONE: native touch events (press_in/out/press/long_press) on any View + a11y props (label/hint/role/state/value) on Android+iOS; ui.py Pressable/Switch/Checkbox in Python (custom-drawn, fully styleable). Android taps/long-press verified; iOS render verified, iOS tap NOT verified (no simctl tap tool). hit_slop not implemented. Next: M8 TextInput/keyboard/SafeArea/call modules.
+
+- UI M8 DONE: call op + native modules (Keyboard/Clipboard/Linking/Vibration/Alert) in modules.py, SafeArea/KeyboardAvoidingView, TextInput props+focus/blur/submit, edge-to-edge env insets/keyboard. Android verified on Pixel_10; iOS render+insets verified (no taps/keyboard check, no simctl tap). Next: M9 Animated.

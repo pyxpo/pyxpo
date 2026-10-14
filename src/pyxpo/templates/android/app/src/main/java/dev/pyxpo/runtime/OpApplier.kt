@@ -34,7 +34,7 @@ class OpApplier(
         private val LEAVES = setOf("Text", "Button", "TextInput", "Image")
 
         /** Env snapshot for the Python side. Sizes in dp. */
-        fun envJson(ctx: Context, wPx: Int, hPx: Int): JSONObject {
+        fun envJson(ctx: Context, wPx: Int, hPx: Int, ins: IntArray = IntArray(4), kbPx: Int = 0): JSONObject {
             val dm = ctx.resources.displayMetrics
             val cfg = ctx.resources.configuration
             val w = Math.round(wPx / dm.density * 100.0) / 100.0
@@ -48,6 +48,9 @@ class OpApplier(
                 .put("scale", dm.density.toDouble())
                 .put("font_scale", cfg.fontScale.toDouble())
                 .put("color_scheme", if (dark) "dark" else "light")
+                .put("insets", JSONObject().put("left", ins[0] / dm.density.toDouble()).put("top", ins[1] / dm.density.toDouble())
+                    .put("right", ins[2] / dm.density.toDouble()).put("bottom", ins[3] / dm.density.toDouble()))
+                .put("keyboard", JSONObject().put("visible", kbPx > 0).put("height", kbPx / dm.density.toDouble()))
         }
     }
 
@@ -87,6 +90,8 @@ class OpApplier(
                 "insert" -> insert(o.getInt("parent"), o.getInt("id"), o.getInt("index"))
                 "remove" -> remove(o.getInt("parent"), o.getInt("id"))
                 "delete" -> delete(o.getInt("id"))
+                "call" -> call(o.getInt("id"), o.getString("module"), o.getString("method"),
+                    o.optJSONArray("args") ?: JSONArray(), o.optBoolean("reply"))
             }
         }
         batching = false
@@ -121,6 +126,16 @@ class OpApplier(
             layout.setNum(id or CONTENT, prop("flex_shrink"), 0f)
         }
         update(id, props, null)
+        if (type == "TextInput") {
+            val e = v as EditText
+            e.setOnFocusChangeListener { _, f -> event(if (f) "focus" else "blur", id) }
+            e.setOnEditorActionListener { tv, action, _ ->
+                event("submit", id, JSONObject().put("value", tv.text.toString()))
+                false  // not consumed: the IME still moves focus (Next) or closes (Done)
+            }
+            wired.add(id)
+            if (props.optBoolean("auto_focus")) focusLater(e)
+        }
         if (type == "TextInput") (v as EditText).addTextChangedListener(object : TextWatcher {
             override fun afterTextChanged(s: Editable?) {
                 if (v in suppress) return
@@ -159,9 +174,144 @@ class OpApplier(
                 "style" -> applyStyle(id, v, props.optJSONObject(k) ?: JSONObject())
             }
         }
+        if (v is EditText) applyInput(id, v, props, r)
         if (textDirty && v is TextView) { applyText(id, v); layout.markDirty(id) }
         if (a11yDirty) a11y[id] = (a11y[id] ?: JSONObject()).also { merge(it, props, r) }.also { applyA11y(v, it) }
         if (!batching) flush()
+    }
+
+    // -- TextInput ---------------------------------------------------------------------------------
+    private val inputCfg = HashMap<Int, JSONObject>()
+    private val wired = HashSet<Int>()
+
+    private fun applyInput(id: Int, e: EditText, props: JSONObject, removed: Set<String>) {
+        val cfg = inputCfg.getOrPut(id) { JSONObject() }
+        var typeDirty = false
+        for (k in removed) if (cfg.has(k)) { cfg.remove(k); typeDirty = true }
+        val it = props.keys()
+        while (it.hasNext()) {
+            val k = it.next()
+            when (k) {
+                "keyboard_type", "secure", "multiline", "auto_capitalize", "auto_correct" -> { cfg.put(k, props.get(k)); typeDirty = true }
+                "return_key" -> cfg.put(k, props.get(k)).also { typeDirty = true }
+                "max_length" -> e.filters = if (props.optInt(k, 0) > 0) arrayOf(android.text.InputFilter.LengthFilter(props.getInt(k))) else arrayOf()
+                "editable" -> { val on = props.optBoolean(k, true); e.isFocusable = on; e.isFocusableInTouchMode = on; e.isCursorVisible = on }
+                "placeholder_color" -> try { e.setHintTextColor(android.graphics.Color.parseColor(props.optString(k))) } catch (_: Exception) {}
+                "select_on_focus" -> e.setSelectAllOnFocus(props.optBoolean(k))
+                "auto_focus" -> if (props.optBoolean(k) && wired.contains(id)) focusLater(e)
+            }
+        }
+        if (typeDirty) {
+            val multi = cfg.optBoolean("multiline")
+            var t = when (cfg.optString("keyboard_type", "default")) {
+                "number" -> android.text.InputType.TYPE_CLASS_NUMBER
+                "decimal" -> android.text.InputType.TYPE_CLASS_NUMBER or android.text.InputType.TYPE_NUMBER_FLAG_DECIMAL
+                "phone" -> android.text.InputType.TYPE_CLASS_PHONE
+                "email" -> android.text.InputType.TYPE_CLASS_TEXT or android.text.InputType.TYPE_TEXT_VARIATION_EMAIL_ADDRESS
+                "url" -> android.text.InputType.TYPE_CLASS_TEXT or android.text.InputType.TYPE_TEXT_VARIATION_URI
+                else -> android.text.InputType.TYPE_CLASS_TEXT
+            }
+            if ((t and android.text.InputType.TYPE_MASK_CLASS) == android.text.InputType.TYPE_CLASS_TEXT) {
+                t = t or when (cfg.optString("auto_capitalize", "none")) {
+                    "sentences" -> android.text.InputType.TYPE_TEXT_FLAG_CAP_SENTENCES
+                    "words" -> android.text.InputType.TYPE_TEXT_FLAG_CAP_WORDS
+                    "characters" -> android.text.InputType.TYPE_TEXT_FLAG_CAP_CHARACTERS
+                    else -> 0
+                }
+                if (multi) t = t or android.text.InputType.TYPE_TEXT_FLAG_MULTI_LINE
+                if (!cfg.optBoolean("auto_correct", true)) t = t or android.text.InputType.TYPE_TEXT_FLAG_NO_SUGGESTIONS
+                if (cfg.optBoolean("secure")) t = (t and android.text.InputType.TYPE_MASK_FLAGS.inv() and android.text.InputType.TYPE_MASK_VARIATION.inv()) or
+                    android.text.InputType.TYPE_TEXT_VARIATION_PASSWORD
+            } else if (cfg.optBoolean("secure")) {
+                t = t or android.text.InputType.TYPE_NUMBER_VARIATION_PASSWORD
+            }
+            val keepSel = e.selectionStart
+            e.inputType = t
+            e.setSingleLine(!multi)
+            if (multi) e.gravity = e.gravity or Gravity.TOP
+            e.imeOptions = when (cfg.optString("return_key", "done")) {
+                "go" -> android.view.inputmethod.EditorInfo.IME_ACTION_GO
+                "next" -> android.view.inputmethod.EditorInfo.IME_ACTION_NEXT
+                "search" -> android.view.inputmethod.EditorInfo.IME_ACTION_SEARCH
+                "send" -> android.view.inputmethod.EditorInfo.IME_ACTION_SEND
+                else -> android.view.inputmethod.EditorInfo.IME_ACTION_DONE
+            }
+            if (keepSel >= 0 && keepSel <= e.text.length) e.setSelection(keepSel)
+            layout.markDirty(id)
+        }
+    }
+
+    private fun focusLater(e: EditText) {
+        e.post {
+            e.requestFocus()
+            (ctx.getSystemService(Context.INPUT_METHOD_SERVICE) as android.view.inputmethod.InputMethodManager)
+                .showSoftInput(e, 0)
+        }
+    }
+
+    // -- native modules ----------------------------------------------------------------------------
+    private fun reply(id: Int, value: Any?, error: String? = null) {
+        val p = JSONObject()
+        if (error != null) p.put("error", error) else p.put("value", value ?: JSONObject.NULL)
+        event("call_result", id, p)
+    }
+
+    private fun call(id: Int, module: String, method: String, args: JSONArray, wantReply: Boolean) {
+        try {
+            val out: Any? = when ("$module.$method") {
+                "Keyboard.dismiss" -> {
+                    val act = ctx as? android.app.Activity
+                    val f = act?.currentFocus
+                    if (f != null) {
+                        (ctx.getSystemService(Context.INPUT_METHOD_SERVICE) as android.view.inputmethod.InputMethodManager)
+                            .hideSoftInputFromWindow(f.windowToken, 0)
+                        f.clearFocus()
+                    }
+                    null
+                }
+                "Clipboard.set_string" -> {
+                    (ctx.getSystemService(Context.CLIPBOARD_SERVICE) as android.content.ClipboardManager)
+                        .setPrimaryClip(android.content.ClipData.newPlainText("pyxpo", args.optString(0)))
+                    null
+                }
+                "Clipboard.get_string" -> {
+                    val c = (ctx.getSystemService(Context.CLIPBOARD_SERVICE) as android.content.ClipboardManager).primaryClip
+                    if (c != null && c.itemCount > 0) c.getItemAt(0).coerceToText(ctx).toString() else ""
+                }
+                "Linking.open_url" -> {
+                    ctx.startActivity(android.content.Intent(android.content.Intent.ACTION_VIEW, android.net.Uri.parse(args.optString(0)))
+                        .addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK))
+                    null
+                }
+                "Vibration.vibrate" -> {
+                    val ms = args.optLong(0, 50)
+                    if (Build.VERSION.SDK_INT >= 31) {
+                        (ctx.getSystemService(Context.VIBRATOR_MANAGER_SERVICE) as android.os.VibratorManager).defaultVibrator
+                            .vibrate(android.os.VibrationEffect.createOneShot(ms, android.os.VibrationEffect.DEFAULT_AMPLITUDE))
+                    } else {
+                        @Suppress("DEPRECATION")
+                        (ctx.getSystemService(Context.VIBRATOR_SERVICE) as android.os.Vibrator).vibrate(ms)
+                    }
+                    null
+                }
+                "Alert.alert" -> {
+                    val labels = args.optJSONArray(2) ?: JSONArray().put("OK")
+                    val b = android.app.AlertDialog.Builder(ctx).setTitle(args.optString(0)).setMessage(args.optString(1))
+                    var done = false
+                    fun fin(i: Int) { if (!done) { done = true; if (wantReply) reply(id, i) } }
+                    if (labels.length() > 0) b.setPositiveButton(labels.optString(0)) { _, _ -> fin(0) }
+                    if (labels.length() > 1) b.setNegativeButton(labels.optString(1)) { _, _ -> fin(1) }
+                    if (labels.length() > 2) b.setNeutralButton(labels.optString(2)) { _, _ -> fin(2) }
+                    b.setOnCancelListener { fin(-1) }
+                    b.show()
+                    return
+                }
+                else -> { if (wantReply) reply(id, null, "unknown native call $module.$method"); return }
+            }
+            if (wantReply) reply(id, out)
+        } catch (e: Exception) {
+            if (wantReply) reply(id, null, e.toString())
+        }
     }
 
     private val a11y = HashMap<Int, JSONObject>()
@@ -314,7 +464,7 @@ class OpApplier(
 
     private fun delete(id: Int) {
         val v = views.remove(id)
-        touching.remove(id); a11y.remove(id)
+        touching.remove(id); a11y.remove(id); inputCfg.remove(id); wired.remove(id)
         texts.remove(id); spans.remove(id)
         (v?.parent as? ViewGroup)?.removeView(v)
         if (types.remove(id) == "ScrollView") layout.delete(id or CONTENT)
@@ -473,10 +623,19 @@ class OpApplier(
         flush()
     }
 
+    private var insets = IntArray(4)  // px: left, top, right, bottom
+    private var kbPx = 0
+
+    /** System bar / cutout insets and keyboard height (px) from the activity. */
+    fun setInsets(l: Int, t: Int, r: Int, b: Int, kb: Int) {
+        insets = intArrayOf(l, t, r, b); kbPx = kb
+        sendEnv()
+    }
+
     /** Sends the current window/scale/color scheme to Python when it changed. */
     fun sendEnv() {
         if (rootW <= 0) return
-        val j = envJson(ctx, rootW, rootH)
+        val j = envJson(ctx, rootW, rootH, insets, kbPx)
         j.remove("os")
         val s = j.toString()
         if (s == sentEnv) return

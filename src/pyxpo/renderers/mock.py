@@ -3,7 +3,7 @@ from __future__ import annotations
 from typing import Any, Dict, List, Optional
 
 from ..channel import LocalChannel
-from ..ops import Create, Delete, Insert, Remove, Update, event_to_json, from_json
+from ..ops import Call, Create, Delete, Insert, Remove, Update, event_to_json, from_json
 
 
 class MockError(RuntimeError):
@@ -35,6 +35,7 @@ class MockRenderer:
         self.root = Node(1, "Root")
         self.nodes: Dict[int, Node] = {1: self.root}
         self.batches = 0
+        self.calls: List[Call] = []
         channel.set_native_handler(self.apply_json)
 
     def apply_json(self, payload: str) -> None:
@@ -81,6 +82,8 @@ class MockRenderer:
             if n.parent is not None:
                 raise MockError("delete of attached node %d" % op.id)
             del self.nodes[op.id]
+        elif isinstance(op, Call):
+            self.calls.append(op)
         else:
             raise MockError("unknown op %r" % (op,))
 

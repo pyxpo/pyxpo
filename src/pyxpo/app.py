@@ -8,6 +8,7 @@ import traceback
 from typing import Any, Callable, Dict, List, Optional
 
 from . import env as env_mod
+from . import modules as modules_mod
 from .channel import Channel, LocalChannel
 from .component import Component, component
 from .element import Element
@@ -57,6 +58,9 @@ class App:
             except ValueError:
                 pass
         self.broken = False
+        self._call_id = 0
+        self._pending: Dict[int, Any] = {}
+        modules_mod.set_app(self)
         self._committed: Dict[int, int] = {}  # native node id -> parent id (0 = detached)
         self._error_shown = False
         self.set_root(root, **props)
@@ -117,6 +121,15 @@ class App:
                 self.on_error(e)
             self._request_flush()
             return
+        if msg.get("event") == "call_result":
+            fut = self._pending.pop(msg["id"], None)
+            pl = msg.get("payload") or {}
+            if fut is not None and not fut.done():
+                if pl.get("error"):
+                    fut.set_exception(RuntimeError(str(pl["error"])))
+                else:
+                    fut.set_result(pl.get("value"))
+            return
         try:
             self.rec.dispatch(msg["id"], msg["event"], msg.get("payload"))
         except Exception as e:  # noqa: BLE001
@@ -147,6 +160,20 @@ class App:
             if self.loop is None:
                 raise
             self.on_error(e)
+
+    def call(self, module: str, method: str, *args: Any, reply: bool = False) -> Any:
+        """Call a native module. Returns an asyncio future when `reply` is set, else None."""
+        from .ops import Call
+        self._call_id += 1
+        cid = self._call_id
+        fut = None
+        if reply:
+            if self.loop is None:
+                raise RuntimeError("reply calls need an asyncio loop")
+            fut = self.loop.create_future()
+            self._pending[cid] = fut
+        self._send([Call(cid, module, method, list(args), reply)])
+        return fut
 
     def _send(self, ops: list) -> None:
         if ops:

@@ -83,3 +83,40 @@ def Checkbox(value: bool = False, on_value_change: Optional[Callable[[bool], Any
                      disabled=disabled, style=[box, style],
                      on_press=lambda: on_value_change(not value) if on_value_change else None,
                      **{"accessibility_role": "checkbox", "accessibility_state": {"checked": bool(value)}, **_a11y(props)})
+
+
+@component
+def SafeArea(*children: Any, edges: Any = ("top", "right", "bottom", "left"), avoid_keyboard: bool = False,
+             style: Any = None, **props: Any):
+    """View padded by the system insets (status bar, notch, home indicator). With `avoid_keyboard` the bottom
+    padding grows to the keyboard height while the keyboard is open."""
+    from .env import use_keyboard, use_safe_area_insets
+    ins = use_safe_area_insets()
+    kb = use_keyboard()
+    pad = {e: ins[e] for e in edges}
+    if avoid_keyboard and "bottom" in pad:
+        pad["bottom"] = max(pad["bottom"], kb["height"])
+    base = {"flex": 1, **{"padding_" + k: v for k, v in pad.items()}}
+    # explicit padding in `style` is added on top of the inset
+    st = flatten(style)
+    for k, v in pad.items():
+        key = "padding_" + k
+        extra = st.get(key, st.get("padding_vertical" if k in ("top", "bottom") else "padding_horizontal",
+                                   st.get("padding", 0)))
+        if isinstance(extra, (int, float)):
+            base[key] = v + extra
+    st = {**st, **base}
+    for k in ("padding", "padding_vertical", "padding_horizontal"):
+        st.pop(k, None)
+    return View(*children, style=st, **props)
+
+
+@component
+def KeyboardAvoidingView(*children: Any, offset: float = 0.0, style: Any = None, **props: Any):
+    """View whose bottom padding follows the keyboard height (minus `offset`)."""
+    from .env import use_keyboard
+    kb = use_keyboard()
+    st = flatten(style)
+    extra = st.get("padding_bottom", st.get("padding_vertical", st.get("padding", 0)))
+    st = {**st, "padding_bottom": max(0.0, kb["height"] - offset) + (extra if isinstance(extra, (int, float)) else 0)}
+    return View(*children, style=st, **props)
