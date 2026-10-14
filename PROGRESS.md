@@ -18,3 +18,10 @@
 - Config: `wheel_index = [url|dir]` / env PYXPO_WHEEL_INDEX -> pip --extra-index-url/--find-links (config.pip_index_args). Chaquopy no longer needed.
 - Files: wheels/{build.py,check_wheel.py,recipes/numpy.toml,meson-android.ini}. 36 tests pass.
 - Next: CI workflow + index (S4), iOS wheels (S5), OpenBLAS/Pillow/litert (S6), then step 23 (FlatList, Switch, navigation, flexbox). Opus diff review pending.
+
+## UI system plan (opus design, decided; own C flexbox instead of Yoga since user wants custom)
+Units dp/pt everywhere; native converts with density. One shared C layout engine (native/common/pyxpo_layout.c, own flexbox, tree API px_tree_*), appliers only place frames + measure text + paint box (radius/border/gradient/shadow/transform). Python: style.py (StyleSheet, color->ARGB int, shorthands), env.py (Dimensions, PixelRatio, Platform, use_window_dimensions, use_color_scheme, safe area, keyboard, breakpoints), op protocol v2 (hello, style diff, animate, call, measure; events env/layout/scroll/press_in/out/change/submit...).
+Milestones: 1 protocol v2+style+env (py) | 2 C layout core + ctypes tests | 3 Android on core | 4 iOS on core | 5 box painter | 6 Text/fonts | 7 Pressable+Button/Checkbox/Switch+a11y | 8 TextInput/keyboard/SafeArea/call modules | 9 Animated | 10 ScrollView/FlatList/Image | 11 Modal/Slider/gestures | 12 navigation | 13 theme/UI kit/review | 14 perf.
+Also pending: generic wheels (test Pillow, sdist auto-build, CI+index, iOS wheels), own iOS deps, verify gaps.
+
+- UI M1 DONE (py): style.py (StyleSheet, flatten/expand/normalize, parse_color->ARGB), env.py (Env store, Dimensions, PixelRatio, Platform, use_window_dimensions/color_scheme/safe_area_insets/keyboard/orientation/breakpoint/responsive), App handles `env` event (id 0). Wire still legacy (style dict w/ string colors, no hello op): switch to normalize()+hello v2 together with M3 (Android on C layout core). 42 tests pass.

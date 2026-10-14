@@ -1,0 +1,210 @@
+"""Style handling: StyleSheet, style flattening, shorthand expansion, color parsing.
+
+Sizes are dp (Android) / pt (iOS). Native code converts with the screen density.
+"""
+from __future__ import annotations
+
+import re
+import sys
+from typing import Any, Dict, Iterable, List, Optional
+
+# shorthand -> the longhand keys it expands to (in order)
+_EDGES = ("top", "right", "bottom", "left")
+_EDGE_FAMILIES = ("margin", "padding")
+_CORNERS = ("top_left", "top_right", "bottom_right", "bottom_left")
+
+# every key the layout/painter understands; unknown keys warn in dev
+KNOWN_KEYS = frozenset("""
+display position top right bottom left start end z_index overflow
+width height min_width min_height max_width max_height aspect_ratio
+flex flex_grow flex_shrink flex_basis flex_direction flex_wrap
+justify_content align_items align_self align_content gap row_gap column_gap
+margin margin_top margin_right margin_bottom margin_left margin_horizontal margin_vertical
+padding padding_top padding_right padding_bottom padding_left padding_horizontal padding_vertical
+border_width border_top_width border_right_width border_bottom_width border_left_width
+border_color border_top_color border_right_color border_bottom_color border_left_color
+border_radius border_top_left_radius border_top_right_radius border_bottom_right_radius border_bottom_left_radius
+background_color opacity
+shadow_color shadow_offset_x shadow_offset_y shadow_radius shadow_opacity elevation
+transform rotate scale scale_x scale_y translate_x translate_y
+color font_size font_weight font_style font_family line_height letter_spacing text_align
+text_decoration text_transform number_of_lines
+""".split())
+
+NAMED_COLORS: Dict[str, int] = {
+    "transparent": 0x00000000, "black": 0xFF000000, "white": 0xFFFFFFFF, "red": 0xFFFF0000,
+    "green": 0xFF008000, "blue": 0xFF0000FF, "yellow": 0xFFFFFF00, "cyan": 0xFF00FFFF,
+    "magenta": 0xFFFF00FF, "gray": 0xFF808080, "grey": 0xFF808080, "orange": 0xFFFFA500,
+    "purple": 0xFF800080, "pink": 0xFFFFC0CB, "brown": 0xFFA52A2A, "lime": 0xFF00FF00,
+    "navy": 0xFF000080, "teal": 0xFF008080, "silver": 0xFFC0C0C0, "maroon": 0xFF800000,
+}
+
+_RGB = re.compile(r"^(rgba?)\(\s*([^)]*)\)$", re.I)
+
+
+class StyleError(ValueError):
+    pass
+
+
+def parse_color(value: Any) -> int:
+    """Return color as 0xAARRGGBB int. Accepts int, #rgb, #rgba, #rrggbb, #rrggbbaa, rgb(), rgba(), names."""
+    if isinstance(value, bool):
+        raise StyleError("bad color %r" % (value,))
+    if isinstance(value, int):
+        if 0 <= value <= 0xFFFFFFFF:
+            return value
+        raise StyleError("color int out of range: %r" % (value,))
+    if isinstance(value, (tuple, list)) and len(value) in (3, 4):
+        r, g, b = (_chan(c) for c in value[:3])
+        a = _alpha(value[3]) if len(value) == 4 else 255
+        return (a << 24) | (r << 16) | (g << 8) | b
+    if not isinstance(value, str):
+        raise StyleError("bad color %r" % (value,))
+    s = value.strip().lower()
+    if s in NAMED_COLORS:
+        return NAMED_COLORS[s]
+    if s.startswith("#"):
+        h = s[1:]
+        if not re.fullmatch(r"[0-9a-f]+", h):
+            raise StyleError("bad color %r" % value)
+        if len(h) in (3, 4):
+            h = "".join(c * 2 for c in h)
+        if len(h) == 6:
+            return 0xFF000000 | int(h, 16)
+        if len(h) == 8:  # CSS order #rrggbbaa
+            v = int(h, 16)
+            return ((v & 0xFF) << 24) | (v >> 8)
+        raise StyleError("bad color %r" % value)
+    m = _RGB.match(s)
+    if m:
+        parts = [p.strip() for p in re.split(r"[,\s/]+", m.group(2).strip()) if p.strip()]
+        if len(parts) not in (3, 4):
+            raise StyleError("bad color %r" % value)
+        r, g, b = (_chan(p) for p in parts[:3])
+        a = _alpha(parts[3]) if len(parts) == 4 else 255
+        return (a << 24) | (r << 16) | (g << 8) | b
+    raise StyleError("bad color %r" % value)
+
+
+def _chan(c: Any) -> int:
+    if isinstance(c, str) and c.endswith("%"):
+        return max(0, min(255, round(float(c[:-1]) * 2.55)))
+    return max(0, min(255, int(round(float(c)))))
+
+
+def _alpha(a: Any) -> int:
+    if isinstance(a, str) and a.endswith("%"):
+        return max(0, min(255, round(float(a[:-1]) * 2.55)))
+    return max(0, min(255, int(round(float(a) * 255))))
+
+
+def flatten(style: Any) -> Dict[str, Any]:
+    """Merge nested lists/tuples of style dicts (later wins). None/False/'' entries are skipped."""
+    out: Dict[str, Any] = {}
+    _merge(out, style)
+    return out
+
+
+def _merge(out: Dict[str, Any], style: Any) -> None:
+    if style is None or style is False or style == "":
+        return
+    if isinstance(style, dict):
+        for k, v in style.items():
+            out[k] = v
+        return
+    if isinstance(style, (list, tuple)):
+        for s in style:
+            _merge(out, s)
+        return
+    raise StyleError("style must be dict, list or None, got %r" % (type(style).__name__,))
+
+
+def expand(style: Dict[str, Any]) -> Dict[str, Any]:
+    """Expand shorthands into longhand keys. Specific keys win over broader ones regardless of dict order."""
+    out: Dict[str, Any] = {}
+    # broad -> narrow so narrower keys override
+    for fam in _EDGE_FAMILIES:
+        if fam in style:
+            for e in _EDGES:
+                out["%s_%s" % (fam, e)] = style[fam]
+        if fam + "_horizontal" in style:
+            out[fam + "_left"] = out[fam + "_right"] = style[fam + "_horizontal"]
+        if fam + "_vertical" in style:
+            out[fam + "_top"] = out[fam + "_bottom"] = style[fam + "_vertical"]
+    if "border_width" in style:
+        for e in _EDGES:
+            out["border_%s_width" % e] = style["border_width"]
+    if "border_color" in style:
+        for e in _EDGES:
+            out["border_%s_color" % e] = style["border_color"]
+    if "border_radius" in style:
+        for c in _CORNERS:
+            out["border_%s_radius" % c] = style["border_radius"]
+    if "gap" in style:
+        out["row_gap"] = out["column_gap"] = style["gap"]
+    if "flex" in style:
+        f = style["flex"]
+        if isinstance(f, (int, float)) and not isinstance(f, bool):
+            out["flex_grow"] = max(f, 0)
+            out["flex_shrink"] = 1 if f > 0 else 0
+            out["flex_basis"] = 0 if f > 0 else "auto"
+    for k, v in style.items():
+        if k in ("margin", "padding", "border_width", "border_color", "border_radius", "gap", "flex") \
+                or k.endswith(("_horizontal", "_vertical")) and k.rsplit("_", 1)[0] in _EDGE_FAMILIES:
+            continue
+        out[k] = v
+    return out
+
+
+def normalize(style: Any, *, warn: bool = False) -> Dict[str, Any]:
+    """flatten + expand + colors to ARGB ints. Returns a plain dict ready for the wire (protocol v2)."""
+    flat = expand(flatten(style))
+    out: Dict[str, Any] = {}
+    for k, v in flat.items():
+        if v is None:
+            continue
+        if warn and k not in KNOWN_KEYS and k not in out:
+            _warn("unknown style key %r" % k)
+        if k == "color" or k == "background_color" or k.endswith("_color"):
+            v = parse_color(v)
+        out[k] = v
+    return out
+
+
+def diff(old: Dict[str, Any], new: Dict[str, Any]):
+    """Return (changed, removed) between two normalized style dicts."""
+    changed = {k: v for k, v in new.items() if k not in old or old[k] != v}
+    removed = [k for k in old if k not in new]
+    return changed, removed
+
+
+_warned: set = set()
+
+
+def _warn(msg: str) -> None:
+    if msg not in _warned:
+        _warned.add(msg)
+        sys.stderr.write("[pyxpo] style warning: %s\n" % msg)
+
+
+class StyleSheet:
+    """Like React Native's StyleSheet: validates once, returns plain dicts."""
+
+    @staticmethod
+    def create(styles: Dict[str, Dict[str, Any]]) -> Dict[str, Dict[str, Any]]:
+        out: Dict[str, Dict[str, Any]] = {}
+        for name, s in styles.items():
+            normalize(s, warn=True)  # validate (raises StyleError on bad values)
+            out[name] = dict(s)
+        return out
+
+    @staticmethod
+    def flatten(style: Any) -> Dict[str, Any]:
+        return flatten(style)
+
+    @staticmethod
+    def compose(a: Any, b: Any) -> List[Any]:
+        return [a, b]
+
+    absolute_fill: Dict[str, Any] = {"position": "absolute", "top": 0, "right": 0, "bottom": 0, "left": 0}
+    hairline_width = 1.0 / 3  # refined natively via PixelRatio

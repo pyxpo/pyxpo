@@ -7,6 +7,7 @@ import sys
 import traceback
 from typing import Any, Callable, Dict, List, Optional
 
+from . import env as env_mod
 from .channel import Channel, LocalChannel
 from .component import Component, component
 from .element import Element
@@ -48,6 +49,8 @@ class App:
             type(e), e, e.__traceback__, file=sys.stderr)
         self.rec = Reconciler(self._schedule)
         self.rec.loop = loop
+        self.env = self.rec.env
+        env_mod.set_current(self.env)
         self.broken = False
         self._committed: Dict[int, int] = {}  # native node id -> parent id (0 = detached)
         self._error_shown = False
@@ -102,6 +105,13 @@ class App:
         if self.broken:
             return
         msg = json.loads(payload)
+        if msg.get("event") == "env":
+            try:
+                self.env.update(msg.get("payload") or {})
+            except Exception as e:  # noqa: BLE001
+                self.on_error(e)
+            self._request_flush()
+            return
         try:
             self.rec.dispatch(msg["id"], msg["event"], msg.get("payload"))
         except Exception as e:  # noqa: BLE001
@@ -180,6 +190,7 @@ class App:
         old = self.rec
         new = Reconciler(self._schedule)
         new.loop = self.loop
+        new.env = self.env
         new._next_id = old._next_id
         new.render(self._root_element)  # may raise: old tree stays untouched
         ops: list = [Remove(p, n) for n, p in self._committed.items() if p]

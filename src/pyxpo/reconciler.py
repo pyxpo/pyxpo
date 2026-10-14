@@ -4,7 +4,9 @@ import inspect
 from typing import Any, Callable, Dict, List, Optional, Set, Tuple
 
 from .element import Element, flatten
+from . import env as _env_mod
 from .hooks import _same, render_with_hooks
+from .style import flatten as flatten_style
 from .ops import Create, Delete, Insert, Op, Remove, Update
 
 
@@ -43,6 +45,7 @@ class Reconciler:
     def __init__(self, schedule: Optional[Callable[[Fiber], None]] = None) -> None:
         self._schedule = schedule
         self.loop: Any = None
+        self.env = _env_mod.Env()
         self.ops: List[Op] = []
         self.pending_effects: List[Tuple[Fiber, Any, Callable[[], Any]]] = []
         self.handlers: Dict[Tuple[int, str], Callable[..., Any]] = {}
@@ -112,6 +115,8 @@ class Reconciler:
         wire: Dict[str, Any] = {}
         events: Dict[str, Callable[..., Any]] = {}
         for k, v in props.items():
+            if k == "style" and isinstance(v, (list, tuple)):
+                v = flatten_style(v)
             if callable(v):
                 events[k[3:] if k.startswith("on_") else k] = v
                 wire[k] = True
