@@ -4,7 +4,6 @@ import android.content.Context
 import android.content.res.ColorStateList
 import android.content.res.Configuration
 import android.graphics.Typeface
-import android.graphics.drawable.GradientDrawable
 import android.os.Build
 import android.text.Editable
 import android.text.TextUtils
@@ -228,23 +227,54 @@ class OpApplier(
             pads[id] = p
             v.setPadding(p[0], p[1], p[2], p[3])
         }
-        val r = doubleArrayOf(num(s, "border_top_left_radius"), num(s, "border_top_right_radius"),
-            num(s, "border_bottom_right_radius"), num(s, "border_bottom_left_radius"))
-        val bw = num(s, "border_top_width")
-        val hasBox = s.has("background_color") || r.any { it > 0 } || bw > 0
+        paintBox(id, v, s)
+        val clip = s.optString("overflow") == "hidden"
+        v.clipToOutline = clip && id in painted
+        (v as? PxGroup)?.clipChildren = clip
+        v.alpha = num(s, "opacity", 1.0).toFloat().coerceIn(0f, 1f)
+        paintShadow(v, s)
+        v.rotation = num(s, "rotate").toFloat()
+        v.scaleX = (num(s, "scale", 1.0) * num(s, "scale_x", 1.0)).toFloat()
+        v.scaleY = (num(s, "scale", 1.0) * num(s, "scale_y", 1.0)).toFloat()
+        v.translationX = px(num(s, "translate_x"))
+        v.translationY = px(num(s, "translate_y"))
+        if (v is TextView) paintText(id, v, s)
+    }
+
+    private fun paintBox(id: Int, v: View, s: JSONObject) {
+        val radii = floatArrayOf(px(num(s, "border_top_left_radius")), px(num(s, "border_top_right_radius")),
+            px(num(s, "border_bottom_right_radius")), px(num(s, "border_bottom_left_radius")))
+        val sides = arrayOf("left", "top", "right", "bottom")
+        val bw = FloatArray(4) { px(num(s, "border_${sides[it]}_width")).let { w -> if (w > 0f) max(1f, w.roundToInt().toFloat()) else 0f } }
+        val bc = IntArray(4) { if (s.has("border_${sides[it]}_color")) col(s, "border_${sides[it]}_color") else 0xFF000000.toInt() }
+        val grad = s.optJSONObject("linear_gradient")
+        val hasBox = s.has("background_color") || grad != null || radii.any { it > 0f } || bw.any { it > 0f }
         if (hasBox) {
-            val g = GradientDrawable()
-            g.setColor(if (s.has("background_color")) col(s, "background_color") else 0)
-            g.cornerRadii = floatArrayOf(px(r[0]), px(r[0]), px(r[1]), px(r[1]), px(r[2]), px(r[2]), px(r[3]), px(r[3]))
-            if (bw > 0) g.setStroke(max(1, (bw * d).roundToInt()),
-                if (s.has("border_top_color")) col(s, "border_top_color") else 0xFF000000.toInt())
-            v.background = g
+            var colors: IntArray? = null
+            var stops: FloatArray? = null
+            if (grad != null) {
+                val c = grad.getJSONArray("colors"); val st = grad.getJSONArray("stops")
+                colors = IntArray(c.length()) { c.getLong(it).toInt() }
+                stops = FloatArray(st.length()) { st.getDouble(it).toFloat() }
+            }
+            v.background = BoxDrawable(BoxSpec(if (s.has("background_color")) col(s, "background_color") else null,
+                grad?.optDouble("angle", 180.0)?.toFloat() ?: 0f, colors, stops, radii, bw, bc))
             painted.add(id)
         } else if (painted.remove(id)) v.background = null
-        v.clipToOutline = s.optString("overflow") == "hidden"
-        (v as? PxGroup)?.clipChildren = s.optString("overflow") == "hidden"
-        v.alpha = num(s, "opacity", 1.0).toFloat().coerceIn(0f, 1f)
-        if (v is TextView) paintText(id, v, s)
+    }
+
+    /** Shadow via elevation: radius/offset map to elevation, colour to the shadow tint (API 28+). */
+    private fun paintShadow(v: View, s: JSONObject) {
+        val op = num(s, "shadow_opacity", if (s.has("shadow_radius") || s.has("shadow_color")) 1.0 else 0.0)
+        val elev = max(num(s, "elevation"), if (op > 0.0) num(s, "shadow_radius") else 0.0)
+        v.elevation = (elev * d).toFloat()
+        if (Build.VERSION.SDK_INT >= 28) {
+            val base = if (s.has("shadow_color")) col(s, "shadow_color") else 0xFF000000.toInt()
+            val a = ((base ushr 24) * op.coerceIn(0.0, 1.0)).roundToInt()
+            val c = (a shl 24) or (base and 0xFFFFFF)
+            v.outlineAmbientShadowColor = c
+            v.outlineSpotShadowColor = c
+        }
     }
 
     private fun paintText(id: Int, v: TextView, s: JSONObject) {

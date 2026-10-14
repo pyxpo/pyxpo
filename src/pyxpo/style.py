@@ -24,7 +24,7 @@ padding padding_top padding_right padding_bottom padding_left padding_horizontal
 border_width border_top_width border_right_width border_bottom_width border_left_width
 border_color border_top_color border_right_color border_bottom_color border_left_color
 border_radius border_top_left_radius border_top_right_radius border_bottom_right_radius border_bottom_left_radius
-background_color opacity
+background_color linear_gradient opacity
 shadow_color shadow_offset_x shadow_offset_y shadow_radius shadow_opacity elevation
 transform rotate scale scale_x scale_y translate_x translate_y
 color font_size font_weight font_style font_family line_height letter_spacing text_align
@@ -167,8 +167,24 @@ def normalize(style: Any, *, warn: bool = False) -> Dict[str, Any]:
             _warn("unknown style key %r" % k)
         if k == "color" or k == "background_color" or k.endswith("_color"):
             v = parse_color(v)
+        elif k == "linear_gradient":
+            v = _gradient(v)
         out[k] = v
     return out
+
+
+def _gradient(g: Any) -> Dict[str, Any]:
+    """{"angle": deg (0 = to top, 90 = to right, 180 = to bottom, default), "colors": [...], "stops": [0..1]}."""
+    if not isinstance(g, dict) or not isinstance(g.get("colors"), (list, tuple)) or len(g["colors"]) < 2:
+        raise StyleError("linear_gradient needs a dict with at least 2 colors")
+    colors = [parse_color(c) for c in g["colors"]]
+    stops = g.get("stops")
+    if stops is None:
+        n = len(colors)
+        stops = [i / (n - 1) for i in range(n)]
+    elif len(stops) != len(colors):
+        raise StyleError("linear_gradient stops must match colors")
+    return {"angle": float(g.get("angle", 180)), "colors": colors, "stops": [float(x) for x in stops]}
 
 
 def diff(old: Dict[str, Any], new: Dict[str, Any]):

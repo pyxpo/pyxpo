@@ -10,6 +10,7 @@ final class OpApplier {
     private var types: [Int: String] = [:]
     private var styles: [Int: [String: Any]] = [:]
     private var pads: [Int: UIEdgeInsets] = [:]
+    private var boxes: [Int: BoxLayer] = [:]
     private var propIds: [String: Int32] = [:]
     private var tree: OpaquePointer!
     private let root = PxRoot()
@@ -175,6 +176,7 @@ final class OpApplier {
         px_node_delete(tree, Int32(id))
         styles.removeValue(forKey: id)
         pads.removeValue(forKey: id)
+        boxes.removeValue(forKey: id)
     }
 
     // -- style ---------------------------------------------------------------------------------------
@@ -226,16 +228,58 @@ final class OpApplier {
             (v as? PxTextField)?.insets = p
             (v as? UIButton)?.contentEdgeInsets = p
         }
-        v.backgroundColor = col(s, "background_color") ?? .clear
-        let r = num(s, "border_top_left_radius")
-        v.layer.cornerRadius = r
-        let bw = num(s, "border_top_width")
-        v.layer.borderWidth = bw
-        v.layer.borderColor = (col(s, "border_top_color") ?? .black).cgColor
-        let clip = (s["overflow"] as? String) == "hidden"
-        v.clipsToBounds = clip
+        paintBox(id, v, s)
         v.alpha = min(max(num(s, "opacity", 1), 0), 1)
+        let sc = num(s, "scale", 1)
+        v.transform = CGAffineTransform(translationX: num(s, "translate_x"), y: num(s, "translate_y"))
+            .rotated(by: num(s, "rotate") * .pi / 180)
+            .scaledBy(x: sc * num(s, "scale_x", 1), y: sc * num(s, "scale_y", 1))
         paintText(v, s)
+    }
+
+    private func paintBox(_ id: Int, _ v: UIView, _ s: [String: Any]) {
+        var spec = BoxSpec()
+        spec.bg = col(s, "background_color")
+        spec.radii = ["top_left", "top_right", "bottom_right", "bottom_left"].map { num(s, "border_" + $0 + "_radius") }
+        let sides = ["left", "top", "right", "bottom"]
+        spec.bw = sides.map { num(s, "border_" + $0 + "_width") }
+        spec.bc = sides.map { col(s, "border_" + $0 + "_color") ?? .black }
+        spec.clip = (s["overflow"] as? String) == "hidden"
+        if let g = s["linear_gradient"] as? [String: Any], let cs = g["colors"] as? [NSNumber],
+           let st = g["stops"] as? [NSNumber] {
+            spec.gradColors = cs.map { Self.color($0.uint32Value) }
+            spec.gradStops = st.map { CGFloat(truncating: $0) }
+            spec.gradAngle = CGFloat(truncating: (g["angle"] as? NSNumber) ?? 180)
+        }
+        let op = num(s, "shadow_opacity", s["shadow_radius"] != nil || s["shadow_color"] != nil ? 1 : 0)
+        let elev = num(s, "elevation")
+        let L = v.layer
+        L.shadowColor = (col(s, "shadow_color") ?? .black).cgColor
+        L.shadowOpacity = Float(min(max(op > 0 || elev > 0 ? max(op, elev > 0 ? 0.25 : 0) : 0, 0), 1))
+        L.shadowRadius = max(num(s, "shadow_radius"), elev)
+        L.shadowOffset = CGSize(width: num(s, "shadow_offset_x"), height: num(s, "shadow_offset_y") + (elev > 0 && s["shadow_offset_y"] == nil ? elev / 2 : 0))
+        if spec.hasBox || L.shadowOpacity > 0 || spec.clip {
+            let b = boxes[id] ?? { let n = BoxLayer(); v.layer.insertSublayer(n, at: 0); boxes[id] = n; return n }()
+            b.spec = spec
+            layoutBox(id, v)
+        } else if let b = boxes.removeValue(forKey: id) {
+            b.removeFromSuperlayer()
+            v.layer.shadowPath = nil
+            v.layer.mask = nil
+        }
+        v.clipsToBounds = spec.clip && !spec.radii.contains { $0 > 0 }
+    }
+
+    /// Re-draw the box under the view after its size or style changed.
+    private func layoutBox(_ id: Int, _ v: UIView) {
+        guard let b = boxes[id] else { return }
+        let r = CGRect(origin: .zero, size: v.bounds.size)
+        b.update(r)
+        if v.layer.shadowOpacity > 0 { v.layer.shadowPath = b.outerPath(r).cgPath } else { v.layer.shadowPath = nil }
+        if b.spec.clip && b.spec.radii.contains(where: { $0 > 0 }) {
+            let m = CAShapeLayer(); m.path = b.outerPath(r).cgPath
+            v.layer.mask = m
+        } else { v.layer.mask = nil }
     }
 
     private static func weight(_ w: Any?) -> UIFont.Weight {
@@ -350,7 +394,12 @@ final class OpApplier {
                     sh.contentSize = r.size
                 }
             } else {
-                views[id]?.frame = r
+                if let v = views[id] {
+                    // bounds + center, not frame: frame is undefined under a transform
+                    v.bounds = CGRect(origin: v.bounds.origin, size: r.size)
+                    v.center = CGPoint(x: r.midX, y: r.midY)
+                    layoutBox(id, v)
+                }
             }
         }
     }

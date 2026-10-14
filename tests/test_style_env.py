@@ -100,3 +100,12 @@ def test_wire_v2_normalizes_style(monkeypatch):
     ops = [o for batch in ch.sent for o in json.loads(batch)]
     st = [o for o in ops if o["op"] == "create"][0]["props"]["style"]
     assert st["background_color"] == 0xFFFF0000 and st["padding_left"] == 4 and "padding" not in st
+
+
+def test_linear_gradient_normalized():
+    from pyxpo.style import StyleError, normalize
+    g = normalize({"linear_gradient": {"angle": 90, "colors": ["red", "#0000ff"]}})["linear_gradient"]
+    assert g == {"angle": 90.0, "colors": [0xFFFF0000, 0xFF0000FF], "stops": [0.0, 1.0]}
+    import pytest
+    with pytest.raises(StyleError):
+        normalize({"linear_gradient": {"colors": ["red"]}})
