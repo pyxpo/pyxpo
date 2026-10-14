@@ -132,7 +132,9 @@ def simulator() -> Dict[str, str]:
         raise BuildError("no iPhone simulator found; install one in Xcode")
     if dev.get("state") != "Booted":
         _run(["xcrun", "simctl", "boot", dev["udid"]])
-    subprocess.run(["open", "-a", "Simulator"], check=False)
+    # Show the Simulator window when the app exists; a headless simulator is fine without it.
+    if subprocess.run(["open", "-Ra", "Simulator"], capture_output=True).returncode == 0:
+        subprocess.run(["open", "-a", "Simulator"], check=False)
     return dev
 
 

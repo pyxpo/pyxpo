@@ -25,6 +25,10 @@ class SceneDelegate: UIResponder, UIWindowSceneDelegate {
         vc.view.backgroundColor = .white
         let w = UIWindow(windowScene: ws)
         w.rootViewController = vc
+        #if DEBUG
+        // The simulator ignores its own dark setting under automation; this forces the trait so the theme path can be tested.
+        if let m = ProcessInfo.processInfo.environment["PYXPO_APPEARANCE"] { w.overrideUserInterfaceStyle = m == "dark" ? .dark : .light }
+        #endif
         w.makeKeyAndVisible()
         window = w
 
@@ -89,7 +93,7 @@ final class PxRootViewController: UIViewController {
         for p in presses {
             guard let k = p.key, k.charactersIgnoringModifiers.lowercased() == "r" else { continue }
             let now = Date()
-            if k.modifierFlags.contains(.command) || now.timeIntervalSince(lastR) < 0.5 {
+            if k.modifierFlags.contains(.command) || now.timeIntervalSince(lastR) < 0.8 {
                 lastR = .distantPast
                 onDevReload?()
                 return

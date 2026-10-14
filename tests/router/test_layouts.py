@@ -106,3 +106,13 @@ def test_deep_link_url_event_and_initial_url(tmp_app, monkeypatch):
     monkeypatch.setenv("PYXPO_ENV", json.dumps({"initial_url": "myapp://details/3"}))
     app2, r2 = mount(d)
     assert "id=3" in r2.texts()
+
+
+def test_pressable_derives_accessibility_label_from_text():
+    from pyxpo import Pressable, Text, View, create_app
+    ch = LocalChannel()
+    r = MockRenderer(ch)
+    create_app(lambda: View(Pressable(Text("Save"), Text("now"), on_press=lambda: None),
+                            Pressable(Text("x"), accessibility_label="Custom", on_press=lambda: None)), ch)
+    labels = [n.props.get("accessibility_label") for n in r.find_all("View") if n.props.get("accessibility_label")]
+    assert labels == ["Save now", "Custom"]

@@ -713,7 +713,7 @@ class OpApplier(
             override fun onInitializeAccessibilityNodeInfo(h: View, info: android.view.accessibility.AccessibilityNodeInfo) {
                 super.onInitializeAccessibilityNodeInfo(h, info)
                 when (role) {
-                    "button", "link", "imagebutton" -> info.className = "android.widget.Button"
+                    "button", "link", "imagebutton", "menuitem", "tab" -> info.className = "android.widget.Button"
                     "switch" -> info.className = "android.widget.Switch"
                     "checkbox" -> info.className = "android.widget.CheckBox"
                     "radio" -> info.className = "android.widget.RadioButton"

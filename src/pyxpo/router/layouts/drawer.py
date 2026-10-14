@@ -26,7 +26,8 @@ def DrawerItems(items: Any = (), index: int = 0, on_select: Any = None, title: s
         on = i == index
         col = c["primary"] if on else c["text"]
         rows.append(Pressable(Text(it["label"], style={"fontSize": 15, "fontWeight": "500", "color": col}),
-                              on_press=lambda i=i: on_select(i), key=it["key"], accessibility_role="menuitem",
+                              on_press=lambda i=i: on_select(i), key=it["key"], accessibility_role="menuitem", accessibility_label=str(it["label"]),
+                              accessibility_state={"selected": on},
                               style={"paddingVertical": 12, "paddingHorizontal": 16, "marginHorizontal": 8,
                                      "borderRadius": 8, "backgroundColor": c["border"] if on else None}))
     return View(Text(title, style={"fontSize": 20, "fontWeight": "700", "padding": 16,

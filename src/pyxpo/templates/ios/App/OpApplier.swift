@@ -156,6 +156,8 @@ final class OpApplier {
             let i = UIImageView(); i.clipsToBounds = true; i.contentMode = .scaleAspectFill; v = i
         case "Path": v = PxPath()
         case "ScrollView": v = ScrollHost()
+        case "NavStack":
+            let n = PxNav(); n.onPop = { [weak self] in self?.event("pop_gesture", id) }; v = n
         default: v = PxGroup()
         }
         views[id] = v
@@ -366,7 +368,7 @@ final class OpApplier {
         v.accessibilityValue = parts.isEmpty ? nil : parts.joined(separator: ", ")
         var tr: UIAccessibilityTraits = []
         switch role {
-        case "button", "imagebutton": tr.insert(.button)
+        case "button", "imagebutton", "menuitem", "tab": tr.insert(.button)
         case "link": tr.insert(.link)
         case "header": tr.insert(.header)
         case "image": tr.insert(.image)
@@ -396,18 +398,23 @@ final class OpApplier {
         v.removeFromSuperview()
         g.insertSubview(v, at: min(index, g.subviews.count))
         if types[id] == "Modal" { g.bringSubviewToFront(v) }
+        if let n = g as? PxNav, v.superview === n { n.pushed(v) }
         px_node_remove(tree, parentNode(parent), Int32(id))
         px_node_insert(tree, parentNode(parent), Int32(id), Int32(index))
     }
 
     private func remove(_ parent0: Int, _ id: Int) {
         let parent = types[id] == "Modal" ? 1 : parent0
-        views[id]?.removeFromSuperview()
+        if let v = views[id] {
+            if let n = groupOf(parent) as? PxNav, n.popped(v) {} else { v.removeFromSuperview() }  // popping screen leaves when its animation ends
+        }
         px_node_remove(tree, parentNode(parent), Int32(id))
     }
 
     private func delete(_ id: Int) {
-        views.removeValue(forKey: id)?.removeFromSuperview()
+        if let v = views.removeValue(forKey: id) {
+            if !((v.superview as? PxNav)?.lingering.contains(v) ?? false) { v.removeFromSuperview() }
+        }
         binds.removeValue(forKey: id)
         layoutListeners.remove(id); imgReq.removeValue(forKey: id); touchKeys.removeValue(forKey: id)
         if types.removeValue(forKey: id) == "ScrollView" { px_node_delete(tree, Int32(id | Self.content)) }

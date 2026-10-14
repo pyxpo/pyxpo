@@ -9,6 +9,17 @@ from ._common import accessibility
 from .view import View
 
 
+def _text_of(els: Any) -> str:
+    """Concatenated text of the host Text elements under els (what a screen reader should read for a button)."""
+    parts = []
+    for e in els:
+        if getattr(e, "type", None) == "Text" and isinstance(e.props.get("text"), str):
+            parts.append(e.props["text"])
+        else:
+            parts.append(_text_of(getattr(e, "children", None) or ()))
+    return " ".join(p for p in parts if p)
+
+
 class PressableState:
     """What `Pressable` passes to `style(...)` and to function children: `state.pressed` (also `state["pressed"]`
     and plain truthiness)."""
@@ -48,6 +59,11 @@ def Pressable(*children: Any, on_press: Optional[Callable[..., Any]] = None,
     render = props.pop("children", None)  # function child: Pressable(lambda state: ...)
     kids: Any = [render(state)] if callable(render) else list(children)
     extra: Dict[str, Any] = accessibility(props)
+    if "accessibility_label" not in extra and extra.get("accessible", True) and (
+            on_press is not None or on_long_press is not None or "accessibility_role" in extra):
+        label = _text_of(kids)
+        if label:
+            extra["accessibility_label"] = label
     if disabled:
         extra["accessibility_state"] = {**extra.get("accessibility_state", {}), "disabled": True}
     else:

@@ -1,22 +1,9 @@
 # Pyxpo progress
-- Goal: from-scratch Python mobile framework (no Kivy/BeeWare/Chaquopy). See DESIGN.md, PLAN.md. Tests: `.venv/bin/pytest -q` (231 pass).
-- Env quirks: host py3.9 (core py3.9-compatible); no `timeout`; `sed -i ''`; iOS build ~10 min; no foreground sleep.
-- Infra done+committed: CPython 3.13, C bridge/flexbox, Kotlin+Swift shells, CLI, hot reload, perf pass. Android verified, iOS renders only.
+- Goal: from-scratch Python mobile framework (no Kivy/BeeWare/Chaquopy). See DESIGN.md, PLAN.md. Tests: `.venv/bin/pytest -q` (232 pass).
+- Env quirks: host py3.9; no `timeout`; `sed -i ''`; iOS build few min; no foreground sleep.
 - Rules: no Co-Authored-By/Claude attribution in commits/PRs.
-## RN-parity + expo-router milestone (UNCOMMITTED, in progress)
-- Done: components/ and apis/ packages mirror react-native (pyxpo/__init__ 93 names); old ui/widgets/navigation/kit/theme/icons removed.
-- Router done+tested: router/{discovery,matching,store,runtime,router,hooks,theme,screen,link,root,entry}, layouts/{header,slot,stack,tabs,drawer}. Entry = pyxpo.router.entry (native strings + cli switched). Legacy app/main.py still runs.
-- Examples converted to app/ routes (counter, todo, rn_style); ui_components deleted. README/DESIGN updated.
-- R9 hot reload with router DONE (Store.set_tree, App.hot_hooks, client base fix); 222 tests pass.
-- A1+A9 partial DONE: Kotlin call() TextInput focus/blur/clear/set_selection, Linking can_open_url/open_settings, Vibration pattern/cancel; manifest <queries>; android build OK (not run on device).
-- TODO: Android native A1-A9 remaining (TextInput onSelectionChange/onKeyPress, hit_slop, delay_long_press, pointer_events, RefreshControl, Text ellipsize/selectable/on_press, Image extras, StatusBar extras, Modal on_show, AppState/Linking/Vibration) then `pyxpo build android` in examples/counter + device check; D3 opus diff review; commit (plain msg).
-- Gaps: iOS Swift controls + NavStack; Modal in hidden Stack screen; render error w/o boundary leaves partial ops; real-device fps unmeasured; SectionList no sticky headers.
-- Device-verified (Android emu): Stack/Tabs/Drawer open+render, Switch, TextInput, FlatList, live hot reload, error overlay show/clear. Fixes: overlay ids must be < 2**30 (native CONTENT bit); launch() force-stops app so dev extras apply.
-- Still unverified on device: Drawer item tap, edge pan, swipe-back, route add/delete reload, deep links, new call() cases, release/API24.
-- Safe-area/gesture pass DONE: hooks Context.Consumer, SafeAreaInsets/FrameContext, use_safe_area_frame; pyxpo.safe_area (SafeAreaProvider); pyxpo.gesture_handler (Gesture.Pan/Tap/LongPress/Fling, Race/Simultaneous/Exclusive, GestureDetector); Drawer items use insets; iOS StatusBar.set_hidden. 228 tests pass. iOS tb app renders, no bottom strip seen; drawer open not tapped on iOS (no tap tool).
-- Dev reload DONE: double-R (Android debuggable, 800ms window) / Cmd+R or double-R (iOS DEBUG) -> native event dev_reload -> App.reload (re-exec modules + remount, state resets). Android emu verified (count 2 -> 0). iOS Swift written, NOT built/run. launch() uses am start -S. 229 tests pass.
-- Router auto status bar style (RouterRoot + Header set_bar_style from theme/scheme). Android emu verified: light/dark icons, Drawer open+item tap -> nested Tabs, tab switch, RR reload (resets to Home).
-- Deep links DONE: scheme <app_id>:// (Android intent-filter+onNewIntent, iOS CFBundleURLTypes+openURLContexts, DEBUG PYXPO_INITIAL_URL), router `url` event + env initial_url. iOS cold-start verified (Tabs->Two); Android/warm path not device-tested.
-- Dev server POST /reload (token header) -> client reload_all. iOS full reload VERIFIED (timestamp changed). iOS launch manual: SIMCTL_CHILD_PYXPO_DEV_URL + _TOKEN; `pyxpo run ios` prints 'Unable to find application Simulator' after build OK.
-- iOS XCUITest e2e (tests/ios_ui) PASSED on simulator: Add tap, Drawer open+item tap, Tabs switch, Cmd+R, double-R reload. Gap: Drawer item Text not exposed to accessibility (no label) - fix.
-- TODO next: Android deep link device test, release/live, real-world project, Animated audit vs RN, fps measure, Drawer/Tabs device taps, router tests, D3 review.
+- Done+committed earlier: CPython 3.13, C bridge/flexbox, Kotlin+Swift shells, CLI, hot reload, RN-parity components/apis, expo-router (Stack/Tabs/Drawer), safe-area, gesture handler, deep links, dev reload (RR/Cmd+R).
+- This pass (iOS stable): a11y labels+roles for Drawer/Tabs/Pressable (iOS+Android), native iOS PxNav (push/pop animation, left-edge swipe-back via pop_gesture), PYXPO_APPEARANCE debug override, double-R window 0.8s, run ios Simulator message fix.
+- iOS XCUITest (tests/ios_ui/E2E.swift): 5/5 pass on sim: Flow, Cmd+R/RR reload, Stack push + swipe-back pop + edge drawer, dark/light theme pixel check, warm deep link.
+- Note: sim ignores its dark setting under automation, so theme tested via PYXPO_APPEARANCE.
+- Open: Android rebuild+device verify of a11y change and deep link; release build/real device signing; Swift controls audit; Modal in hidden Stack screen; SectionList sticky headers; real-device fps; D3 opus full-diff review; go-live + real-world project.

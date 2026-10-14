@@ -41,7 +41,7 @@ def TabBar(items: Any = (), index: int = 0, on_select: Any = None, style: Any = 
             body = (label,)
         cells.append(Pressable(
             *body,
-            on_press=(lambda i=i: on_select(i)), key=it["key"], accessibility_role="tab",
+            on_press=(lambda i=i: on_select(i)), key=it["key"], accessibility_role="tab", accessibility_label=str(it["label"]),
             accessibility_state={"selected": on},
             style={"flex": 1, "alignItems": "center", "justifyContent": "center", "paddingVertical": 6}))
     return View(*cells, style=[{"flexDirection": "row", "height": 56 + inset, "paddingBottom": inset,
