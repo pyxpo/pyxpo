@@ -51,7 +51,13 @@ class OpApplier(
                 .put("insets", JSONObject().put("left", ins[0] / dm.density.toDouble()).put("top", ins[1] / dm.density.toDouble())
                     .put("right", ins[2] / dm.density.toDouble()).put("bottom", ins[3] / dm.density.toDouble()))
                 .put("keyboard", JSONObject().put("visible", kbPx > 0).put("height", kbPx / dm.density.toDouble()))
+                .put("modules", JSONArray(pxModules.map { it.name }))
         }
+    }
+
+    /** Native modules linked into this app (see `PxModuleRegistry`). */
+    val modules = PxModuleHost(ctx as android.app.Activity) { name, data ->
+        event("module", 0, JSONObject().put("name", name).put("data", data))
     }
 
     private val controls = PxControls(ctx) { name, id, payload -> event(name, id, payload) }
@@ -673,8 +679,9 @@ class OpApplier(
                     return
                 }
                 else -> {
+                    if (modules.call(module, method, args) { v, e -> if (wantReply) reply(id, v, e) }) return
                     if (PxMedia.handle(ctx, module, method, args) { v, e -> if (wantReply) reply(id, v, e) }) return
-                    if (wantReply) reply(id, null, "unknown native call $module.$method")
+                    if (wantReply) reply(id, null, "unknown native call $module.$method (is native module '$module' listed in [tool.pyxpo] modules?)")
                     return
                 }
             }

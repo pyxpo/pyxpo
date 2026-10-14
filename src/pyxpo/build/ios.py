@@ -12,7 +12,7 @@ from typing import Dict, List, Optional
 from .. import native_config
 from ..config import load_config, pip_index_args
 from . import prebuild as prebuild_mod
-from . import runtime
+from . import autolink, runtime
 from .android import BuildError, _run, _skip_runtime_file  # noqa: F401  (shared helpers)
 
 DIST = runtime.dist_path("ios")
@@ -76,7 +76,7 @@ def xcconfig_text(nc: Dict[str, object]) -> str:
     return "\n".join(lines) + "\n"
 
 
-def render_gen(native: Path, nc: Dict[str, object]) -> Path:
+def render_gen(native: Path, nc: Dict[str, object], linked: Optional[autolink.Linked] = None) -> Path:
     """Recreates the framework-owned `pyxpo-gen/` folder. Never touches anything outside it."""
     runtime.ensure("ios", path=DIST)
     gen = native / GEN
@@ -95,13 +95,16 @@ def render_gen(native: Path, nc: Dict[str, object]) -> Path:
         shutil.copy2(str(COMMON / f), str(gen / "native" / f))
     (gen / "Python.xcframework").symlink_to(DIST / "Python.xcframework")
     (gen / "Pyxpo.xcconfig").write_text(xcconfig_text(nc))
+    autolink.render_ios(gen, linked.modules if linked else [], linked.options if linked else {})
     return gen
 
 
 def prebuild(project: Path, clean: bool = False) -> Path:
     """Ejects `<project>/ios`: user-owned files are written once (edited ones are kept), `pyxpo-gen/` is refreshed."""
     project = Path(project).resolve()
-    nc = native_config.resolve(load_config(project), project)
+    cfg = load_config(project)
+    nc = native_config.resolve(cfg, project)
+    linked = autolink.link(cfg, project)
     dest = project / "ios"
     if clean and dest.exists():
         shutil.rmtree(str(dest))
@@ -112,7 +115,7 @@ def prebuild(project: Path, clean: bool = False) -> Path:
     for action, rel in actions:
         if action == "conflict":
             print("kept your edited %s; new version saved as %s.pyxpo-new" % (rel, rel))
-    render_gen(dest, nc)
+    render_gen(dest, nc, linked)
     return dest
 
 
@@ -124,7 +127,7 @@ def stage(native: Path, project: Path, cfg: Dict[str, object], release: bool, ki
         raise BuildError("no iOS %s CPython in %s (device builds need an ios-arm64 slice in the runtime; "
                          "set PYXPO_IOS_DIST or see `pyxpo doctor`)" % (kind, DIST))
     nc = native_config.resolve(cfg, project)
-    gen = render_gen(native, nc)
+    gen = render_gen(native, nc, autolink.link(cfg, project))
     st = gen / "stage"
     _stage_stdlib(slice_dir, st / ("python-" + kind), host_python())
     _stage_app(project, st / "app_root", release)

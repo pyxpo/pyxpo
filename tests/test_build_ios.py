@@ -1,4 +1,5 @@
 import importlib
+import pytest
 import os
 import plistlib
 import re
@@ -123,9 +124,12 @@ def test_android_prebuild_and_stage(tmp_path, monkeypatch):
     assert "applicationId=dev.x.demo" in props and "scheme=demo" in props and "versionName=2.3.4" in props
     assert "release.jks" in props and "assword" not in props
     gradle = dest / "app" / "build.gradle.kts"
-    gradle.write_text("// mine\n")
+    gradle.write_text("// mine\n")  # an old ejected project without the native-module line
+    with pytest.raises(droid.BuildError, match="native-module line"):
+        droid.stage(dest, proj, droid.load_config(proj), False, ["arm64-v8a"])
+    gradle.write_text('// mine\napply(from = "../pyxpo-gen/modules.app.gradle.kts")\n')
     droid.stage(dest, proj, droid.load_config(proj), False, ["arm64-v8a"])
-    assert gradle.read_text() == "// mine\n"
+    assert gradle.read_text().startswith("// mine\n")
     assert (dest / "pyxpo-gen" / "assets" / "pyxpo" / "app.zip").is_file()
     assert (dest / "pyxpo-gen" / "jniLibs" / "arm64-v8a" / "libpython3.13.so").is_file()
     for p in dest.rglob("*"):

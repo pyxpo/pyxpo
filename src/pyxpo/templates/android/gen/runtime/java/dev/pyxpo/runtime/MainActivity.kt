@@ -73,7 +73,13 @@ class MainActivity : Activity() {
 
     @Suppress("DEPRECATION")
     override fun onActivityResult(requestCode: Int, resultCode: Int, data: android.content.Intent?) {
+        if (applier?.modules?.onActivityResult(requestCode, resultCode, data) == true) return
         if (!PxMedia.onActivityResult(requestCode, resultCode, data)) super.onActivityResult(requestCode, resultCode, data)
+    }
+
+    override fun onRequestPermissionsResult(requestCode: Int, permissions: Array<out String>, grantResults: IntArray) {
+        if (applier?.modules?.onRequestPermissionsResult(requestCode, permissions, grantResults) == true) return
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults)
     }
 
     override fun onNewIntent(intent: android.content.Intent) {
@@ -99,6 +105,11 @@ class MainActivity : Activity() {
     override fun onWindowFocusChanged(hasFocus: Boolean) {
         super.onWindowFocusChanged(hasFocus)
         if (hasFocus) applier?.applyStatusBar()
+    }
+
+    override fun onDestroy() {
+        applier?.modules?.cancelPending()
+        super.onDestroy()
     }
 
     override fun onBackPressed() {

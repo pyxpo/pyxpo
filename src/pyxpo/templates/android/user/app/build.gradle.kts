@@ -59,3 +59,6 @@ android {
     }
     kotlinOptions { jvmTarget = "17" }
 }
+
+// Native modules listed in [tool.pyxpo] modules are linked by pyxpo (regenerated on every build).
+apply(from = "../pyxpo-gen/modules.app.gradle.kts")

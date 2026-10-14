@@ -20,6 +20,8 @@ final class OpApplier {
     private let root = PxRoot()
     private var rootSize = CGSize.zero
     private var sentEnv: String?
+    /// Native modules linked into this app (see `PxModuleRegistry`).
+    private(set) lazy var modules = PxModuleHost(root: root) { [weak self] n, d in self?.event("module", 0, ["name": n, "data": d]) }
     private var kbHeight: CGFloat = 0
     private var batching = false
     private lazy var anim = Animated(emit: { [weak self] n, id, pl in self?.event(n, id, pl) },
@@ -45,6 +47,7 @@ final class OpApplier {
             "scale": Double(UIScreen.main.scale),
             "font_scale": Double(fontScale),
             "color_scheme": dark ? "dark" : "light",
+            "modules": PxModuleHost.names,
         ]
     }
 
@@ -511,10 +514,13 @@ final class OpApplier {
             top?.present(a, animated: true)
             return
         default:
+            if modules.call(module, method, args, { [weak self] v, e in
+                if wantReply { self?.reply(id, v, error: e) }
+            }) { return }
             if PxMedia.handle(module, method, args, root: root, reply: { [weak self] v, e in
                 if wantReply { self?.reply(id, v, error: e) }
             }) { return }
-            if wantReply { reply(id, nil, error: "unknown native call \(module).\(method)") }
+            if wantReply { reply(id, nil, error: "unknown native call \(module).\(method) (is native module '\(module)' listed in [tool.pyxpo] modules?)") }
             return
         }
         if wantReply { reply(id, nil) }

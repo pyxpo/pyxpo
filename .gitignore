@@ -19,3 +19,4 @@ dist/
 local.properties
 .gradle/
 wheels/dist/
+test-apps/

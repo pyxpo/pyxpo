@@ -12,7 +12,7 @@ from typing import Dict, List, Optional
 from .. import native_config
 from ..config import load_config, pip_index_args
 from . import prebuild as prebuild_mod
-from . import elfcheck, runtime
+from . import autolink, elfcheck, runtime
 from .runtime import BuildError  # noqa: F401  (re-exported)
 
 DIST = runtime.dist_path("android")
@@ -82,7 +82,8 @@ def properties_text(nc: Dict[str, object], project: Path, abis: List[str]) -> st
     return "".join("%s=%s\n" % (k, str(v).replace("\\", "\\\\")) for k, v in props.items())
 
 
-def render_gen(native: Path, nc: Dict[str, object], project: Path, abis: List[str]) -> Path:
+def render_gen(native: Path, nc: Dict[str, object], project: Path, abis: List[str],
+               linked: Optional[autolink.Linked] = None) -> Path:
     """Recreates the framework-owned `pyxpo-gen/` folder. Never touches anything outside it."""
     gen = native / GEN
     if gen.exists():
@@ -92,6 +93,7 @@ def render_gen(native: Path, nc: Dict[str, object], project: Path, abis: List[st
         out.parent.mkdir(parents=True, exist_ok=True)
         out.write_bytes(data)
     (gen / "pyxpo.properties").write_text(properties_text(nc, project, abis))
+    autolink.render_android(gen, linked.modules if linked else [])
     try:
         (native / "local.properties").write_text("sdk.dir=%s\n" % find_sdk())
     except BuildError:
@@ -125,7 +127,7 @@ def prebuild(project: Path, clean: bool = False) -> Path:
     for action, rel in prebuild_mod.apply(rendered, dest, __version__):
         if action == "conflict":
             print("kept your edited %s; new version saved as %s.pyxpo-new" % (rel, rel))
-    render_gen(dest, nc, project, available_abis(_cfg_abis(cfg)))
+    render_gen(dest, nc, project, available_abis(_cfg_abis(cfg)), autolink.link(cfg, project))
     return dest
 
 
@@ -199,7 +201,9 @@ def launch(app_id: str, extras: Optional[Dict[str, str]] = None) -> None:
 def stage(native: Path, project: Path, cfg: Dict[str, object], release: bool, abis: List[str]) -> None:
     """Refreshes pyxpo-gen/ (config, runtime, Python, app, site-packages). User-owned files stay untouched."""
     nc = native_config.resolve(cfg, project)
-    gen = render_gen(native, nc, project, abis)
+    if prebuild_mod.is_ejected(native):
+        autolink.check_android_wiring(native)
+    gen = render_gen(native, nc, project, abis, autolink.link(cfg, project))
     jni = gen / "jniLibs"
     assets = gen / "assets" / "pyxpo"
     assets.mkdir(parents=True, exist_ok=True)

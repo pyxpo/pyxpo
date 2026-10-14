@@ -70,11 +70,11 @@ def test_render_ios(tmp_path):
     gen = tmp_path / "gen"
     autolink.render_ios(gen, [m], {"demo-mod": {"demoText": "A & B"}})
     assert (gen / "runtime/modules/demo-mod/DemoModule.swift").is_file()
-    assert "DemoModule.self" in (gen / "runtime/modules/PxModuleRegistry.swift").read_text()
+    assert "DemoModule.self" in (gen / "runtime/PxModuleRegistry.swift").read_text()
     assert "A &amp; B" in (gen / "ModulesInfo.plist").read_text()
     autolink.render_ios(gen, [], {})  # unlinking removes the old copy
     assert not (gen / "runtime/modules/demo-mod").exists()
-    assert "[]" in (gen / "runtime/modules/PxModuleRegistry.swift").read_text()
+    assert "[]" in (gen / "runtime/PxModuleRegistry.swift").read_text()
 
 
 def test_render_android(tmp_path):
