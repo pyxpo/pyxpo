@@ -181,6 +181,8 @@ def _skip_runtime_file(rel: Path, release: bool) -> bool:
     """Files left out of app.zip: tooling always; the hot-reload package in release builds."""
     if rel.parts[0] in ("templates", "build") or rel.name == "cli.py" or "__pycache__" in rel.parts:
         return True
+    if rel.parts[0] == "modules" and (rel.name == "pyxpo-module.json" or (len(rel.parts) > 2 and rel.parts[2] in ("ios", "android"))):
+        return True
     if rel.parts[0] == "dev" and (release or rel.name == "server.py"):
         return True
     return False

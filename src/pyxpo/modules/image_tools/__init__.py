@@ -9,8 +9,9 @@ import math
 import os
 from typing import Any, Awaitable, Callable, Dict, Optional, Tuple, Union
 
-from .._keys import snake_aliases
-from ._bridge import call
+from ..._keys import snake_aliases
+from ...apis._bridge import call as _call
+from .. import require_linked
 
 Info = Dict[str, Any]
 Crop = Union[None, str, Dict[str, float]]
@@ -19,6 +20,11 @@ _MAX_EDGE = 4096  # decode cap for size search (memory safety)
 
 class ImageTooLargeError(RuntimeError):
     """The target size cannot be reached without going below `minEdge` pixels."""
+
+
+def call(method: str, *args: Any) -> Any:
+    require_linked("ImageTools", "image-tools")
+    return _call("ImageTools", method, *args, reply=True)
 
 
 def parse_ratio(text: str) -> float:
@@ -106,14 +112,14 @@ class ImageTools:
     @staticmethod
     async def getInfo(uri: str) -> Info:
         """`{uri, width, height, fileSize, format, mimeType, hasExif, hasGps}` (width/height after EXIF orientation)."""
-        return await call("ImageTools", "info", str(uri), reply=True)
+        return await call("info", str(uri))
 
     @staticmethod
     async def process(uri: str, crop: Crop = None, resize: Optional[Dict[str, Any]] = None, format: str = "same",
                       quality: float = 0.9, maxEdge: Optional[int] = None) -> Info:
         """Orientation baked in, then crop, resize, encode. The output never carries EXIF/GPS.
         `format`: "same" | "jpeg" | "png" | "heic" (heic encode is iOS only)."""
-        h = await call("ImageTools", "open", str(uri), int(maxEdge or 0), reply=True)
+        h = await call("open", str(uri), int(maxEdge or 0))
         try:
             w, ht = h["width"], h["height"]
             spec: Dict[str, Any] = {"format": format, "quality": float(quality)}
@@ -126,9 +132,9 @@ class ImageTools:
                 w, ht = spec["crop"]["width"], spec["crop"]["height"]
             if resize:
                 spec["width"], spec["height"] = fit_size(w, ht, resize)
-            return await call("ImageTools", "render", h["h"], spec, reply=True)
+            return await call("render", h["h"], spec)
         finally:
-            await call("ImageTools", "close", h["h"], reply=True)
+            await call("close", h["h"])
 
     @staticmethod
     async def compressToSize(uri: str, maxBytes: int, format: str = "jpeg", minEdge: int = 320) -> Info:
@@ -136,7 +142,7 @@ class ImageTools:
         Raises ImageTooLargeError when the target needs fewer than `minEdge` pixels on the long side."""
         if maxBytes <= 0:
             raise ValueError("maxBytes must be positive")
-        h = await call("ImageTools", "open", str(uri), _MAX_EDGE, reply=True)
+        h = await call("open", str(uri), _MAX_EDGE)
         try:
             w, ht = h["width"], h["height"]
 
@@ -144,11 +150,11 @@ class ImageTools:
                 spec: Dict[str, Any] = {"format": format, "quality": q}
                 if scale < 1.0:
                     spec["width"], spec["height"] = max(1, int(w * scale)), max(1, int(ht * scale))
-                return await call("ImageTools", "render", h["h"], spec, reply=True)
+                return await call("render", h["h"], spec)
 
             return await search_under(render, int(maxBytes), max(w, ht), int(minEdge), lossy=format != "png")
         finally:
-            await call("ImageTools", "close", h["h"], reply=True)
+            await call("close", h["h"])
 
     @staticmethod
     async def optimize(uri: str) -> Info:

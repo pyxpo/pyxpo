@@ -18,6 +18,7 @@ DEFAULT_ENV: Dict[str, Any] = {
     "insets": {"top": 0.0, "right": 0.0, "bottom": 0.0, "left": 0.0},
     "keyboard": {"visible": False, "height": 0.0},
     "initial_url": None,  # deep link the app was launched with
+    "modules": [],  # native modules linked into this build
 }
 
 

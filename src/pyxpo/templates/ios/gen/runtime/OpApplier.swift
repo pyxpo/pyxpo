@@ -517,9 +517,6 @@ final class OpApplier {
             if modules.call(module, method, args, { [weak self] v, e in
                 if wantReply { self?.reply(id, v, error: e) }
             }) { return }
-            if PxMedia.handle(module, method, args, root: root, reply: { [weak self] v, e in
-                if wantReply { self?.reply(id, v, error: e) }
-            }) { return }
             if wantReply { reply(id, nil, error: "unknown native call \(module).\(method) (is native module '\(module)' listed in [tool.pyxpo] modules?)") }
             return
         }

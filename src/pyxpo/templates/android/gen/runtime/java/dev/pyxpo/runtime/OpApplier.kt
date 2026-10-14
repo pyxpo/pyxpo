@@ -680,7 +680,6 @@ class OpApplier(
                 }
                 else -> {
                     if (modules.call(module, method, args) { v, e -> if (wantReply) reply(id, v, e) }) return
-                    if (PxMedia.handle(ctx, module, method, args) { v, e -> if (wantReply) reply(id, v, e) }) return
                     if (wantReply) reply(id, null, "unknown native call $module.$method (is native module '$module' listed in [tool.pyxpo] modules?)")
                     return
                 }

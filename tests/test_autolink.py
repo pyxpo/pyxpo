@@ -107,3 +107,23 @@ def test_discover_without_modules_dir(monkeypatch, tmp_path):
     monkeypatch.setattr(autolink, "MODULES_DIR", tmp_path / "none")
     monkeypatch.setattr(autolink, "_entry_points", lambda: [])
     assert autolink.discover() == {}
+
+
+def test_first_party_modules_are_valid():
+    mods = autolink.discover()
+    assert "image-tools" in mods
+    m = mods["image-tools"]
+    assert m.native == "ImageTools" and (m.root / "ios" / "ImageToolsModule.swift").is_file()
+    assert (m.root / "android" / "src" / "main" / "AndroidManifest.xml").is_file()
+
+
+def test_require_linked(monkeypatch):
+    from pyxpo import modules
+    from pyxpo.apis import _env
+    env = _env.Env({"os": "ios", "modules": []})
+    monkeypatch.setattr(_env, "current", env)
+    with pytest.raises(modules.ModuleNotLinkedError) as e:
+        modules.require_linked("ImageTools", "image-tools")
+    assert "add 'image-tools'" in str(e.value).lower() or "Add 'image-tools'" in str(e.value)
+    env.update({"modules": ["ImageTools"]})
+    modules.require_linked("ImageTools", "image-tools")

@@ -167,6 +167,14 @@ class App:
                 else:
                     fut.set_result(pl.get("value"))
             return
+        if msg.get("event") == "module":
+            try:
+                from .modules import dispatch as _module_event
+                _module_event(msg.get("payload") or {})
+            except Exception as e:  # noqa: BLE001
+                self.on_error(e)
+            self._request_flush()
+            return
         if msg.get("event") in ("url", "app_state"):
             try:
                 _events.emit(msg["event"], msg.get("payload") or {})

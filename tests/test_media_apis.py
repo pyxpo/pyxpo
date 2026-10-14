@@ -5,9 +5,10 @@ import os
 
 import pytest
 
-from pyxpo import ImagePicker, ImageTools, ImageTooLargeError, MediaLibrary, Share
+from pyxpo import ImagePicker, MediaLibrary, Share
+from pyxpo.modules.image_tools import ImageTools, ImageTooLargeError
 from pyxpo.apis import _bridge
-from pyxpo.apis.image_tools import centered_crop, fit_size, parse_ratio, search_under
+from pyxpo.modules.image_tools import centered_crop, fit_size, parse_ratio, search_under
 
 
 class FakeApp:

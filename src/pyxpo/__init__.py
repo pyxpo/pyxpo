@@ -44,7 +44,6 @@ from .apis.appstate import AppState
 from .apis.back_handler import BackHandler
 from .apis.clipboard import Clipboard
 from .apis.image_picker import ImagePicker
-from .apis.image_tools import ImageTools, ImageTooLargeError
 from .apis.media_library import MediaLibrary
 from .apis.share import Share
 from .apis.dimensions import Dimensions
@@ -79,7 +78,7 @@ __all__ = [
     "TouchableNativeFeedback", "Button", "Switch", "ActivityIndicator", "Modal", "KeyboardAvoidingView",
     "SafeAreaView", "StatusBar", "RefreshControl", "Picker", "Slider", "ErrorBoundary",
     # apis
-    "Alert", "Animated", "Easing", "Appearance", "AppState", "BackHandler", "Clipboard", "Dimensions", "ImagePicker", "ImageTools", "ImageTooLargeError", "MediaLibrary", "Share",
+    "Alert", "Animated", "Easing", "Appearance", "AppState", "BackHandler", "Clipboard", "Dimensions", "ImagePicker", "MediaLibrary", "Share",
     "I18nManager", "Keyboard", "Linking", "PanResponder", "PixelRatio", "Platform", "StyleSheet", "ToastAndroid",
     "Vibration", "processColor",
     # hooks
@@ -91,3 +90,16 @@ __all__ = [
     "useImperativeHandle", "useLayoutEffect", "useMemo", "useReducer", "useRef", "useSafeAreaFrame", "useSafeAreaInsets", "useState",
     "useSyncExternalStore", "useTransition", "useWindowDimensions",
 ]
+
+
+_MOVED = {"ImageTools": "image_tools", "ImageTooLargeError": "image_tools"}
+
+
+def __getattr__(name: str):
+    if name in _MOVED:
+        mod = _MOVED[name]
+        raise AttributeError(
+            "pyxpo.%s moved to an optional module: add '%s' to [tool.pyxpo] modules and use "
+            "`from pyxpo.modules.%s import %s`" % (name, mod.replace("_", "-"), mod, name)
+        )
+    raise AttributeError("module 'pyxpo' has no attribute %r" % name)

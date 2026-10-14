@@ -1,59 +1,54 @@
-package dev.pyxpo.runtime
+package dev.pyxpo.modules.imagetools
 
-import android.content.Context
-import android.content.Intent
-import android.os.Handler
-import android.os.Looper
+import dev.pyxpo.moduleapi.PxModule
+import dev.pyxpo.moduleapi.PxModuleContext
+import dev.pyxpo.moduleapi.PxReply
+import org.json.JSONArray
 import java.util.concurrent.Executors
 
-class PxMediaError(message: String) : Exception(message)
+class ImageToolsError(message: String) : Exception(message)
 
-/**
- * Native side of pyxpo's media APIs (ImageTools, ImagePicker, MediaLibrary, Share). `OpApplier` hands unknown
- * native calls here. Heavy work runs on one single-thread executor; replies always go back on the main thread.
- */
-object PxMedia {
-    private val executor = Executors.newSingleThreadExecutor { r -> Thread(r, "pyxpo-media") }
-    private val main = Handler(Looper.getMainLooper())
+/** Native side of `pyxpo.modules.image_tools`. Heavy work runs on one single-thread executor. */
+class ImageToolsModule : PxModule() {
+    override val name = "ImageTools"
 
-    /** Returns false when `module.method` is not a media call. */
-    fun handle(ctx: Context, module: String, method: String, args: org.json.JSONArray, reply: (Any?, String?) -> Unit): Boolean {
-        when ("$module.$method") {
-            "ImageTools.ping" -> background(reply) { "pong" }
-            "ImageTools.info" -> background(reply) { ImageTools.info(str(args, 0)) }
-            "ImageTools.open" -> background(reply) { ImageTools.open(str(args, 0), if (args.length() > 1) args.optInt(1, 0) else 0) }
-            "ImageTools.render" -> background(reply) {
-                val spec = args.optJSONObject(1) ?: throw PxMediaError("render: bad arguments")
-                ImageTools.render(ctx, args.optInt(0, -1), spec)
+    override fun call(ctx: PxModuleContext, method: String, args: JSONArray, reply: PxReply) {
+        val cacheDir = ctx.activity.cacheDir
+        when (method) {
+            "ping" -> background(reply) { "pong" }
+            "info" -> background(reply) { ImageTools.info(str(args, 0)) }
+            "open" -> background(reply) { ImageTools.open(str(args, 0), if (args.length() > 1) args.optInt(1, 0) else 0) }
+            "render" -> background(reply) {
+                val spec = args.optJSONObject(1) ?: throw ImageToolsError("render: bad arguments")
+                ImageTools.render(cacheDir, args.optInt(0, -1), spec)
             }
-            "ImageTools.close" -> background(reply) { ImageTools.close(args.optInt(0, -1)); null }
-            else -> return false
-        }
-        return true
-    }
-
-    fun str(args: org.json.JSONArray, i: Int): String {
-        if (i >= args.length() || args.isNull(i)) throw PxMediaError("missing string argument $i")
-        return args.getString(i)
-    }
-
-    /** Accepts a plain path or a file:// URL. */
-    fun path(uri: String): String = if (uri.startsWith("file://")) android.net.Uri.parse(uri).path ?: uri.substring(7) else uri
-
-    /** Runs `work` on the media executor and replies on main with its value, or its error message. */
-    fun background(reply: (Any?, String?) -> Unit, work: () -> Any?) {
-        executor.execute {
-            var value: Any? = null
-            var message: String? = null
-            try { value = org.json.JSONObject.wrap(work()) }
-            catch (e: PxMediaError) { message = e.message }
-            catch (e: Throwable) { message = e.toString() }
-            main.post { reply(value, message) }
+            "close" -> background(reply) { ImageTools.close(args.optInt(0, -1)); null }
+            else -> reply(null, "unknown native call ImageTools.$method")
         }
     }
 
-    /** Forwarded from `MainActivity.onActivityResult` (photo picker, ...). Returns true when consumed. */
-    fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?): Boolean = false
+    companion object {
+        private val executor = Executors.newSingleThreadExecutor { r -> Thread(r, "pyxpo-imagetools") }
+
+        fun str(args: JSONArray, i: Int): String {
+            if (i >= args.length() || args.isNull(i)) throw ImageToolsError("missing string argument $i")
+            return args.getString(i)
+        }
+
+        /** Accepts a plain path or a file:// URL. */
+        fun path(uri: String): String = if (uri.startsWith("file://")) android.net.Uri.parse(uri).path ?: uri.substring(7) else uri
+
+        private fun background(reply: PxReply, work: () -> Any?) {
+            executor.execute {
+                var value: Any? = null
+                var message: String? = null
+                try { value = work() }
+                catch (e: ImageToolsError) { message = e.message }
+                catch (e: Throwable) { message = e.toString() }
+                reply(value, message)
+            }
+        }
+    }
 }
 
 /**
@@ -80,7 +75,7 @@ object ImageTools {
     private fun bounds(path: String): android.graphics.BitmapFactory.Options {
         val o = android.graphics.BitmapFactory.Options().apply { inJustDecodeBounds = true }
         android.graphics.BitmapFactory.decodeFile(path, o)
-        if (o.outWidth <= 0 || o.outHeight <= 0) throw PxMediaError("cannot read image: ${java.io.File(path).name}")
+        if (o.outWidth <= 0 || o.outHeight <= 0) throw ImageToolsError("cannot read image: ${java.io.File(path).name}")
         return o
     }
 
@@ -90,7 +85,7 @@ object ImageTools {
         ex?.getAttributeInt(android.media.ExifInterface.TAG_ORIENTATION, android.media.ExifInterface.ORIENTATION_NORMAL) ?: 1
 
     fun info(uri: String): Map<String, Any?> {
-        val path = PxMedia.path(uri)
+        val path = ImageToolsModule.path(uri)
         val o = bounds(path)
         val ex = exif(path)
         val ori = orientation(ex)
@@ -107,7 +102,7 @@ object ImageTools {
     }
 
     fun open(uri: String, maxEdge: Int): Map<String, Any?> {
-        val path = PxMedia.path(uri)
+        val path = ImageToolsModule.path(uri)
         val o = bounds(path)
         val ori = orientation(exif(path))
         val swap = ori in 5..8
@@ -119,7 +114,7 @@ object ImageTools {
         var sample = 1
         while (longest / (sample * 2) >= cap * 0.9) sample *= 2
         val opts = android.graphics.BitmapFactory.Options().apply { inSampleSize = sample }
-        var bmp = android.graphics.BitmapFactory.decodeFile(path, opts) ?: throw PxMediaError("cannot decode image")
+        var bmp = android.graphics.BitmapFactory.decodeFile(path, opts) ?: throw ImageToolsError("cannot decode image")
         bmp = applyOrientation(bmp, ori)
         val big = maxOf(bmp.width, bmp.height)
         if (big > cap) bmp = scaled(bmp, maxOf(1, bmp.width * cap / big), maxOf(1, bmp.height * cap / big))
@@ -159,15 +154,15 @@ object ImageTools {
         return out
     }
 
-    fun render(ctx: Context, h: Int, spec: org.json.JSONObject): Map<String, Any?> {
-        val handle = handles[h] ?: throw PxMediaError("image handle closed")
+    fun render(cacheDir: java.io.File, h: Int, spec: org.json.JSONObject): Map<String, Any?> {
+        val handle = handles[h] ?: throw ImageToolsError("image handle closed")
         var img = handle.bitmap
         var owned = false  // true once `img` is our own copy that we must recycle
         val crop = spec.optJSONObject("crop")
         if (crop != null) {
             val x = maxOf(0, crop.optInt("x")); val y = maxOf(0, crop.optInt("y"))
             val w = minOf(crop.optInt("width"), img.width - x); val ht = minOf(crop.optInt("height"), img.height - y)
-            if (w <= 0 || ht <= 0) throw PxMediaError("crop outside image")
+            if (w <= 0 || ht <= 0) throw ImageToolsError("crop outside image")
             img = android.graphics.Bitmap.createBitmap(img, x, y, w, ht); owned = true
         }
         var format = spec.optString("format", "same")
@@ -175,12 +170,12 @@ object ImageTools {
         val cf = when (format) {
             "jpeg" -> android.graphics.Bitmap.CompressFormat.JPEG
             "png" -> android.graphics.Bitmap.CompressFormat.PNG
-            "heic" -> throw PxMediaError("HEIC output is not supported on Android")
-            else -> throw PxMediaError("unsupported output format $format")
+            "heic" -> throw ImageToolsError("HEIC output is not supported on Android")
+            else -> throw ImageToolsError("unsupported output format $format")
         }
         val tw = if (spec.has("width")) spec.optInt("width") else img.width
         val th = if (spec.has("height")) spec.optInt("height") else img.height
-        if (tw < 1 || th < 1 || tw > 16384 || th > 16384) throw PxMediaError("bad output size ${tw}x$th")
+        if (tw < 1 || th < 1 || tw > 16384 || th > 16384) throw ImageToolsError("bad output size ${tw}x$th")
         if (tw != img.width || th != img.height) {
             val out = scaled(img, tw, th)
             if (owned) img.recycle()
@@ -194,13 +189,13 @@ object ImageTools {
             if (owned) img.recycle()
             img = flat; owned = true
         }
-        val dir = java.io.File(ctx.cacheDir, "pyxpo-images").apply { mkdirs() }
+        val dir = java.io.File(cacheDir, "pyxpo-images").apply { mkdirs() }
         val file = java.io.File(dir, java.util.UUID.randomUUID().toString() + "." + (if (format == "jpeg") "jpg" else format))
         val q = (spec.optDouble("quality", 0.9).coerceIn(0.0, 1.0) * 100).toInt()
         try {
-            file.outputStream().use { if (!img.compress(cf, q, it)) throw PxMediaError("encoding failed") }
+            file.outputStream().use { if (!img.compress(cf, q, it)) throw ImageToolsError("encoding failed") }
         } catch (e: java.io.IOException) {
-            file.delete(); throw PxMediaError("cannot write output: ${e.message}")
+            file.delete(); throw ImageToolsError("cannot write output: ${e.message}")
         }
         val result = mapOf("uri" to file.absolutePath, "fileSize" to file.length(), "width" to img.width, "height" to img.height,
             "format" to format, "mimeType" to mimeOf(format))
