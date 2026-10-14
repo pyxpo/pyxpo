@@ -1,0 +1,147 @@
+from __future__ import annotations
+
+import argparse
+import os
+import re
+import runpy
+import shutil
+import sys
+from pathlib import Path
+from typing import List, Optional
+
+from .config import load_config, set_requires
+
+TEMPLATE = Path(__file__).parent / "templates" / "app"
+
+
+def cmd_create(args: argparse.Namespace) -> int:
+    name = args.name
+    if not re.match(r"^[A-Za-z][A-Za-z0-9_-]*$", name):
+        print("error: invalid project name %r (letters, digits, - and _ only)" % name, file=sys.stderr)
+        return 2
+    dest = Path(args.dir or ".") / name
+    if dest.exists():
+        print("error: %s already exists" % dest, file=sys.stderr)
+        return 2
+    ident = re.sub(r"[^a-z0-9]", "", name.lower())
+    for src in TEMPLATE.rglob("*.tmpl"):
+        rel = src.relative_to(TEMPLATE)
+        out = dest / str(rel)[: -len(".tmpl")]
+        if out.name == "gitignore":
+            out = out.with_name(".gitignore")
+        out.parent.mkdir(parents=True, exist_ok=True)
+        out.write_text(src.read_text().replace("{{name}}", name).replace("{{ident}}", ident))
+    (dest / "assets").mkdir(exist_ok=True)
+    print("created %s\n  cd %s && pyxpo run desktop" % (dest, name))
+    return 0
+
+
+def cmd_run(args: argparse.Namespace) -> int:
+    if args.target == "android":
+        return _android(args, run=True)
+    if args.target != "desktop":
+        print("pyxpo run %s: not yet implemented (milestone 3)" % args.target, file=sys.stderr)
+        return 2
+    project = Path(args.dir or ".").resolve()
+    try:
+        load_config(project)
+    except (FileNotFoundError, ValueError) as e:
+        print("error: %s" % e, file=sys.stderr)
+        return 2
+    os.environ["PYXPO_TARGET"] = "desktop"
+    sys.path.insert(0, str(project))
+    runpy.run_module("app.main", run_name="__main__")
+    return 0
+
+
+def _android(args: argparse.Namespace, run: bool) -> int:
+    from .build.android import BuildError, build
+
+    try:
+        build(Path(args.dir or "."), release=getattr(args, "release", False), install=run, run=run)
+    except (BuildError, FileNotFoundError, ValueError) as e:
+        print("error: %s" % e, file=sys.stderr)
+        return 1
+    return 0
+
+
+def cmd_build(args: argparse.Namespace) -> int:
+    if args.target == "android":
+        return _android(args, run=False)
+    print("pyxpo build %s: not yet implemented (milestone 3)" % args.target, file=sys.stderr)
+    return 2
+
+
+def cmd_doctor(args: argparse.Namespace) -> int:
+    def row(label: str, found: Optional[str]) -> None:
+        print("  %-14s %s" % (label, found or "not found"))
+
+    print("python      %s" % sys.version.split()[0])
+    print("toolchains:")
+    for tool in ("adb", "java", "gradle", "cmake", "xcodebuild", "xcrun"):
+        row(tool, shutil.which(tool))
+    for var in ("ANDROID_HOME", "ANDROID_NDK_HOME"):
+        row(var, os.environ.get(var))
+    return 0
+
+
+def cmd_add_lib(args: argparse.Namespace) -> int:
+    from . import libs
+
+    pkg = args.package
+    base = re.split(r"[<>=!~\[ ]", pkg, 1)[0].lower()
+    if base in libs.HEAVY:
+        print("note: %s" % libs.HEAVY[base])
+        return 1
+    project = Path(args.dir or ".").resolve()
+    try:
+        cfg = load_config(project)
+    except (FileNotFoundError, ValueError) as e:
+        print("error: %s" % e, file=sys.stderr)
+        return 2
+    results = libs.check_package(pkg, cfg.get("targets", ["android", "ios"]))
+    print(libs.format_table(pkg, results))
+    missing = [t for t, (ok, _) in results.items() if not ok]
+    requires = list(cfg.get("requires", []))
+    if pkg not in requires:
+        requires.append(pkg)
+        set_requires(project, requires)
+        print("added %s to [tool.pyxpo] requires" % pkg)
+    if missing:
+        print("warning: no wheel for %d tag(s); add a recipe to pyxpo-wheels or build with cibuildwheel" % len(missing))
+        return 1
+    return 0
+
+
+def build_parser() -> argparse.ArgumentParser:
+    p = argparse.ArgumentParser(prog="pyxpo", description="Python mobile app framework")
+    sub = p.add_subparsers(dest="cmd", required=True)
+    c = sub.add_parser("create", help="create a new project")
+    c.add_argument("name")
+    c.add_argument("--dir")
+    c.set_defaults(fn=cmd_create)
+    r = sub.add_parser("run", help="run the app")
+    r.add_argument("target", nargs="?", default="desktop", choices=["desktop", "android", "ios"])
+    r.add_argument("--dir")
+    r.set_defaults(fn=cmd_run)
+    b = sub.add_parser("build", help="build a mobile package")
+    b.add_argument("target", choices=["android", "ios"])
+    b.add_argument("--release", action="store_true")
+    b.add_argument("--dir")
+    b.set_defaults(fn=cmd_build)
+    d = sub.add_parser("doctor", help="check installed toolchains")
+    d.set_defaults(fn=cmd_doctor)
+    a = sub.add_parser("add-lib", help="check mobile wheel availability and add a dependency")
+    a.add_argument("package")
+    a.add_argument("--dir")
+    a.set_defaults(fn=cmd_add_lib)
+    return p
+
+
+def main(argv: Optional[List[str]] = None) -> int:
+    args = build_parser().parse_args(argv)
+    return args.fn(args)
+
+
+if __name__ == "__main__":
+    sys.exit(main())

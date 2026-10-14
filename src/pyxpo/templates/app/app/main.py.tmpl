@@ -1,0 +1,20 @@
+from pyxpo import Button, Text, View, component, run_app, use_state
+
+
+@component
+def App():
+    count, set_count = use_state(0)
+    return View(
+        Text("Hello from {{name}}!"),
+        Text("Count: ", count, style={"font_size": 24}),
+        Button("Add", on_press=lambda: set_count(lambda c: c + 1)),
+        style={"padding": 16, "gap": 8},
+    )
+
+
+def main():
+    run_app(App)
+
+
+if __name__ == "__main__":
+    main()
