@@ -82,6 +82,7 @@ static void post_to_main(const char *json) {
     status = Py_InitializeFromConfig(&config);
     PyConfig_Clear(&config);
     if (PyStatus_Exception(status)) goto fail_nocfg;
+    pyxpo_bridge_mark_running();
 
     /* Same as `python -m app.main`: apps call run_app() under `if __name__ == "__main__"`. */
     PyObject *runpy = PyImport_ImportModule("runpy");
@@ -92,7 +93,8 @@ static void post_to_main(const char *json) {
         Py_XDECREF(r);
         Py_DECREF(runpy);
     }
-    Py_FinalizeEx();
+    /* Not plain Py_FinalizeEx(): events on _eventQueue may be mid-flight. */
+    pyxpo_bridge_finalize();
     return;
 
 fail:
@@ -122,7 +124,16 @@ fail_nocfg:
         }
     }
     dispatch_async(_eventQueue, ^{
-        pyxpo_bridge_dispatch_event(json.UTF8String);
+        /* UTF8String is NULL for strings with lone surrogates; fall back to a lossy (U+FFFD) copy. */
+        const char *utf8 = json.UTF8String;
+        if (utf8) {
+            pyxpo_bridge_dispatch_event(utf8);
+        } else {
+            NSMutableData *d = [[json dataUsingEncoding:NSUTF8StringEncoding allowLossyConversion:YES] mutableCopy];
+            if (!d) return;
+            [d appendBytes:"" length:1];
+            pyxpo_bridge_dispatch_event(d.bytes);
+        }
     });
 }
 

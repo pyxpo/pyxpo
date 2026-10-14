@@ -50,6 +50,7 @@ class MainActivity : Activity() {
             insets
         }
         setContentView(root)
+        PxPerf.attach(this)
         lateinit var rt: PyxpoRuntime
         val applier = OpApplier(this, root) { json -> rt.sendEvent(json) }
         this.applier = applier

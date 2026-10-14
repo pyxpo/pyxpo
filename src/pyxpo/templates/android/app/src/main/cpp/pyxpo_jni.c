@@ -6,6 +6,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include "pyxpo_bridge.h"
+#include "pyxpo_utf.h"
 
 #define TAG "pyxpo"
 #define LOGE(...) __android_log_print(ANDROID_LOG_ERROR, TAG, __VA_ARGS__)
@@ -13,6 +14,27 @@
 static JavaVM *g_vm;
 static jobject g_runtime;       /* global ref to PyxpoRuntime instance */
 static jmethodID g_on_ops;      /* void onOps(String) */
+
+/* Java String -> real UTF-8 (malloc'd; free()). Not Get/NewStringUTF: JNI's modified UTF-8 encodes
+ * non-BMP chars (emoji) as surrogate triplets, which Python's UTF-8 decoder rejects. */
+static char *jstr_to_utf8(JNIEnv *env, jstring js) {
+    if (js == NULL) return NULL;
+    jsize n = (*env)->GetStringLength(env, js);
+    const jchar *u = (*env)->GetStringChars(env, js, NULL);
+    if (u == NULL) return NULL;
+    char *out = pyxpo_utf16_to_utf8((const uint16_t *)u, (size_t)n, NULL);
+    (*env)->ReleaseStringChars(env, js, u);
+    return out;
+}
+
+static jstring utf8_to_jstr(JNIEnv *env, const char *s) {
+    size_t n = 0;
+    uint16_t *u = pyxpo_utf8_to_utf16(s, &n);
+    if (u == NULL) return NULL;
+    jstring out = (*env)->NewString(env, (const jchar *)u, (jsize)n);
+    free(u);
+    return out;
+}
 
 /* Called from the Python thread (GIL released by the bridge). */
 static void post_to_java(const char *json) {
@@ -22,7 +44,7 @@ static void post_to_java(const char *json) {
         if ((*g_vm)->AttachCurrentThread(g_vm, &env, NULL) != JNI_OK) return;
         attached = 1;
     }
-    jstring s = (*env)->NewStringUTF(env, json);
+    jstring s = utf8_to_jstr(env, json);
     if (s) {
         (*env)->CallVoidMethod(env, g_runtime, g_on_ops, s);
         (*env)->DeleteLocalRef(env, s);
@@ -35,11 +57,11 @@ static void post_to_java(const char *json) {
 }
 
 static void setenv_utf8(JNIEnv *env, jstring k, jstring v) {
-    const char *ck = (*env)->GetStringUTFChars(env, k, NULL);
-    const char *cv = (*env)->GetStringUTFChars(env, v, NULL);
-    setenv(ck, cv, 1);
-    (*env)->ReleaseStringUTFChars(env, k, ck);
-    (*env)->ReleaseStringUTFChars(env, v, cv);
+    char *ck = jstr_to_utf8(env, k);
+    char *cv = jstr_to_utf8(env, v);
+    if (ck && cv) setenv(ck, cv, 1);
+    free(ck);
+    free(cv);
 }
 
 JNIEXPORT void JNICALL
@@ -57,14 +79,17 @@ Java_dev_pyxpo_runtime_PyxpoRuntime_nativeStart(JNIEnv *env, jobject thiz, jstri
     g_on_ops = (*env)->GetMethodID(env, cls, "onOps", "(Ljava/lang/String;)V");
     if (!g_on_ops) return -1;
 
-    const char *home = (*env)->GetStringUTFChars(env, jhome, NULL);
-    const char *paths = (*env)->GetStringUTFChars(env, jpaths, NULL);
-    const char *module = (*env)->GetStringUTFChars(env, jmodule, NULL);
+    PyStatus status;
+    int rc = 0;
+    char *home = jstr_to_utf8(env, jhome);
+    char *paths = jstr_to_utf8(env, jpaths);
+    char *module = jstr_to_utf8(env, jmodule);
+    if (!home || !paths || !module) { LOGE("out of memory"); rc = -2; goto out; }
 
     pyxpo_bridge_set_post_callback(post_to_java);
-    if (pyxpo_bridge_register() != 0) { LOGE("bridge register failed"); return -2; }
+    if (pyxpo_bridge_register() != 0) { LOGE("bridge register failed"); rc = -2; goto out; }
 
-    PyStatus status;
+
     PyConfig config;
     PyConfig_InitIsolatedConfig(&config);
     config.install_signal_handlers = 0;
@@ -89,8 +114,8 @@ Java_dev_pyxpo_runtime_PyxpoRuntime_nativeStart(JNIEnv *env, jobject thiz, jstri
     status = Py_InitializeFromConfig(&config);
     PyConfig_Clear(&config);
     if (PyStatus_Exception(status)) goto fail_nocfg;
+    pyxpo_bridge_mark_running();
 
-    int rc = 0;
     /* Same as `python -m app.main`: apps call run_app() under `if __name__ == "__main__"`. */
     PyObject *runpy = PyImport_ImportModule("runpy");
     if (!runpy) { PyErr_Print(); rc = -3; }
@@ -100,23 +125,27 @@ Java_dev_pyxpo_runtime_PyxpoRuntime_nativeStart(JNIEnv *env, jobject thiz, jstri
         Py_XDECREF(r);
         Py_DECREF(runpy);
     }
-    Py_FinalizeEx();
-    (*env)->ReleaseStringUTFChars(env, jhome, home);
-    (*env)->ReleaseStringUTFChars(env, jpaths, paths);
-    (*env)->ReleaseStringUTFChars(env, jmodule, module);
-    return rc;
+    /* Not plain Py_FinalizeEx(): events from the executor thread may be mid-flight. */
+    pyxpo_bridge_finalize();
+    goto out;
 
 fail:
     PyConfig_Clear(&config);
 fail_nocfg:
     LOGE("python init failed: %s", status.err_msg ? status.err_msg : "?");
-    return -5;
+    rc = -5;
+out:
+    free(home);
+    free(paths);
+    free(module);
+    return rc;
 }
 
 /* Any thread (UI thread). Takes the GIL inside the bridge. */
 JNIEXPORT void JNICALL
 Java_dev_pyxpo_runtime_PyxpoRuntime_nativeDispatchEvent(JNIEnv *env, jobject thiz, jstring jjson) {
-    const char *json = (*env)->GetStringUTFChars(env, jjson, NULL);
+    char *json = jstr_to_utf8(env, jjson);
+    if (json == NULL) return;
     pyxpo_bridge_dispatch_event(json);
-    (*env)->ReleaseStringUTFChars(env, jjson, json);
+    free(json);
 }

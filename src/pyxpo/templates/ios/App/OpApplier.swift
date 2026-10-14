@@ -653,7 +653,7 @@ final class OpApplier {
             v.layer.shadowPath = nil
             v.layer.mask = nil
         }
-        v.clipsToBounds = spec.clip && !spec.radii.contains { $0 > 0 }
+        v.clipsToBounds = v is UIScrollView || (spec.clip && !spec.radii.contains { $0 > 0 })  // a scroll view always clips its content
     }
 
     /// Re-draw the box under the view after its size or style changed.

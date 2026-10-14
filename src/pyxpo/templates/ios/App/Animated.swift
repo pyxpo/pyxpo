@@ -381,6 +381,7 @@ final class Animated {
         if link != nil { return }
         target.owner = self
         let l = CADisplayLink(target: target, selector: #selector(Target.step(_:)))
+        if #available(iOS 15.0, *) { l.preferredFrameRateRange = CAFrameRateRange(minimum: 60, maximum: 120, preferred: 120) }
         l.add(to: .main, forMode: .common)
         link = l
     }

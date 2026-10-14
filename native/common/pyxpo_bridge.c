@@ -1,27 +1,34 @@
 #define PY_SSIZE_T_CLEAN
 #include <Python.h>
+#include <pthread.h>
 #include "pyxpo_bridge.h"
 
 static pyxpo_post_fn g_post = NULL;
 static PyObject *g_handler = NULL; /* guarded by the GIL */
 
+/* Runtime lifecycle, so event delivery from other threads never touches a runtime that is
+ * still initialising or already finalizing/finalized. All guarded by g_lock. */
+enum { RT_DOWN = 0, RT_RUNNING, RT_FINALIZING };
+static pthread_mutex_t g_lock = PTHREAD_MUTEX_INITIALIZER;
+static pthread_cond_t g_idle = PTHREAD_COND_INITIALIZER;
+static int g_state = RT_DOWN;
+static int g_inflight = 0; /* dispatch_event calls past the state check */
+
 void pyxpo_bridge_set_post_callback(pyxpo_post_fn fn) { g_post = fn; }
 
 static PyObject *bridge_post(PyObject *self, PyObject *arg) {
-    const char *s = PyUnicode_AsUTF8(arg);
-    if (s == NULL) return NULL;
     if (g_post == NULL) {
         PyErr_SetString(PyExc_RuntimeError, "pyxpo: no native post callback registered");
         return NULL;
     }
-    /* Copy so native can keep the string after we return; callback runs without the GIL. */
-    char *copy = PyMem_RawMalloc(strlen(s) + 1);
-    if (copy == NULL) return PyErr_NoMemory();
-    strcpy(copy, s);
+    const char *s = PyUnicode_AsUTF8(arg); /* buffer owned by arg */
+    if (s == NULL) return NULL;
+    /* Hold arg so its UTF-8 buffer outlives the GIL-free callback (which copies what it keeps). */
+    Py_INCREF(arg);
     Py_BEGIN_ALLOW_THREADS
-    g_post(copy);
+    g_post(s);
     Py_END_ALLOW_THREADS
-    PyMem_RawFree(copy);
+    Py_DECREF(arg);
     Py_RETURN_NONE;
 }
 
@@ -51,9 +58,41 @@ static PyObject *init_module(void) { return PyModule_Create(&module); }
 
 int pyxpo_bridge_register(void) { return PyImport_AppendInittab("_pyxpo_bridge", init_module); }
 
+void pyxpo_bridge_mark_running(void) {
+    pthread_mutex_lock(&g_lock);
+    g_state = RT_RUNNING;
+    pthread_mutex_unlock(&g_lock);
+}
+
+int pyxpo_bridge_finalize(void) {
+    pthread_mutex_lock(&g_lock);
+    g_state = RT_FINALIZING;
+    pthread_mutex_unlock(&g_lock);
+    /* In-flight dispatchers may be waiting for the GIL we hold: release it while draining. */
+    Py_BEGIN_ALLOW_THREADS
+    pthread_mutex_lock(&g_lock);
+    while (g_inflight > 0) pthread_cond_wait(&g_idle, &g_lock);
+    pthread_mutex_unlock(&g_lock);
+    Py_END_ALLOW_THREADS
+    Py_CLEAR(g_handler); /* never leave a dangling pointer across finalize */
+    int rc = Py_FinalizeEx();
+    pthread_mutex_lock(&g_lock);
+    g_state = RT_DOWN;
+    pthread_mutex_unlock(&g_lock);
+    return rc;
+}
+
 int pyxpo_bridge_dispatch_event(const char *json_utf8) {
     int rc = 0;
-    if (!Py_IsInitialized()) return -1;  /* events can arrive before Python starts */
+    if (json_utf8 == NULL) return -1;
+    pthread_mutex_lock(&g_lock);
+    if (g_state != RT_RUNNING) { /* not started yet, or finalizing: drop, never touch Python */
+        pthread_mutex_unlock(&g_lock);
+        return -1;
+    }
+    g_inflight++;
+    pthread_mutex_unlock(&g_lock);
+
     PyGILState_STATE gil = PyGILState_Ensure();
     if (g_handler == NULL) {
         rc = -1;
@@ -68,5 +107,9 @@ int pyxpo_bridge_dispatch_event(const char *json_utf8) {
         Py_XDECREF(res);
     }
     PyGILState_Release(gil);
+
+    pthread_mutex_lock(&g_lock);
+    if (--g_inflight == 0) pthread_cond_broadcast(&g_idle);
+    pthread_mutex_unlock(&g_lock);
     return rc;
 }
