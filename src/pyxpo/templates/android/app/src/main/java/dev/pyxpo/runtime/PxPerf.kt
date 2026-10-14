@@ -15,7 +15,9 @@ object PxPerf {
         val ms = DoubleArray(30)
         var n = 0
         var jank = 0
-        val budget = 1000.0 / (a.display?.refreshRate ?: 60f).toDouble()
+        @Suppress("DEPRECATION")
+        val disp = if (Build.VERSION.SDK_INT >= 30) a.display else a.windowManager.defaultDisplay  // Activity.getDisplay() is API 30
+        val budget = 1000.0 / (disp?.refreshRate ?: 60f).toDouble()
         a.window.decorView.post { a.window.addOnFrameMetricsAvailableListener(Window.OnFrameMetricsAvailableListener { _, m, _ ->
             ms[n++] = m.getMetric(FrameMetrics.TOTAL_DURATION) / 1e6
             if (ms[n - 1] > budget) jank++

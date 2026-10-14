@@ -46,6 +46,9 @@ _ARITY: Dict[Any, bool] = {}
 def _takes_value(fn: Callable[..., Any]) -> bool:
     """True when `fn` can be called with one positional argument. Cached per code object."""
     code = getattr(fn, "__code__", None)
+    # decorated wrappers share one code object but signature() follows __wrapped__/__signature__: don't cache
+    if code is not None and (hasattr(fn, "__wrapped__") or hasattr(fn, "__signature__")):
+        code = None
     key = (code, getattr(fn, "__self__", None) is not None) if code is not None else None
     if key is not None and key in _ARITY:
         return _ARITY[key]

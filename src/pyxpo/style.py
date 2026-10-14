@@ -208,7 +208,10 @@ def _cache_key(style: Any) -> Any:
             for v in style.values():
                 if getattr(v, "_is_animated", False):
                     return None
-            return tuple(style.items()) if hash(tuple(style.items())) is not None else None
+            # value type is part of the key: 1, 1.0 and True hash and compare equal but normalize differently
+            key = tuple((k, v.__class__, v) for k, v in style.items())
+            hash(key)
+            return key
         if isinstance(style, (list, tuple)):
             parts = []
             for s in style:

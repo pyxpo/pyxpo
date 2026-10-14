@@ -95,3 +95,29 @@ def test_dispatch_handler_arity_and_inner_type_error():
     def count():
         calls.append(1)
     assert _takes_value(bad) and not _takes_value(count)
+
+
+def test_normalize_cache_key_distinguishes_value_types():
+    from pyxpo.style import normalize
+    assert "flex_grow" not in normalize({"flex": True})
+    assert normalize({"flex": 1})["flex_grow"] == 1
+
+
+def test_takes_value_not_cached_across_shared_wrapper_code():
+    import functools
+    from pyxpo.reconciler import _takes_value
+
+    def deco(f):
+        @functools.wraps(f)
+        def w(*a):
+            return f(*a)
+        return w
+
+    @deco
+    def no_arg():
+        pass
+
+    @deco
+    def one_arg(v):
+        pass
+    assert not _takes_value(no_arg) and _takes_value(one_arg)

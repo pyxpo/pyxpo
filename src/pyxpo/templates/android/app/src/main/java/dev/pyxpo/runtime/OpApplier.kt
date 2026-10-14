@@ -347,6 +347,7 @@ class OpApplier(
 
     private fun scrollTo(id: Int, x: Double?, y: Double?, animated: Boolean) {
         val v = views[id] as? FrameLayout ?: return
+        if (flushPending || batching) flush()  // layout is coalesced per frame: content size must be current (to_end after append)
         val f = frames[id or CONTENT]
         val horiz = v is PxHScroll
         val tx = x?.let { (it * d).roundToInt() } ?: if (horiz) max(0, ((f?.get(2) ?: 0f) * d).roundToInt() - v.width) else v.scrollX
