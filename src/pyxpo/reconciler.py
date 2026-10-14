@@ -28,6 +28,7 @@ class Fiber:
         self.hook_index = 0
         self.hooks_ready = False
         self.unmounted = False
+        self.ctx_below = False  # this fiber or a descendant reads context: memo must not skip it
 
 
 def _host_children(fiber: Fiber) -> List[Fiber]:
@@ -165,9 +166,10 @@ class Reconciler:
         return f
 
     def _update(self, f: Fiber, e: Element) -> None:
-        old_ref = f.element.props.get("ref") if f.element is not None else None
-        f.element = e
+        old = f.element
+        old_ref = old.props.get("ref") if old is not None else None
         if f.kind == "host":
+            f.element = e
             if old_ref is not None and old_ref is not e.props.get("ref") and hasattr(old_ref, "_unbind"):
                 old_ref._unbind(f.id)  # ref prop swapped or removed: the old ref must not keep this view
             wire, events = self._wire(e.props)
@@ -180,7 +182,10 @@ class Reconciler:
             self._set_handlers(f, events)
             self._reconcile_children(f, e.children)
             self._sync(f)
+        elif e.type.memo is not None and not f.ctx_below and e.type.memo(old, e):
+            f.element = e  # memo hit: props unchanged, keep the rendered subtree as is
         else:
+            f.element = e
             self._render_comp(f)
 
     @staticmethod
@@ -237,16 +242,21 @@ class Reconciler:
     def _sync(self, host: Fiber) -> None:
         """Make host.native match the desired host-children order using remove/insert ops."""
         want = [c.id for c in _host_children(host)]
-        wanted = set(want)
         native = host.native
-        for nid in [n for n in native if n not in wanted]:
-            self.ops.append(Remove(host.id, nid))
-            native.remove(nid)
+        if native == want:
+            return
+        wanted = set(want)
+        if any(n not in wanted for n in native):
+            for nid in [n for n in native if n not in wanted]:
+                self.ops.append(Remove(host.id, nid))
+            native[:] = [n for n in native if n in wanted]
+        present = set(native)  # membership is O(1); only real moves pay the list shift
         for i, nid in enumerate(want):
             if i < len(native) and native[i] == nid:
                 continue
-            if nid in native:
+            if nid in present:
                 self.ops.append(Remove(host.id, nid))
                 native.remove(nid)
             self.ops.append(Insert(host.id, nid, i))
             native.insert(i, nid)
+            present.add(nid)

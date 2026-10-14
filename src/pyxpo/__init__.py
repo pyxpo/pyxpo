@@ -11,7 +11,7 @@ if _os.environ.get("PYXPO_DEV_URL"):
 from .animated import Animated, Easing, use_animated_value
 from .app import App, create_app, run_app
 from .channel import Channel, LocalChannel
-from .component import Component, component
+from .component import Component, component, memo
 from .modules import Alert, Clipboard, Keyboard, Linking, Vibration
 from .element import Button, Element, Image, ScrollView, Text, TextInput, View
 from .theme import ThemeProvider, create_theme, dark_theme, light_theme, use_theme
@@ -30,7 +30,7 @@ __version__ = "0.1.0"
 
 __all__ = [
     "Animated", "Easing", "use_animated_value",
-    "App", "create_app", "run_app", "Channel", "LocalChannel", "Component", "component", "Element",
+    "App", "create_app", "run_app", "Channel", "LocalChannel", "Component", "component", "memo", "Element",
     "Alert", "Clipboard", "Keyboard", "Linking", "Vibration", "FlatList", "ScrollRef", "use_scroll_ref", "SafeArea", "KeyboardAvoidingView", "Navigation", "Stack", "Tabs", "use_navigation", "Modal", "Slider", "Gesture", "use_pan_responder", "Pressable", "Switch", "Checkbox", "View", "Text", "Button", "Image", "TextInput", "ScrollView", "HookError", "create_context",
     "ThemeProvider", "create_theme", "dark_theme", "light_theme", "use_theme", "AppButton", "Avatar", "Badge", "Card", "Divider", "Field", "ListItem", "ProgressBar", "Screen", "Typography",
     "StyleSheet", "parse_color", "Dimensions", "Platform", "PixelRatio", "responsive", "use_breakpoint",

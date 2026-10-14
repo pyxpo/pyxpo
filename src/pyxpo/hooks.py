@@ -142,10 +142,13 @@ def create_context(default: Any = None) -> Context:
 
 
 def use_context(ctx: Context) -> Any:
-    node = _current("use_context").parent
+    cur = _current("use_context")
+    cur.ctx_below = True
+    node = cur.parent
     while node is not None:
         if node.element is not None and node.element.type is ctx.Provider:
             return node.element.props.get("value")
+        node.ctx_below = True  # a memoized ancestor must re-render when a Provider above changes
         node = node.parent
     return ctx.default
 

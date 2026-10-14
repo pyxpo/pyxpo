@@ -12,6 +12,7 @@ class Component:
     def __init__(self, fn: Callable[..., Any], name: str = "") -> None:
         self.fn = fn
         self.name = name or getattr(fn, "__name__", "Component")
+        self.memo: Optional[Callable[[Element, Element], bool]] = None  # (old, new) -> True to skip re-render
 
     def __call__(self, *children: Any, key: Any = None, **props: Any) -> Element:
         return Element(self, props, flatten(children), key)
@@ -83,3 +84,24 @@ def component(fn: Callable[..., Any]) -> Component:
     else:
         existing.fn = fn
     return existing
+
+
+def _props_equal(old: Element, new: Element) -> bool:
+    from .hooks import _same
+    if old.props.keys() != new.props.keys() or len(old.children) != len(new.children):
+        return False
+    return (all(_same(v, new.props[k]) for k, v in old.props.items())
+            and all(_same(a, b) for a, b in zip(old.children, new.children)))
+
+
+def memo(comp: Component, are_equal: Optional[Callable[[Dict[str, Any], Dict[str, Any]], bool]] = None) -> Component:
+    """Skip re-rendering `comp` when its props are unchanged (shallow ==). Use `use_callback` for handlers.
+
+    A component that reads context (or has a descendant that does) is never skipped, so theme and
+    navigation updates still reach it. `are_equal(old_props, new_props)` overrides the comparison."""
+    out = Component(lambda *a, **k: comp.fn(*a, **k), name=comp.name)  # late-bound: hot reload swaps comp.fn
+    if are_equal is None:
+        out.memo = _props_equal
+    else:
+        out.memo = lambda old, new: bool(are_equal(old.props, new.props))
+    return out
