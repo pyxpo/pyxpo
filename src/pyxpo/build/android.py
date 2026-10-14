@@ -99,21 +99,6 @@ def install_requires(requires: List[str], abi: str, target: Path, index_args: Li
           "--python-version", "3.13", "--implementation", "cp", "--only-binary=:all:", "--no-compile"] + list(index_args) + requires)
 
 
-def _hoist_shared_libs(site: Path, jni_abi: Path) -> None:
-    """Move shared libs shipped by dependency wheels (`chaquopy/lib/*.so`, e.g. libopenblas) into
-    jniLibs so the system linker resolves them by soname when a C extension is dlopen'ed."""
-    lib_dir = site / "chaquopy" / "lib"
-    if not lib_dir.is_dir():
-        return
-    for so in lib_dir.glob("*.so"):
-        shutil.move(str(so), str(jni_abi / so.name))
-    # Versioned names (libgfortran.so.3) are not packaged by Gradle: ship under a plain lib*_wheel.so
-    # name. The ELF soname is unchanged, so the linker still matches NEEDED entries after a preload.
-    for so in lib_dir.glob("lib*.so.*"):
-        stem = so.name.split(".so.")[0]
-        shutil.move(str(so), str(jni_abi / ("%s_wheel.so" % stem)))
-
-
 def _rel(p: Path, *roots: Path) -> str:
     for r in roots:
         try:
@@ -193,7 +178,6 @@ def build(project: Path, release: bool = False, install: bool = False, run: bool
         site = stage / "site" / abi
         install_requires(list(cfg.get("requires", [])), abi, site, pip_index_args(cfg, project))
         (jni / abi).mkdir(parents=True)
-        _hoist_shared_libs(site, jni / abi)
         _check_16kb(site, jni / abi, abi, bool(cfg.get("allow_4kb_libs", False)))
         _zip_tree(assets / ("site-%s.zip" % abi), site)
         for so in SO_FOR_JNILIBS:
