@@ -83,6 +83,7 @@ class App:
         anim_runtime.set_app(self)
         self._committed: Dict[int, int] = {}  # native node id -> parent id (0 = detached)
         self._error_shown = False
+        self.dev_reload: Optional[Callable[[], None]] = None  # set by the dev client
         self.hot_hooks: List[Callable[[], None]] = []  # run before each hot re-render (router: re-discover routes)
         self.set_root(root, **props)
         channel.set_event_handler(self.dispatch_event)
@@ -135,9 +136,13 @@ class App:
 
     # -- internals -----------------------------------------------------
     def _handle_event(self, payload: str) -> None:
+        msg = json.loads(payload)
+        if msg.get("event") == "dev_reload":  # double-R / Cmd+R / shake in a dev build
+            if self.dev_reload is not None:
+                self.dev_reload()
+            return
         if self.broken:
             return
-        msg = json.loads(payload)
         if msg.get("event") == "env":
             try:
                 self.env.update(msg.get("payload") or {})
@@ -267,6 +272,24 @@ class App:
             except Exception as e:  # noqa: BLE001
                 self.broken = True
                 return e
+        finally:
+            self.flushing = False
+
+    def reload(self, root: Any = None) -> Optional[BaseException]:
+        """Full reload (RN "Reload"): remount the tree from scratch so all state resets. Returns the error or None."""
+        if root is not None:
+            self.set_root(root[0], **root[1])
+        self.flushing = True
+        try:
+            self.clear_error()
+            for hook in list(self.hot_hooks):
+                hook()
+            self._remount()
+            self.broken = False
+            return None
+        except Exception as e:  # noqa: BLE001
+            self.broken = True
+            return e
         finally:
             self.flushing = False
 

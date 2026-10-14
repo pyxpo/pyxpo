@@ -118,6 +118,9 @@ final class OpApplier {
         flush()
     }
 
+    /// Dev builds: ask Python to re-execute the app and remount (double-R / Cmd+R).
+    func devReload() { event("dev_reload", 0) }
+
     private func event(_ name: String, _ id: Int, _ payload: [String: Any] = [:]) {
         let obj: [String: Any] = ["event": name, "id": id, "payload": payload]
         if let d = try? JSONSerialization.data(withJSONObject: obj), let s = String(data: d, encoding: .utf8) {

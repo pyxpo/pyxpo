@@ -65,5 +65,6 @@ def start(app: Any, loop: Any, entry: Optional[str], url: Optional[str] = None, 
     app_dir = list(pkg.__path__)[0] if getattr(pkg, "__path__", None) else os.path.dirname(entry)
     base = os.path.dirname(os.path.realpath(app_dir))
     client = DevClient(HotReloader(app, base, entry), loop, url, token)
+    app.dev_reload = client.reloader.reload_all
     threading.Thread(target=client.run, daemon=True, name="pyxpo-dev-client").start()
     return client

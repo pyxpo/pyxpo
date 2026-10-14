@@ -69,6 +69,24 @@ class HotReloader:
             self._report("reload failed", e)
             return False
 
+    def reload_all(self) -> bool:
+        """Re-execute every loaded app module and remount from scratch (state resets), like RN's Reload."""
+        try:
+            err = self._reexec(set(self._loaded_modules()), [])
+            if err is not None:
+                self._report("error while reloading", err)
+                return False
+            root = app_mod._hot.captured
+            app_mod._hot.captured = None
+            err = self.app.reload(root)
+            if err is not None:
+                self._report("error while rendering", err)
+                return False
+            return True
+        except Exception as e:  # noqa: BLE001
+            self._report("reload failed", e)
+            return False
+
     # -- internals -----------------------------------------------------
     def _report(self, what: str, exc: BaseException) -> None:
         text = "".join(traceback.format_exception_only(type(exc), exc)).strip()

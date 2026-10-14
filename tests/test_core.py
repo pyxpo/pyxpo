@@ -205,3 +205,18 @@ def test_error_overlay_colors_are_native_ints_and_clear():
     assert isinstance(label.props["style"]["color"], int) and isinstance(box.props["style"]["background_color"], int)
     app.clear_error()
     assert r.texts() == ["x"]
+
+
+def test_app_reload_resets_state_and_runs_dev_hook():
+    @component
+    def C():
+        n, set_n = use_state(0)
+        return View(Text("n", n), Button(title="add", on_press=lambda: set_n(n + 1)))
+
+    app, r = mount(C)
+    r.press(r.find_text("add"))
+    assert r.texts() == ["n1"]
+    called = []
+    app.dev_reload = lambda: (called.append(1), app.reload())[1]
+    app._handle_event('{"id": 0, "event": "dev_reload"}')
+    assert called and r.texts() == ["n0"]

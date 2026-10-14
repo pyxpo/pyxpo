@@ -38,6 +38,9 @@ class SceneDelegate: UIResponder, UIWindowSceneDelegate {
         let ap = OpApplier(container: vc.view) { rt.dispatchEvent($0) }
         applier = ap
         rt.onOps = { [weak ap] json in ap?.apply(json) }
+        #if DEBUG
+        vc.onDevReload = { [weak ap] in ap?.devReload() }
+        #endif
 
         let bundle = Bundle.main.bundlePath
         var appRoot = bundle + "/app_root"
@@ -68,6 +71,25 @@ final class PxRootViewController: UIViewController {
 
     override func viewDidLoad() { super.viewDidLoad(); Self.shared = self }
     override var preferredStatusBarStyle: UIStatusBarStyle { barStyle }
+    var onDevReload: (() -> Void)?
+    private var lastR = Date.distantPast
+
+    #if DEBUG
+    /// Dev builds: R twice (hardware keyboard / simulator) or Cmd+R reloads, as in React Native.
+    override func pressesBegan(_ presses: Set<UIPress>, with event: UIPressesEvent?) {
+        for p in presses {
+            guard let k = p.key, k.charactersIgnoringModifiers.lowercased() == "r" else { continue }
+            let now = Date()
+            if k.modifierFlags.contains(.command) || now.timeIntervalSince(lastR) < 0.5 {
+                lastR = .distantPast
+                onDevReload?()
+                return
+            }
+            lastR = now
+        }
+        super.pressesBegan(presses, with: event)
+    }
+    #endif
     private var barHidden = false
     override var prefersStatusBarHidden: Bool { barHidden }
     override var preferredStatusBarUpdateAnimation: UIStatusBarAnimation { .fade }

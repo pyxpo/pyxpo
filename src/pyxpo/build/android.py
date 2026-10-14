@@ -139,8 +139,8 @@ def adb_path() -> str:
 
 
 def launch(app_id: str, extras: Optional[Dict[str, str]] = None) -> None:
-    _run([adb_path(), "shell", "am", "force-stop", app_id])  # a running instance would ignore the launch extras
-    cmd = [adb_path(), "shell", "am", "start", "-n", "%s/dev.pyxpo.runtime.MainActivity" % app_id]
+    # -S: a running instance would ignore the launch extras, so stop it first
+    cmd = [adb_path(), "shell", "am", "start", "-S", "-n", "%s/dev.pyxpo.runtime.MainActivity" % app_id]
     for k, v in (extras or {}).items():
         cmd += ["--es", k, v]
     _run(cmd)

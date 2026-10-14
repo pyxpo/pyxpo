@@ -60,13 +60,27 @@ class MainActivity : Activity() {
         val dev = HashMap<String, String>()
         val dm = resources.displayMetrics
         dev["PYXPO_ENV"] = OpApplier.envJson(this, dm.widthPixels, dm.heightPixels).toString()
-        val debuggable = (applicationInfo.flags and android.content.pm.ApplicationInfo.FLAG_DEBUGGABLE) != 0
+        debuggable = (applicationInfo.flags and android.content.pm.ApplicationInfo.FLAG_DEBUGGABLE) != 0
         val url = intent?.getStringExtra("pyxpo_dev_url")
         if (debuggable && url != null) {
             dev["PYXPO_DEV_URL"] = url
             dev["PYXPO_DEV_TOKEN"] = intent?.getStringExtra("pyxpo_dev_token") ?: ""
         }
         rt.start(devEnv = dev)
+    }
+
+    private var lastR = 0L
+    private var debuggable = false
+
+    /** Dev builds: press R twice (hardware keyboard / emulator) to reload, as in React Native. */
+    override fun dispatchKeyEvent(event: android.view.KeyEvent): Boolean {
+        if (debuggable && event.action == android.view.KeyEvent.ACTION_DOWN && event.repeatCount == 0 &&
+            event.keyCode == android.view.KeyEvent.KEYCODE_R && currentFocus !is android.widget.EditText) {
+            val now = event.eventTime
+            if (now - lastR < 800) { lastR = 0; applier?.devReload(); return true }
+            lastR = now
+        }
+        return super.dispatchKeyEvent(event)
     }
 
     @Deprecated("Deprecated in Java")

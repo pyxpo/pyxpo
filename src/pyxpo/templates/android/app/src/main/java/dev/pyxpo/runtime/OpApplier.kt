@@ -850,6 +850,9 @@ class OpApplier(
     /** Modals live on the root so they cover the whole screen whatever their Python parent is. */
     private fun host(id: Int, parent: Int) = if (types[id] == "Modal") 1 else parent
 
+    /** Dev builds: ask Python to re-execute the app and remount (double-R). */
+    fun devReload() = event("dev_reload", 0)
+
     /** Android back: the topmost Modal consumes it and gets `request_close` if it listens (as in RN). */
     fun handleBack(): Boolean {
         val root = groupOf(1) ?: return false
