@@ -35,8 +35,17 @@ final class ScrollHost: UIScrollView {
 /// Label that draws inside padding + border insets (the engine's frame includes them).
 final class PxLabel: UILabel {
     var insets = UIEdgeInsets.zero
+    /// Sublayers always draw above a label's own text, so the box is rendered here, before the text.
+    var box: BoxLayer?
 
     override func drawText(in rect: CGRect) {
+        if let b = box, let ctx = UIGraphicsGetCurrentContext() {
+            ctx.saveGState()
+            ctx.translateBy(x: 0, y: bounds.height)
+            ctx.scaleBy(x: 1, y: -1)
+            b.render(in: ctx)
+            ctx.restoreGState()
+        }
         super.drawText(in: rect.inset(by: insets))
     }
 }

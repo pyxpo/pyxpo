@@ -28,7 +28,8 @@ background_color linear_gradient opacity
 shadow_color shadow_offset_x shadow_offset_y shadow_radius shadow_opacity elevation
 transform rotate scale scale_x scale_y translate_x translate_y
 color font_size font_weight font_style font_family line_height letter_spacing text_align
-text_decoration text_transform number_of_lines
+text_decoration text_transform number_of_lines allow_font_scaling
+text_shadow_color text_shadow_offset_x text_shadow_offset_y text_shadow_radius
 """.split())
 
 NAMED_COLORS: Dict[str, int] = {
@@ -170,6 +171,12 @@ def normalize(style: Any, *, warn: bool = False) -> Dict[str, Any]:
         elif k == "linear_gradient":
             v = _gradient(v)
         out[k] = v
+    fam = out.get("font_family")
+    if isinstance(fam, str):
+        from . import fonts
+        path = fonts.resolve(fam)
+        if path:
+            out["font_file"] = path
     return out
 
 

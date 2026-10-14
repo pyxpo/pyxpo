@@ -136,11 +136,14 @@ class OpApplier(
         val r = HashSet<String>()
         if (removed != null) for (i in 0 until removed.length()) r.add(removed.getString(i))
         if ("style" in r) applyStyle(id, v, JSONObject())
+        var textDirty = false
+        if ("spans" in r) { spans.remove(id); textDirty = true }
         val keys = props.keys()
         while (keys.hasNext()) {
             val k = keys.next()
             when (k) {
-                "text" -> if (v is TextView && v !is EditText) { v.text = props.optString(k); layout.markDirty(id) }
+                "text" -> if (v is TextView && v !is EditText) { texts[id] = props.optString(k); textDirty = true }
+                "spans" -> if (v is TextView && v !is EditText) { spans[id] = props.optJSONArray(k); textDirty = true }
                 "value" -> (v as? EditText)?.let {
                     if (it.text.toString() != props.optString(k)) {
                         suppress.add(it); it.setText(props.optString(k)); it.setSelection(it.text.length)
@@ -152,7 +155,60 @@ class OpApplier(
                 "style" -> applyStyle(id, v, props.optJSONObject(k) ?: JSONObject())
             }
         }
+        if (textDirty && v is TextView) { applyText(id, v); layout.markDirty(id) }
         if (!batching) flush()
+    }
+
+    private val texts = HashMap<Int, String>()
+    private val spans = HashMap<Int, JSONArray?>()
+    private val fontCache = HashMap<String, Typeface?>()
+
+    private fun applyText(id: Int, v: TextView) {
+        val sp = spans[id]
+        val t = texts[id] ?: ""
+        if (sp == null || sp.length() == 0) { v.text = t; return }
+        val b = android.text.SpannableStringBuilder()
+        val dm = ctx.resources.displayMetrics
+        for (i in 0 until sp.length()) {
+            val o = sp.getJSONObject(i)
+            val st = o.optJSONObject("style") ?: JSONObject()
+            val from = b.length
+            b.append(o.optString("text"))
+            val to = b.length
+            if (to == from) continue
+            fun span(w: Any) = b.setSpan(w, from, to, android.text.Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
+            if (st.has("color")) span(android.text.style.ForegroundColorSpan(col(st, "color")))
+            if (st.has("background_color")) span(android.text.style.BackgroundColorSpan(col(st, "background_color")))
+            if (st.has("font_size")) span(android.text.style.AbsoluteSizeSpan(
+                TypedValue.applyDimension(TypedValue.COMPLEX_UNIT_SP, st.optDouble("font_size").toFloat(), dm).roundToInt()))
+            if (st.has("font_weight") || st.has("font_style") || st.has("font_family")) {
+                val tf = typefaceFor(st)
+                if (Build.VERSION.SDK_INT >= 28) span(android.text.style.TypefaceSpan(tf))
+                else span(android.text.style.StyleSpan(tf.style))
+            }
+            val deco = st.optString("text_decoration")
+            if ("underline" in deco) span(android.text.style.UnderlineSpan())
+            if ("line-through" in deco) span(android.text.style.StrikethroughSpan())
+        }
+        v.text = b
+    }
+
+    /** Typeface from font_file (custom), font_family (generic name) plus weight and italic. */
+    private fun typefaceFor(s: JSONObject): Typeface {
+        val w = s.opt("font_weight")?.toString() ?: "normal"
+        val weight = when (w) { "bold" -> 700; "normal" -> 400; else -> w.toIntOrNull() ?: 400 }
+        val italic = s.optString("font_style") == "italic"
+        val file = s.optString("font_file")
+        val fam = s.optString("font_family")
+        val base: Typeface = when {
+            file.isNotEmpty() -> fontCache.getOrPut(file) {
+                try { Typeface.createFromFile(file) } catch (e: Exception) { null }
+            } ?: Typeface.DEFAULT
+            fam == "monospace" || fam == "serif" || fam == "sans-serif" -> Typeface.create(fam, Typeface.NORMAL)
+            else -> Typeface.DEFAULT
+        }
+        return if (Build.VERSION.SDK_INT >= 28) Typeface.create(base, weight, italic)
+        else Typeface.create(base, (if (weight >= 600) 1 else 0) or (if (italic) 2 else 0))
     }
 
     private fun insert(parent: Int, id: Int, index: Int) {
@@ -172,6 +228,7 @@ class OpApplier(
 
     private fun delete(id: Int) {
         val v = views.remove(id)
+        texts.remove(id); spans.remove(id)
         (v?.parent as? ViewGroup)?.removeView(v)
         if (types.remove(id) == "ScrollView") layout.delete(id or CONTENT)
         layout.delete(id)
@@ -280,12 +337,13 @@ class OpApplier(
     private fun paintText(id: Int, v: TextView, s: JSONObject) {
         if (s.has("color")) v.setTextColor(col(s, "color")) else defaultText[id]?.let { v.setTextColor(it) }
         val size = num(s, "font_size", 14.0)
-        v.setTextSize(TypedValue.COMPLEX_UNIT_SP, size.toFloat())
-        val w = s.opt("font_weight")?.toString() ?: "normal"
-        val weight = when (w) { "bold" -> 700; "normal" -> 400; else -> w.toIntOrNull() ?: 400 }
-        val italic = s.optString("font_style") == "italic"
-        v.typeface = if (Build.VERSION.SDK_INT >= 28) Typeface.create(Typeface.DEFAULT, weight, italic)
-        else Typeface.create(Typeface.DEFAULT, (if (weight >= 600) 1 else 0) or (if (italic) 2 else 0))
+        val scaled = !s.has("allow_font_scaling") || s.optBoolean("allow_font_scaling", true)
+        v.setTextSize(if (scaled) TypedValue.COMPLEX_UNIT_SP else TypedValue.COMPLEX_UNIT_DIP, size.toFloat())
+        v.typeface = typefaceFor(s)
+        if (s.has("text_shadow_color") || s.has("text_shadow_radius"))
+            v.setShadowLayer((num(s, "text_shadow_radius", 0.0) * d).toFloat(), (num(s, "text_shadow_offset_x") * d).toFloat(),
+                (num(s, "text_shadow_offset_y") * d).toFloat(), if (s.has("text_shadow_color")) col(s, "text_shadow_color") else 0xFF000000.toInt())
+        else v.setShadowLayer(0f, 0f, 0f, 0)
         val h = when (s.optString("text_align")) {
             "center" -> Gravity.CENTER_HORIZONTAL
             "right" -> Gravity.END

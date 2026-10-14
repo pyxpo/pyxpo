@@ -11,6 +11,9 @@ final class OpApplier {
     private var styles: [Int: [String: Any]] = [:]
     private var pads: [Int: UIEdgeInsets] = [:]
     private var boxes: [Int: BoxLayer] = [:]
+    private var texts: [Int: String] = [:]
+    private var spans: [Int: [[String: Any]]] = [:]
+    private static var fontCache: [String: String] = [:]
     private var propIds: [String: Int32] = [:]
     private var tree: OpaquePointer!
     private let root = PxRoot()
@@ -127,12 +130,22 @@ final class OpApplier {
     private func update(_ id: Int, _ props: [String: Any], _ removed: [String]) {
         guard let v = views[id] else { return }
         if removed.contains("style") { applyStyle(id, v, [:]) }
+        if removed.contains("spans") {
+            spans.removeValue(forKey: id)
+            if let l = v as? UILabel { renderLabel(id, l, styles[id] ?? [:]) }
+            px_node_mark_dirty(tree, Int32(id))
+        }
         for (k, val) in props {
             switch k {
             case "text":
                 let s = val as? String ?? ""
+                texts[id] = s
                 if let b = v as? UIButton { b.setTitle(s, for: .normal) }
-                else if let l = v as? UILabel { l.text = s }
+                else if let l = v as? UILabel { renderLabel(id, l, styles[id] ?? [:]) }
+                px_node_mark_dirty(tree, Int32(id))
+            case "spans":
+                spans[id] = val as? [[String: Any]]
+                if let l = v as? UILabel { renderLabel(id, l, styles[id] ?? [:]) }
                 px_node_mark_dirty(tree, Int32(id))
             case "value":
                 if let t = v as? UITextField {
@@ -177,6 +190,8 @@ final class OpApplier {
         styles.removeValue(forKey: id)
         pads.removeValue(forKey: id)
         boxes.removeValue(forKey: id)
+        texts.removeValue(forKey: id)
+        spans.removeValue(forKey: id)
     }
 
     // -- style ---------------------------------------------------------------------------------------
@@ -234,7 +249,7 @@ final class OpApplier {
         v.transform = CGAffineTransform(translationX: num(s, "translate_x"), y: num(s, "translate_y"))
             .rotated(by: num(s, "rotate") * .pi / 180)
             .scaledBy(x: sc * num(s, "scale_x", 1), y: sc * num(s, "scale_y", 1))
-        paintText(v, s)
+        paintText(id, v, s)
     }
 
     private func paintBox(_ id: Int, _ v: UIView, _ s: [String: Any]) {
@@ -259,11 +274,13 @@ final class OpApplier {
         L.shadowRadius = max(num(s, "shadow_radius"), elev)
         L.shadowOffset = CGSize(width: num(s, "shadow_offset_x"), height: num(s, "shadow_offset_y") + (elev > 0 && s["shadow_offset_y"] == nil ? elev / 2 : 0))
         if spec.hasBox || L.shadowOpacity > 0 || spec.clip {
-            let b = boxes[id] ?? { let n = BoxLayer(); v.layer.insertSublayer(n, at: 0); boxes[id] = n; return n }()
+            let b = boxes[id] ?? { let n = BoxLayer(); if let l = v as? PxLabel { l.box = n } else { v.layer.insertSublayer(n, at: 0) }; boxes[id] = n; return n }()
             b.spec = spec
             layoutBox(id, v)
         } else if let b = boxes.removeValue(forKey: id) {
             b.removeFromSuperlayer()
+            (v as? PxLabel)?.box = nil
+            v.setNeedsDisplay()
             v.layer.shadowPath = nil
             v.layer.mask = nil
         }
@@ -275,6 +292,7 @@ final class OpApplier {
         guard let b = boxes[id] else { return }
         let r = CGRect(origin: .zero, size: v.bounds.size)
         b.update(r)
+        v.setNeedsDisplay()
         if v.layer.shadowOpacity > 0 { v.layer.shadowPath = b.outerPath(r).cgPath } else { v.layer.shadowPath = nil }
         if b.spec.clip && b.spec.radii.contains(where: { $0 > 0 }) {
             let m = CAShapeLayer(); m.path = b.outerPath(r).cgPath
@@ -302,14 +320,93 @@ final class OpApplier {
         }
     }
 
-    private func paintText(_ v: UIView, _ s: [String: Any]) {
-        guard v is UILabel || v is UIButton || v is UITextField else { return }
-        let size = num(s, "font_size", 14) * Self.fontScale
-        var font = UIFont.systemFont(ofSize: size, weight: Self.weight(s["font_weight"]))
-        if (s["font_style"] as? String) == "italic",
-           let d = font.fontDescriptor.withSymbolicTraits(.traitItalic) {
-            font = UIFont(descriptor: d, size: size)
+    /// Font from a normalized text style: custom file, generic family, system weight, italic, Dynamic Type.
+    private static func uiFont(_ s: [String: Any], _ size: CGFloat? = nil) -> UIFont {
+        let base = size ?? CGFloat(truncating: (s["font_size"] as? NSNumber) ?? 14)
+        let scaled = (s["allow_font_scaling"] as? Bool) ?? true
+        let pt = scaled ? base * fontScale : base
+        let italic = (s["font_style"] as? String) == "italic"
+        var font: UIFont
+        if let file = s["font_file"] as? String, let name = customFontName(file) {
+            font = UIFont(name: name, size: pt) ?? .systemFont(ofSize: pt)
+        } else {
+            let w = weight(s["font_weight"])
+            switch s["font_family"] as? String {
+            case "monospace": font = .monospacedSystemFont(ofSize: pt, weight: w)
+            case "serif":
+                let d = UIFont.systemFont(ofSize: pt, weight: w).fontDescriptor.withDesign(.serif)
+                font = d.map { UIFont(descriptor: $0, size: pt) } ?? .systemFont(ofSize: pt, weight: w)
+            default: font = .systemFont(ofSize: pt, weight: w)
+            }
         }
+        if italic, let d = font.fontDescriptor.withSymbolicTraits(.traitItalic) { font = UIFont(descriptor: d, size: pt) }
+        return font
+    }
+
+    private static func customFontName(_ path: String) -> String? {
+        if let n = fontCache[path] { return n.isEmpty ? nil : n }
+        var name = ""
+        if let prov = CGDataProvider(filename: path), let cg = CGFont(prov) {
+            CTFontManagerRegisterGraphicsFont(cg, nil)  // already registered returns false: still usable
+            name = (cg.postScriptName as String?) ?? ""
+        }
+        fontCache[path] = name
+        return name.isEmpty ? nil : name
+    }
+
+    private func attrs(_ s: [String: Any], _ para: NSParagraphStyle?, isSpan: Bool = false) -> [NSAttributedString.Key: Any] {
+        var a: [NSAttributedString.Key: Any] = [.font: Self.uiFont(s)]
+        a[.foregroundColor] = col(s, "color") ?? UIColor.label
+        if isSpan, let bg = col(s, "background_color") { a[.backgroundColor] = bg }
+        if let ls = s["letter_spacing"] as? NSNumber { a[.kern] = CGFloat(truncating: ls) }
+        let deco = s["text_decoration"] as? String ?? ""
+        if deco.contains("underline") { a[.underlineStyle] = NSUnderlineStyle.single.rawValue }
+        if deco.contains("line-through") { a[.strikethroughStyle] = NSUnderlineStyle.single.rawValue }
+        if let p = para { a[.paragraphStyle] = p }
+        if s["text_shadow_color"] != nil || s["text_shadow_radius"] != nil {
+            let sh = NSShadow()
+            sh.shadowColor = col(s, "text_shadow_color") ?? .black
+            sh.shadowBlurRadius = num(s, "text_shadow_radius")
+            sh.shadowOffset = CGSize(width: num(s, "text_shadow_offset_x"), height: num(s, "text_shadow_offset_y"))
+            a[.shadow] = sh
+        }
+        return a
+    }
+
+    /// Label text as an attributed string: style attributes plus optional nested-Text spans.
+    private func renderLabel(_ id: Int, _ l: UILabel, _ s: [String: Any]) {
+        let para = NSMutableParagraphStyle()
+        switch s["text_align"] as? String {
+        case "center": para.alignment = .center
+        case "right": para.alignment = .right
+        default: para.alignment = .natural
+        }
+        let n = Int(num(s, "number_of_lines"))
+        para.lineBreakMode = n > 0 ? .byTruncatingTail : .byWordWrapping
+        if let lh = s["line_height"] as? NSNumber {
+            let h = CGFloat(truncating: lh) * ((s["allow_font_scaling"] as? Bool) ?? true ? Self.fontScale : 1)
+            // extra space below each line: same result as Android's lineHeight, and avoids UILabel
+            // drawing nothing with min/max line height
+            para.lineSpacing = max(0, h - Self.uiFont(s).lineHeight)
+        }
+        let out = NSMutableAttributedString()
+        if let sp = spans[id], !sp.isEmpty {
+            for o in sp {
+                var st = s
+                for (k, v) in (o["style"] as? [String: Any] ?? [:]) { st[k] = v }
+                out.append(NSAttributedString(string: o["text"] as? String ?? "", attributes: attrs(st, para, isSpan: true)))
+            }
+        } else {
+            out.append(NSAttributedString(string: texts[id] ?? "", attributes: attrs(s, para)))
+        }
+        l.attributedText = out
+        l.numberOfLines = n > 0 ? n : 0
+        l.lineBreakMode = para.lineBreakMode
+    }
+
+    private func paintText(_ id: Int, _ v: UIView, _ s: [String: Any]) {
+        guard v is UILabel || v is UIButton || v is UITextField else { return }
+        let font = Self.uiFont(s)
         let c = col(s, "color")
         let align: NSTextAlignment
         switch s["text_align"] as? String {
@@ -318,12 +415,7 @@ final class OpApplier {
         default: align = .natural
         }
         if let l = v as? UILabel {
-            l.font = font
-            l.textColor = c ?? .label
-            l.textAlignment = align
-            let n = Int(num(s, "number_of_lines"))
-            l.numberOfLines = n > 0 ? n : 0
-            l.lineBreakMode = n > 0 ? .byTruncatingTail : .byWordWrapping
+            renderLabel(id, l, s)
         } else if let b = v as? UIButton {
             b.titleLabel?.font = font
             b.setTitleColor(c, for: .normal)
@@ -374,7 +466,7 @@ final class OpApplier {
     /// Dynamic Type, dark mode or other trait change: fonts and leaf sizes may differ.
     func configChanged() {
         sendEnv()
-        for (id, s) in styles { if let v = views[id] { paintText(v, s) } }
+        for (id, s) in styles { if let v = views[id] { paintText(id, v, s) } }
         for (id, t) in types where Self.leaves.contains(t) { px_node_mark_dirty(tree, Int32(id)) }
         flush()
     }
