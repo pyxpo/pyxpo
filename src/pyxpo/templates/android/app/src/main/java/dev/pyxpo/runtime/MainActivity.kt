@@ -22,10 +22,16 @@ class MainActivity : Activity() {
         }
         if (android.os.Build.VERSION.SDK_INT >= 23) {
             // Ask for the display's highest refresh rate at the current resolution (90/120 Hz panels).
-            val d = windowManager.defaultDisplay
+            @Suppress("DEPRECATION")
+            val d = if (android.os.Build.VERSION.SDK_INT >= 30) display ?: windowManager.defaultDisplay else windowManager.defaultDisplay
             val cur = d.mode
             d.supportedModes.filter { it.physicalWidth == cur.physicalWidth && it.physicalHeight == cur.physicalHeight }
-                .maxByOrNull { it.refreshRate }?.let { window.attributes = window.attributes.also { a -> a.preferredDisplayModeId = it.modeId } }
+                .maxByOrNull { it.refreshRate }?.let { m ->
+                    window.attributes = window.attributes.also { a ->
+                        a.preferredDisplayModeId = m.modeId
+                        a.preferredRefreshRate = m.refreshRate
+                    }
+                }
         }
         root.setOnApplyWindowInsetsListener { v, insets ->
             var l = 0; var t = 0; var r = 0; var b = 0; var kb = 0

@@ -105,7 +105,17 @@ class OpApplier(
             }
         }
         batching = false
-        flush()
+        requestFlush()
+    }
+
+    private var flushPending = false
+    private val flushCb = android.view.Choreographer.FrameCallback { flushPending = false; flush() }
+
+    /** Lays out once per frame no matter how many batches arrived since the last vsync (runs before traversal). */
+    private fun requestFlush() {
+        if (flushPending) return
+        flushPending = true
+        android.view.Choreographer.getInstance().postFrameCallback(flushCb)
     }
 
     private fun event(name: String, id: Int, payload: JSONObject = JSONObject()) {
@@ -287,7 +297,7 @@ class OpApplier(
         val c = ScrollCfg()
         scrolls[id] = c
         c.idle = Runnable {
-            val h = v as? PxScrollable ?: return@Runnable
+            if (v !is PxScrollable) return@Runnable
             if (c.dragging) return@Runnable
             if (c.paging) {
                 val horiz = v is PxHScroll
@@ -743,20 +753,24 @@ class OpApplier(
     /** Typeface from font_file (custom), font_family (generic name) plus weight and italic. */
     private fun typefaceFor(s: JSONObject): Typeface {
         val w = s.opt("font_weight")?.toString() ?: "normal"
-        val weight = when (w) { "bold" -> 700; "normal" -> 400; else -> w.toIntOrNull() ?: 400 }
         val italic = s.optString("font_style") == "italic"
         val file = s.optString("font_file")
         val fam = s.optString("font_family")
-        val base: Typeface = when {
-            file.isNotEmpty() -> fontCache.getOrPut(file) {
-                try { Typeface.createFromFile(file) } catch (e: Exception) { null }
-            } ?: Typeface.DEFAULT
-            fam == "monospace" || fam == "serif" || fam == "sans-serif" -> Typeface.create(fam, Typeface.NORMAL)
-            else -> Typeface.DEFAULT
+        return typefaces.getOrPut("$file|$fam|$w|$italic") {
+            val weight = when (w) { "bold" -> 700; "normal" -> 400; else -> w.toIntOrNull() ?: 400 }
+            val base: Typeface = when {
+                file.isNotEmpty() -> fontCache.getOrPut(file) {
+                    try { Typeface.createFromFile(file) } catch (e: Exception) { null }
+                } ?: Typeface.DEFAULT
+                fam == "monospace" || fam == "serif" || fam == "sans-serif" -> Typeface.create(fam, Typeface.NORMAL)
+                else -> Typeface.DEFAULT
+            }
+            if (Build.VERSION.SDK_INT >= 28) Typeface.create(base, weight, italic)
+            else Typeface.create(base, (if (weight >= 600) 1 else 0) or (if (italic) 2 else 0))
         }
-        return if (Build.VERSION.SDK_INT >= 28) Typeface.create(base, weight, italic)
-        else Typeface.create(base, (if (weight >= 600) 1 else 0) or (if (italic) 2 else 0))
     }
+
+    private val typefaces = HashMap<String, Typeface>()
 
     /** Modals live on the root so they cover the whole screen whatever their Python parent is. */
     private fun host(id: Int, parent: Int) = if (types[id] == "Modal") 1 else parent
@@ -803,7 +817,8 @@ class OpApplier(
         texts.remove(id); spans.remove(id)
         val host = v?.parent as? ViewGroup
         if (!(host is PxNav && v in host.lingering)) host?.removeView(v)  // a popping screen leaves when its animation ends
-        scrolls.remove(id); layoutListeners.remove(id); imgReq.remove(id)
+        scrolls.remove(id)?.idle?.let { ui.removeCallbacks(it) }  // no stale scroll events for a deleted id
+        layoutListeners.remove(id); imgReq.remove(id)
         if (types.remove(id) == "ScrollView") layout.delete(id or CONTENT)
         controls.drop(id)
         layout.delete(id)
@@ -951,8 +966,9 @@ class OpApplier(
                 colors = IntArray(c.length()) { c.getLong(it).toInt() }
                 stops = FloatArray(st.length()) { st.getDouble(it).toFloat() }
             }
-            v.background = BoxDrawable(BoxSpec(if (s.has("background_color")) col(s, "background_color") else null,
-                grad?.optDouble("angle", 180.0)?.toFloat() ?: 0f, colors, stops, radii, bw, bc))
+            val spec = BoxSpec(if (s.has("background_color")) col(s, "background_color") else null,
+                grad?.optDouble("angle", 180.0)?.toFloat() ?: 0f, colors, stops, radii, bw, bc)
+            if ((v.background as? BoxDrawable)?.spec?.sameAs(spec) != true) v.background = BoxDrawable(spec)
             painted.add(id)
         } else if (painted.remove(id)) v.background = null
     }

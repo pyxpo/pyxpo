@@ -24,10 +24,13 @@ class BoxSpec(
     val radii: FloatArray,
     val bw: FloatArray,        // border widths: left, top, right, bottom
     val bc: IntArray,          // border colors: left, top, right, bottom
-)
+) {
+    fun sameAs(o: BoxSpec) = bg == o.bg && gradAngle == o.gradAngle && gradColors.contentEquals(o.gradColors) &&
+        gradStops.contentEquals(o.gradStops) && radii.contentEquals(o.radii) && bw.contentEquals(o.bw) && bc.contentEquals(o.bc)
+}
 
 /** Draws background colour or linear gradient, per-corner radii and per-side borders. */
-class BoxDrawable(private val spec: BoxSpec) : Drawable() {
+class BoxDrawable(val spec: BoxSpec) : Drawable() {
     private val paint = Paint(Paint.ANTI_ALIAS_FLAG)
     private val outer = Path()
     private val ring = Path()

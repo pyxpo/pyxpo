@@ -206,7 +206,7 @@ class Animated(
     private fun setV(n: Int, v: Double, t: Double) {
         val p = prev[n]
         if (p != null && t > p[0]) vel[n] = (v - p[1]) / ((t - p[0]) / 1000.0)
-        prev[n] = doubleArrayOf(t, v)
+        if (p != null) { p[0] = t; p[1] = v } else prev[n] = doubleArrayOf(t, v)
         values[n] = v
     }
 
@@ -214,10 +214,10 @@ class Animated(
 
     private inner class Timing(val s: JSONObject) : Run {
         val node = s.getInt("node"); val ease = easing(s.optJSONObject("easing"))
+        val ms = s.getDouble("ms"); val to = s.getDouble("to")
         var t0 = Double.NaN; var a = 0.0
         override fun update(t: Double): Boolean {
             if (t0.isNaN()) { t0 = t; a = get(node); prev[node] = doubleArrayOf(t, a) }
-            val ms = s.getDouble("ms"); val to = s.getDouble("to")
             val p = if (ms <= 0) 1.0 else min(1.0, (t - t0) / ms)
             setV(node, if (p >= 1) to else a + (to - a) * ease(p), t)
             return p >= 1
@@ -354,7 +354,7 @@ class Animated(
     fun tick(now: Double) {
         val touched = HashSet<Int>()
         val ended = ArrayList<Int>()
-        for ((aid, r) in anims.entries.toList()) {
+        for ((aid, r) in anims) {
             touched.addAll(r.nodes)
             if (r.run.update(now)) ended.add(aid)
         }
