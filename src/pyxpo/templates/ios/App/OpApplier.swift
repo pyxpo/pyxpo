@@ -129,6 +129,7 @@ final class OpApplier {
 
     private func update(_ id: Int, _ props: [String: Any], _ removed: [String]) {
         guard let v = views[id] else { return }
+        var a11yDirty = removed.contains { $0.hasPrefix("accessib") }
         if removed.contains("style") { applyStyle(id, v, [:]) }
         if removed.contains("spans") {
             spans.removeValue(forKey: id)
@@ -154,10 +155,55 @@ final class OpApplier {
                 }
             case "placeholder": (v as? UITextField)?.placeholder = val as? String
             case "style": applyStyle(id, v, val as? [String: Any] ?? [:])
+            case "on_press", "on_press_in", "on_press_out", "on_long_press":
+                if let g = v as? PxGroup, g.onTouch == nil {
+                    g.isUserInteractionEnabled = true
+                    g.onTouch = { [weak self] name, p in
+                        var pl: [String: Any] = [:]
+                        if let p = p { pl = ["x": p.x, "y": p.y] }
+                        self?.event(name, id, pl)
+                    }
+                }
+            case let k where k.hasPrefix("accessib"): a11yDirty = true
             default: break
             }
         }
+        if a11yDirty {
+            var a = a11y[id] ?? [:]
+            for k in removed where k.hasPrefix("accessib") { a.removeValue(forKey: k) }
+            for (k, val) in props where k.hasPrefix("accessib") { a[k] = val }
+            a11y[id] = a
+            applyA11y(v, a)
+        }
         if !batching { flush() }
+    }
+
+    private var a11y: [Int: [String: Any]] = [:]
+
+    private func applyA11y(_ v: UIView, _ a: [String: Any]) {
+        let st = a["accessibility_state"] as? [String: Any] ?? [:]
+        let role = a["accessibility_role"] as? String ?? ""
+        if let acc = a["accessible"] as? Bool { v.isAccessibilityElement = acc }
+        else if a["accessibility_label"] != nil || !role.isEmpty { v.isAccessibilityElement = true }
+        v.accessibilityLabel = a["accessibility_label"] as? String
+        v.accessibilityHint = a["accessibility_hint"] as? String
+        var parts: [String] = []
+        if let c = st["checked"] as? Bool { parts.append(c ? "checked" : "not checked") }
+        if (st["selected"] as? Bool) == true { parts.append("selected") }
+        if let val = a["accessibility_value"] as? String { parts.append(val) }
+        v.accessibilityValue = parts.isEmpty ? nil : parts.joined(separator: ", ")
+        var tr: UIAccessibilityTraits = []
+        switch role {
+        case "button", "imagebutton": tr.insert(.button)
+        case "link": tr.insert(.link)
+        case "header": tr.insert(.header)
+        case "image": tr.insert(.image)
+        case "switch", "checkbox", "radio": tr.insert(.button)
+        default: break
+        }
+        if (st["selected"] as? Bool) == true || (st["checked"] as? Bool) == true { tr.insert(.selected) }
+        if (st["disabled"] as? Bool) == true { tr.insert(.notEnabled) }
+        v.accessibilityTraits = tr
     }
 
     private func parentNode(_ parent: Int) -> Int32 {
@@ -192,6 +238,7 @@ final class OpApplier {
         boxes.removeValue(forKey: id)
         texts.removeValue(forKey: id)
         spans.removeValue(forKey: id)
+        a11y.removeValue(forKey: id)
     }
 
     // -- style ---------------------------------------------------------------------------------------

@@ -137,6 +137,7 @@ class OpApplier(
         if (removed != null) for (i in 0 until removed.length()) r.add(removed.getString(i))
         if ("style" in r) applyStyle(id, v, JSONObject())
         var textDirty = false
+        var a11yDirty = r.any { it.startsWith("accessib") }
         if ("spans" in r) { spans.remove(id); textDirty = true }
         val keys = props.keys()
         while (keys.hasNext()) {
@@ -152,11 +153,96 @@ class OpApplier(
                     }
                 }
                 "placeholder" -> (v as? EditText)?.hint = props.optString(k)
+                "on_press", "on_press_in", "on_press_out", "on_long_press" -> if (v !is Button) attachTouch(id, v)
+                "accessibility_label", "accessibility_hint", "accessibility_role", "accessibility_state",
+                "accessibility_value", "accessible" -> a11yDirty = true
                 "style" -> applyStyle(id, v, props.optJSONObject(k) ?: JSONObject())
             }
         }
         if (textDirty && v is TextView) { applyText(id, v); layout.markDirty(id) }
+        if (a11yDirty) a11y[id] = (a11y[id] ?: JSONObject()).also { merge(it, props, r) }.also { applyA11y(v, it) }
         if (!batching) flush()
+    }
+
+    private val a11y = HashMap<Int, JSONObject>()
+    private val touching = HashSet<Int>()
+
+    private fun merge(dst: JSONObject, props: JSONObject, removed: Set<String>) {
+        for (k in removed) dst.remove(k)
+        val it = props.keys()
+        while (it.hasNext()) { val k = it.next(); if (k.startsWith("accessib")) dst.put(k, props.get(k)) }
+    }
+
+    private fun applyA11y(v: View, a: JSONObject) {
+        val st = a.optJSONObject("accessibility_state")
+        val parts = ArrayList<String>()
+        a.optString("accessibility_label", "").takeIf { it.isNotEmpty() }?.let { v.contentDescription = it }
+        if (!a.has("accessibility_label")) v.contentDescription = null
+        if (st != null) {
+            if (st.has("checked")) parts.add(if (st.optBoolean("checked")) "checked" else "not checked")
+            if (st.optBoolean("selected")) parts.add("selected")
+            if (st.optBoolean("disabled")) parts.add("disabled")
+        }
+        a.optString("accessibility_value", "").takeIf { it.isNotEmpty() }?.let { parts.add(it) }
+        if (android.os.Build.VERSION.SDK_INT >= 30) v.stateDescription = if (parts.isEmpty()) null else parts.joinToString(", ")
+        if (a.has("accessible")) v.importantForAccessibility =
+            if (a.optBoolean("accessible")) View.IMPORTANT_FOR_ACCESSIBILITY_YES else View.IMPORTANT_FOR_ACCESSIBILITY_NO
+        val role = a.optString("accessibility_role", "")
+        val hint = a.optString("accessibility_hint", "")
+        v.accessibilityDelegate = object : View.AccessibilityDelegate() {
+            override fun onInitializeAccessibilityNodeInfo(h: View, info: android.view.accessibility.AccessibilityNodeInfo) {
+                super.onInitializeAccessibilityNodeInfo(h, info)
+                when (role) {
+                    "button", "link", "imagebutton" -> info.className = "android.widget.Button"
+                    "switch" -> info.className = "android.widget.Switch"
+                    "checkbox" -> info.className = "android.widget.CheckBox"
+                    "radio" -> info.className = "android.widget.RadioButton"
+                    "image" -> info.className = "android.widget.ImageView"
+                    "header" -> info.isHeading = true
+                }
+                if (st != null && st.has("checked")) { info.isCheckable = true; info.isChecked = st.optBoolean("checked") }
+                if (st != null && st.optBoolean("disabled")) info.isEnabled = false
+                if (hint.isNotEmpty() && android.os.Build.VERSION.SDK_INT >= 26) info.hintText = hint
+            }
+        }
+    }
+
+    /** Touch tracking for any view with on_press* handlers: press_in, press_out, press (release inside), long_press. */
+    @android.annotation.SuppressLint("ClickableViewAccessibility")
+    private fun attachTouch(id: Int, v: View) {
+        if (!touching.add(id)) return
+        val handler = android.os.Handler(android.os.Looper.getMainLooper())
+        var down = false
+        var long = false
+        val longRun = Runnable { if (down) { long = true; event("long_press", id) } }
+        v.setOnTouchListener { view, e ->
+            val inside = e.x >= -24 && e.y >= -24 && e.x <= view.width + 24 && e.y <= view.height + 24
+            when (e.actionMasked) {
+                android.view.MotionEvent.ACTION_DOWN -> {
+                    down = true; long = false
+                    view.parent?.requestDisallowInterceptTouchEvent(false)
+                    handler.postDelayed(longRun, 500)
+                    event("press_in", id, JSONObject().put("x", e.x / ctx.resources.displayMetrics.density)
+                        .put("y", e.y / ctx.resources.displayMetrics.density))
+                    true
+                }
+                android.view.MotionEvent.ACTION_MOVE -> {
+                    if (down && !inside) { down = false; handler.removeCallbacks(longRun); event("press_out", id) }
+                    true
+                }
+                android.view.MotionEvent.ACTION_UP -> {
+                    handler.removeCallbacks(longRun)
+                    if (down) { down = false; event("press_out", id); if (!long) event("press", id) }
+                    true
+                }
+                android.view.MotionEvent.ACTION_CANCEL -> {
+                    handler.removeCallbacks(longRun)
+                    if (down) { down = false; event("press_out", id) }
+                    true
+                }
+                else -> false
+            }
+        }
     }
 
     private val texts = HashMap<Int, String>()
@@ -228,6 +314,7 @@ class OpApplier(
 
     private fun delete(id: Int) {
         val v = views.remove(id)
+        touching.remove(id); a11y.remove(id)
         texts.remove(id); spans.remove(id)
         (v?.parent as? ViewGroup)?.removeView(v)
         if (types.remove(id) == "ScrollView") layout.delete(id or CONTENT)

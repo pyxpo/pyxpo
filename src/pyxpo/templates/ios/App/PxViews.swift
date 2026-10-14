@@ -1,7 +1,43 @@
 import UIKit
 
 /// Container whose children are placed by OpApplier from engine frames. No auto layout, no layoutSubviews.
-class PxGroup: UIView {}
+class PxGroup: UIView {
+    /// Set when the view has on_press* handlers. Events: press_in(point), press_out, press, long_press.
+    var onTouch: ((String, CGPoint?) -> Void)?
+    private var down = false
+    private var long = false
+    private var timer: Timer?
+
+    private func inside(_ t: UITouch) -> Bool { bounds.insetBy(dx: -24, dy: -24).contains(t.location(in: self)) }
+
+    override func touchesBegan(_ touches: Set<UITouch>, with event: UIEvent?) {
+        guard let cb = onTouch, let t = touches.first else { return super.touchesBegan(touches, with: event) }
+        down = true; long = false
+        timer?.invalidate()
+        timer = Timer.scheduledTimer(withTimeInterval: 0.5, repeats: false) { [weak self] _ in
+            guard let self = self, self.down else { return }
+            self.long = true; cb("long_press", nil)
+        }
+        cb("press_in", t.location(in: self))
+    }
+
+    override func touchesMoved(_ touches: Set<UITouch>, with event: UIEvent?) {
+        guard let cb = onTouch, let t = touches.first else { return super.touchesMoved(touches, with: event) }
+        if down && !inside(t) { down = false; timer?.invalidate(); cb("press_out", nil) }
+    }
+
+    override func touchesEnded(_ touches: Set<UITouch>, with event: UIEvent?) {
+        guard let cb = onTouch else { return super.touchesEnded(touches, with: event) }
+        timer?.invalidate()
+        if down { down = false; cb("press_out", nil); if !long { cb("press", nil) } }
+    }
+
+    override func touchesCancelled(_ touches: Set<UITouch>, with event: UIEvent?) {
+        guard let cb = onTouch else { return super.touchesCancelled(touches, with: event) }
+        timer?.invalidate()
+        if down { down = false; cb("press_out", nil) }
+    }
+}
 
 /// Root view, pinned to the safe area. Reports size and trait changes.
 final class PxRoot: UIView {
