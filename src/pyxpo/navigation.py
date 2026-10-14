@@ -14,6 +14,7 @@ from .component import component
 from .element import Text, View
 from .hooks import create_context, use_context, use_ref, use_state
 from .style import flatten
+from .theme import use_theme
 
 _FILL = {"position": "absolute", "left": 0, "top": 0, "right": 0, "bottom": 0}
 
@@ -139,14 +140,15 @@ def _title(name: str, options: Dict[str, Any]) -> str:
 def _Header(title: str = "", can_back: bool = False, on_back: Any = None, header_style: Any = None,
             title_style: Any = None, back_label: str = "‹", right: Any = None):
     from .ui import Pressable
+    c = use_theme()["colors"]
     bar = {"height": 48, "flex_direction": "row", "align_items": "center", "padding_horizontal": 4,
-           "background_color": "#ffffff", "border_bottom_width": 1, "border_color": "#d8d8de"}
+           "background_color": c["surface"], "border_bottom_width": 1, "border_color": c["border"]}
     return View(
-        Pressable(Text(back_label, style={"font_size": 30, "color": "#1a73e8", "margin_top": -4}),
+        Pressable(Text(back_label, style={"font_size": 30, "color": c["primary"], "margin_top": -4}),
                   on_press=on_back, accessibility_label="Back",
                   style={"width": 40, "height": 40, "align_items": "center", "justify_content": "center"})
         if can_back else View(style={"width": 8}),
-        Text(title, style=[{"flex": 1, "font_size": 17, "font_weight": "600", "color": "#111111"}, title_style]),
+        Text(title, style=[{"flex": 1, "font_size": 17, "font_weight": "600", "color": c["text"]}, title_style]),
         right if right is not None else None,
         style=[bar, header_style])
 
@@ -160,6 +162,7 @@ def Stack(screens: Optional[Dict[str, Any]] = None, initial: Optional[str] = Non
     screens = screens or {}
     opts = screen_options or {}
     names = list(screens)
+    bg = use_theme()["colors"]["background"]
     if not names:
         return View(style=style)
     _, tick = use_state(0)
@@ -180,7 +183,7 @@ def Stack(screens: Optional[Dict[str, Any]] = None, initial: Optional[str] = Non
                     on_back=nav.go_back, header_style=header_style, title_style=title_style,
                     right=o.get("header_right")) if show_header else None,
             View(_Screen(screen=screens[r.name], navigation=handle, params=r.params), style={"flex": 1}),
-            style=[_FILL, {"background_color": "#ffffff"}, None if on_top else {"display": "none"}],
+            style=[_FILL, {"background_color": bg}, None if on_top else {"display": "none"}],
             key="r%d" % r.key))
     return _NavContext.Provider(View(*kids, style=[{"flex": 1}, style]), value=Navigation(nav, top))
 
@@ -188,10 +191,13 @@ def Stack(screens: Optional[Dict[str, Any]] = None, initial: Optional[str] = Non
 @component
 def Tabs(screens: Optional[Dict[str, Any]] = None, initial: Optional[str] = None,
          screen_options: Optional[Dict[str, Dict[str, Any]]] = None, tab_bar_style: Any = None,
-         active_color: str = "#1a73e8", inactive_color: str = "#8e8e93", style: Any = None):
+         active_color: Optional[str] = None, inactive_color: Optional[str] = None, style: Any = None):
     """Bottom tab navigator. Tabs mount lazily on first visit and then stay mounted.
     `screen_options[name]` accepts `title` and `icon` (a string/glyph or element shown above the label)."""
     from .ui import Pressable
+    c = use_theme()["colors"]
+    active_color = active_color or c["primary"]
+    inactive_color = inactive_color or c["text_muted"]
     screens = screens or {}
     opts = screen_options or {}
     names = list(screens)
@@ -213,7 +219,7 @@ def Tabs(screens: Optional[Dict[str, Any]] = None, initial: Optional[str] = None
             continue
         route = Route(0, name, {})
         pages.append(View(_Screen(screen=screens[name], navigation=Navigation(nav, route), params={}),
-                          style=[_FILL, None if name == cur else {"display": "none"}], key=name))
+                          style=[_FILL, {"background_color": c["background"]}, None if name == cur else {"display": "none"}], key=name))
     items = []
     for name in names:
         o = opts.get(name, {})
@@ -226,8 +232,8 @@ def Tabs(screens: Optional[Dict[str, Any]] = None, initial: Optional[str] = None
             on_press=(lambda n=name: set_cur(n)), accessibility_role="tab",
             accessibility_state={"selected": on}, key=name,
             style={"flex": 1, "align_items": "center", "justify_content": "center", "padding_vertical": 6}))
-    bar = {"flex_direction": "row", "height": 56, "background_color": "#ffffff", "border_top_width": 1,
-           "border_color": "#d8d8de"}
+    bar = {"flex_direction": "row", "height": 56, "background_color": c["surface"], "border_top_width": 1,
+           "border_color": c["border"]}
     return _NavContext.Provider(
         View(View(*pages, style={"flex": 1}), View(*items, style=[bar, tab_bar_style]),
              style=[{"flex": 1}, style]),
