@@ -382,3 +382,6 @@ class StyleSheet:
     absolute_fill: Dict[str, Any] = {"position": "absolute", "top": 0, "right": 0, "bottom": 0, "left": 0}
     absoluteFill = absoluteFillObject = absolute_fill
     hairline_width = hairlineWidth = 1.0 / 3  # refined natively via PixelRatio
+
+
+processColor = parse_color  # RN name: color string -> ARGB int

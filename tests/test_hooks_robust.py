@@ -49,8 +49,8 @@ def test_cleanup_before_rerun_on_dep_change_and_prop_change_only():
     @component
     def Root():
         s, set_s = use_state((0, 0))
-        return View(Child(v=s[0], other=s[1]), Button("v", on_press=lambda: set_s((s[0] + 1, s[1]))),
-                    Button("o", on_press=lambda: set_s((s[0], s[1] + 1))))
+        return View(Child(v=s[0], other=s[1]), Button(title="v", on_press=lambda: set_s((s[0] + 1, s[1]))),
+                    Button(title="o", on_press=lambda: set_s((s[0], s[1] + 1))))
 
     app, r, errors = mount(Root)
     assert log == ["run 0"]
@@ -72,7 +72,7 @@ def test_cleanup_on_unmount_and_on_key_change():
     @component
     def Root():
         k, set_k = use_state(0)
-        return View(Child(k=k, key=k) if k < 2 else None, Button("next", on_press=lambda: set_k(k + 1)))
+        return View(Child(k=k, key=k) if k < 2 else None, Button(title="next", on_press=lambda: set_k(k + 1)))
 
     app, r, _ = mount(Root)
     r.press(r.find_text("next"))
@@ -89,7 +89,7 @@ def test_empty_deps_runs_once():
         n, set_n = use_state(0)
         use_effect(lambda: runs.append(1), [])
         use_layout_effect(lambda: runs.append(2), ())
-        return Button("go", on_press=lambda: set_n(n + 1))
+        return Button(title="go", on_press=lambda: set_n(n + 1))
 
     app, r, _ = mount(C)
     for _ in range(3):
@@ -114,7 +114,7 @@ def test_raising_effect_does_not_skip_others():
         use_effect(boom_cleanup)
         use_effect(boom)
         use_effect(lambda: log.append(n))
-        return Button("go", on_press=lambda: set_n(n + 1))
+        return Button(title="go", on_press=lambda: set_n(n + 1))
 
     app, r, errors = mount(C)
     assert log == [0] and [type(e) for e in errors] == [ValueError]
@@ -157,7 +157,7 @@ def test_raising_cleanup_on_unmount_keeps_tree_consistent():
     def Root():
         show, set_show = use_state(True)
         return View(Child() if show else None, Child() if show else None, Text("stay"),
-                    Button("hide", on_press=lambda: set_show(False)))
+                    Button(title="hide", on_press=lambda: set_show(False)))
 
     app, r, errors = mount(Root)
     r.press(r.find_text("hide"))
@@ -300,7 +300,7 @@ def test_nan_deps_stable():
     def C():
         n, set_n = use_state(0)
         use_effect(lambda: runs.append(1), [float("nan"), math.inf])
-        return Button("go", on_press=lambda: set_n(n + 1))
+        return Button(title="go", on_press=lambda: set_n(n + 1))
 
     app, r, _ = mount(C)
     r.press(r.find_text("go"))
@@ -316,7 +316,7 @@ def test_handler_exception_reported_runtime_alive():
 
         def bad():
             raise RuntimeError("handler")
-        return View(Text("n=%d" % n), Button("bad", on_press=bad), Button("ok", on_press=lambda: set_n(n + 1)))
+        return View(Text("n=%d" % n), Button(title="bad", on_press=bad), Button(title="ok", on_press=lambda: set_n(n + 1)))
 
     app, r, errors = mount(C)
     r.press(r.find_text("bad"))
@@ -358,7 +358,7 @@ def test_child_effect_before_parent():
     def Root():
         n, set_n = use_state(0)
         use_effect(lambda: (log.append("run root"), lambda: log.append("clean root"))[1])
-        return View(Mid(), Button("go", on_press=lambda: set_n(n + 1)))
+        return View(Mid(), Button(title="go", on_press=lambda: set_n(n + 1)))
 
     app, r, _ = mount(Root)
     assert log == ["run a", "run b", "run mid", "run root"]
@@ -382,8 +382,8 @@ def test_use_reducer():
     def C():
         n, dispatch = use_reducer(reducer, 5, init=lambda a: a * 2)
         renders.append(dispatch)
-        return View(Text("n=%d" % n), Button("inc", on_press=lambda: dispatch("inc")),
-                    Button("same", on_press=lambda: dispatch("same")))
+        return View(Text("n=%d" % n), Button(title="inc", on_press=lambda: dispatch("inc")),
+                    Button(title="same", on_press=lambda: dispatch("same")))
 
     app, r, _ = mount(C)
     assert r.texts()[0] == "n=10"
@@ -404,7 +404,7 @@ def test_use_id_stable_unique():
     @component
     def Root():
         n, set_n = use_state(0)
-        return View(Item(), Item(), Button("go", on_press=lambda: set_n(n + 1)))
+        return View(Item(), Item(), Button(title="go", on_press=lambda: set_n(n + 1)))
 
     app, r, _ = mount(Root)
     r.press(r.find_text("go"))
@@ -425,7 +425,7 @@ def test_imperative_handle_sets_and_clears():
         ref = use_ref()
         show, set_show = use_state(True)
         use_effect(lambda: seen.append(ref.current), [show])
-        return View(Input(handle=ref) if show else None, Button("hide", on_press=lambda: set_show(False)))
+        return View(Input(handle=ref) if show else None, Button(title="hide", on_press=lambda: set_show(False)))
 
     app, r, _ = mount(Root)
     assert seen == [{"focus": "ok"}]  # child handle is set before the parent effect runs
@@ -456,7 +456,7 @@ def test_sync_external_store_tears_down():
     @component
     def Root():
         show, set_show = use_state(True)
-        return View(Reader() if show else None, Button("hide", on_press=lambda: set_show(False)))
+        return View(Reader() if show else None, Button(title="hide", on_press=lambda: set_show(False)))
 
     app, r, _ = mount(Root)
     assert r.texts()[0] == "v=1" and len(store["subs"]) == 1
@@ -489,10 +489,7 @@ CAMEL = {
     "useSyncExternalStore": "use_sync_external_store", "useTransition": "use_transition",
     "useDeferredValue": "use_deferred_value", "useDebugValue": "use_debug_value", "useAsync": "use_async",
     "createContext": "create_context", "useWindowDimensions": "use_window_dimensions",
-    "useColorScheme": "use_color_scheme", "useSafeAreaInsets": "use_safe_area_insets", "useKeyboard": "use_keyboard",
-    "useOrientation": "use_orientation", "useBreakpoint": "use_breakpoint", "useResponsive": "use_responsive",
-    "useTheme": "use_theme", "useNavigation": "use_navigation", "useScrollRef": "use_scroll_ref",
-    "useAnimatedValue": "use_animated_value", "usePanResponder": "use_pan_responder",
+    "useColorScheme": "use_color_scheme", "useSafeAreaInsets": "use_safe_area_insets", "useAnimatedValue": "use_animated_value",
 }
 
 

@@ -116,7 +116,7 @@ Java_dev_pyxpo_runtime_PyxpoRuntime_nativeStart(JNIEnv *env, jobject thiz, jstri
     if (PyStatus_Exception(status)) goto fail_nocfg;
     pyxpo_bridge_mark_running();
 
-    /* Same as `python -m app.main`: apps call run_app() under `if __name__ == "__main__"`. */
+    /* Same as `python -m pyxpo.router.entry`: the entry calls run_app(). */
     PyObject *runpy = PyImport_ImportModule("runpy");
     if (!runpy) { PyErr_Print(); rc = -3; }
     else {

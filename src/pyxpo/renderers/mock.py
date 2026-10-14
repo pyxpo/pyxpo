@@ -13,6 +13,9 @@ class MockError(RuntimeError):
     pass
 
 
+_BUBBLING = ("press", "long_press", "press_in", "press_out")
+
+
 class Node:
     def __init__(self, id: int, type: str, props: Optional[Dict[str, Any]] = None) -> None:
         self.id = id
@@ -156,17 +159,34 @@ class MockRenderer:
         for n in self.root.walk():
             if n.props.get("text") == text:
                 return n
+        for n in self.root.walk():  # Text applies text_transform in Python, so Button("go") shows "GO"
+            t = n.props.get("text")
+            if isinstance(t, str) and t.upper() == text.upper():
+                return n
         return None
 
-    def texts(self) -> List[str]:
-        return [n.props["text"] for n in self.root.walk() if n.type == "Text"]
+    def texts(self, buttons: bool = False) -> List[str]:
+        """Text of every Text node; labels inside accessibility_role="button" views (Button) only with `buttons`."""
+        def inside_button(n: Node) -> bool:
+            p = n.parent
+            while p is not None:
+                if p.props.get("accessibility_role") == "button":
+                    return True
+                p = p.parent
+            return False
+        return [n.props["text"] for n in self.root.walk()
+                if n.type == "Text" and (buttons or not inside_button(n))]
 
     def attached_ids(self) -> List[int]:
         return [n.id for n in self.root.walk()]
 
     # -- interaction ---------------------------------------------------
     def emit(self, event: str, node: Any, payload: Optional[Dict[str, Any]] = None) -> None:
-        node_id = node.id if isinstance(node, Node) else node
+        n = node if isinstance(node, Node) else self.nodes[node]
+        if event in _BUBBLING:  # native hit-testing hands touches to the nearest ancestor with a handler
+            while n.parent is not None and not n.props.get("on_" + event):
+                n = n.parent
+        node_id = n.id
         self.channel.emit_event(event_to_json(event, node_id, payload))
 
     def press(self, node: Any) -> None:

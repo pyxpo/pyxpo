@@ -103,8 +103,21 @@ def use_state(initial: Any = None):
 
 
 class Ref:
+    """`useRef` cell. Put on a host element (`ref=r`) and `r.current` becomes that view's handle
+    (`scrollTo`, `focus`, ...) while it is mounted."""
+
     def __init__(self, current: Any = None) -> None:
         self.current = current
+
+    def _bind(self, node_id: int, host: Any = None) -> None:
+        from .components._handles import make_handle
+        cur = self.current
+        if getattr(cur, "_id", None) != node_id:
+            self.current = make_handle(host, node_id)
+
+    def _unbind(self, node_id: int) -> None:
+        if getattr(self.current, "_id", None) == node_id:
+            self.current = None
 
 
 def use_ref(initial: Any = None) -> Ref:
@@ -355,3 +368,42 @@ useTransition = use_transition
 useDeferredValue = use_deferred_value
 useDebugValue = use_debug_value
 useAsync = use_async
+
+
+# -- environment hooks (window size, color scheme, insets, keyboard) ---------
+def _use_env(select: Callable[[Any], Any]) -> Any:
+    """Re-render only when select(env) changes."""
+    env = _current("use_env").rec.env
+    value, set_value = use_state(lambda: select(env.get()))
+
+    def sub() -> Callable[[], None]:
+        set_value(select(env.get()))  # env may have changed between render and effect
+        return env.subscribe(lambda: set_value(select(env.get())))
+
+    use_effect(sub, [id(env)])
+    return value
+
+
+def use_window_dimensions():
+    """`{"width", "height", "scale", "fontScale"}`, re-rendering on rotation / resize."""
+    return _use_env(lambda e: {"width": e["window"]["width"], "height": e["window"]["height"],
+                               "scale": e["scale"], "fontScale": e["font_scale"], "font_scale": e["font_scale"]})
+
+
+def use_color_scheme() -> str:
+    """"light" or "dark"."""
+    return _use_env(lambda e: e["color_scheme"])
+
+
+def use_safe_area_insets():
+    """`{"top", "right", "bottom", "left"}` in dp."""
+    return _use_env(lambda e: dict(e["insets"]))
+
+
+def _use_keyboard_state():
+    return _use_env(lambda e: dict(e["keyboard"]))
+
+
+useWindowDimensions = use_window_dimensions
+useColorScheme = use_color_scheme
+useSafeAreaInsets = use_safe_area_insets

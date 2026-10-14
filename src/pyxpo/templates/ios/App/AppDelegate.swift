@@ -46,7 +46,7 @@ class SceneDelegate: UIResponder, UIWindowSceneDelegate {
             appRoot = Self.writableCopy(of: appRoot)
         }
         #endif
-        rt.start(withHome: bundle + "/python", paths: [appRoot, bundle + "/app_packages"], module: "app.main")
+        rt.start(withHome: bundle + "/python", paths: [appRoot, bundle + "/app_packages"], module: "pyxpo.router.entry")
     }
 
     /// The bundle is read-only on device; hot reload needs a writable copy of the app tree.

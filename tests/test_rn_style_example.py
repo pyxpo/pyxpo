@@ -1,17 +1,39 @@
 from __future__ import annotations
 
-import runpy
 from pathlib import Path
-from unittest import mock
+
+import pytest
+
+from pyxpo.router.discovery import discover
+from pyxpo.router.root import RouterRoot
 
 from .test_core import mount
 
+EXAMPLES = Path(__file__).parent.parent / "examples"
+
+
+@pytest.fixture(autouse=True)
+def _clean_modules():
+    import sys
+    yield
+    for k in [k for k in sys.modules if k == "app" or k.startswith("app.")]:
+        del sys.modules[k]
+
 
 def test_rn_style_example_renders_and_adds():
-    with mock.patch("pyxpo.run_app"):
-        ns = runpy.run_path(str(Path(__file__).parent.parent / "examples" / "rn_style" / "main.py"))
-    app, r = mount(ns["App"])
+    d = str(EXAMPLES / "rn_style" / "app")
+    app, r = mount(RouterRoot, tree=discover(d), root_dir=d)
     texts = [n.props["text"] for n in r.find_all("Text")]
     assert texts == ["Todo", "Add", "Buy milk", "Write code"]
-    inp = r.find_all("TextInput")[0]
-    assert inp.props["placeholder"] == "New item"
+    assert r.find_all("TextInput")[0].props["placeholder"] == "New item"
+
+
+def test_counter_example_navigates():
+    from pyxpo.router import router
+    d = str(EXAMPLES / "counter" / "app")
+    app, r = mount(RouterRoot, tree=discover(d), root_dir=d)
+    r.press(r.find_text("Add"))
+    r.press(r.find_text("Open details"))
+    assert "Count was 1" in r.texts()
+    router.back()
+    assert "Count was 1" not in r.texts()

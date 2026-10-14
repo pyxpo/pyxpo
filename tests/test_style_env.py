@@ -5,9 +5,8 @@ import json
 import pytest
 
 import pyxpo
-from pyxpo import StyleSheet, Text, View, component, parse_color
+from pyxpo import StyleSheet, Text, View, component, processColor as parse_color
 from pyxpo.channel import LocalChannel
-from pyxpo.env import breakpoint_for, responsive
 from pyxpo.style import StyleError, normalize
 
 
@@ -38,12 +37,6 @@ def test_stylesheet_validates():
         StyleSheet.create({"a": {"color": "nope"}})
 
 
-def test_breakpoints():
-    assert breakpoint_for(320) == "sm" and breakpoint_for(600) == "md" and breakpoint_for(900) == "lg"
-    assert responsive("lg", {"sm": 1, "md": 2}) == 2
-    assert responsive("sm", {"md": 2}, 9) == 9
-
-
 def _texts(ch):
     out = []
     for batch in ch.sent:
@@ -59,20 +52,19 @@ def test_env_hooks_rerender_and_style_list():
     @component
     def App():
         w = pyxpo.use_window_dimensions()
-        bp = pyxpo.use_breakpoint()
         dark = pyxpo.use_color_scheme() == "dark"
-        return View(Text("%d %s %s" % (w["width"], bp, dark)), style=[{"padding": 1}, {"flex": 1}])
+        return View(Text("%d %s" % (w["width"], dark)), style=[{"padding": 1}, {"flex": 1}])
 
     ch = LocalChannel()
     ch.sent = []
     ch.set_native_handler(ch.sent.append)
     app = pyxpo.create_app(App, ch)
-    assert _texts(ch)[-1] == "360 sm False"
+    assert _texts(ch)[-1] == "360 False"
     first = json.loads(ch.sent[0])
     assert [o for o in first if o["op"] == "create" and o["type"] == "View"][0]["props"]["style"]["padding_left"] == 1
     ch_msg = json.dumps({"event": "env", "id": 0, "payload": {"window": {"width": 700}, "color_scheme": "dark"}})
     ch.emit_event(ch_msg)
-    assert _texts(ch)[-1] == "700 md True"
+    assert _texts(ch)[-1] == "700 True"
     assert pyxpo.Dimensions.get("window")["width"] == 700
     n = len(ch.sent)
     ch.emit_event(ch_msg)  # no change: no extra batch

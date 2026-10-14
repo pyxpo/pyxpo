@@ -1,0 +1,24 @@
+from pyxpo import Button, StyleSheet, Text, View, component, useState
+from pyxpo.router import Link
+
+
+@component
+def Home():
+    count, setCount = useState(0)
+    return View(
+        Text("Hello from {{name}}!", style=styles.title),
+        Text("Count: ", count, style=styles.count),
+        Button(title="Add", onPress=lambda: setCount(lambda c: c + 1)),
+        Link("Open details", href="/details/1", style=styles.link),
+        style=styles.container,
+    )
+
+
+styles = StyleSheet.create({
+    "container": {"flex": 1, "padding": 16, "gap": 12},
+    "title": {"fontSize": 20, "fontWeight": "600"},
+    "count": {"fontSize": 24},
+    "link": {"color": "#007AFF", "fontSize": 16},
+})
+
+default = Home

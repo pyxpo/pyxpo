@@ -37,7 +37,7 @@ def check(app, r):
 
 
 def Fallback(error, reset):
-    return View(Text("oops: %s" % error), Button("retry", on_press=reset))
+    return View(Text("oops: %s" % error), Button(title="retry", on_press=reset))
 
 
 def test_mount_error_shows_fallback():
@@ -118,7 +118,7 @@ def test_update_error_in_sibling_during_parent_rerender():
         n, set_n = use_state(0)
         return View(ErrorBoundary(Text("x%d" % n, key="x"), View(Text("y%d" % n), Maybe(n=n)), Text("z%d" % n),
                                   fallback=Fallback),
-                    Button("go", on_press=lambda: set_n(n + 1)))
+                    Button(title="go", on_press=lambda: set_n(n + 1)))
 
     app, r, _ = mount(Root)
     r.press(r.find_text("go"))
@@ -136,7 +136,7 @@ def test_no_leaked_handlers_or_creates():
     @component
     def List():
         fail, set_fail = use_state(False)
-        return View(Button("fail", on_press=lambda: set_fail(True)),
+        return View(Button(title="fail", on_press=lambda: set_fail(True)),
                     *[Row(i=i, fail=fail, key=i) for i in range(5)],
                     *([Row(i=i, fail=fail, key=i) for i in range(5, 10)] if fail else []))
 
@@ -261,7 +261,7 @@ def test_partial_update_with_removals_and_mounts_rolls_back():
         rows = [Text("r%d" % i, key=i) for i in ([0, 1, 2] if n == 0 else [2, 5, 6])]
         return View(ErrorBoundary(View(*rows), View(View(Text("new")) if n else None, Maybe(n=n)),
                                   fallback=Fallback),
-                    Button("go", on_press=lambda: set_n(n + 1)))
+                    Button(title="go", on_press=lambda: set_n(n + 1)))
 
     app, r, _ = mount(Root)
     r.press(r.find_text("go"))
@@ -276,9 +276,10 @@ def test_partial_update_with_removals_and_mounts_rolls_back():
 
 
 def test_rollback_releases_refs_animated_nodes_and_setters_of_unattached_fibers():
-    from pyxpo import ScrollRef, ScrollView, use_animated_value
+    from pyxpo import ScrollView, use_animated_value
+    from pyxpo.hooks import Ref
 
-    sref = ScrollRef()
+    sref = Ref()
     setters = []
 
     @component
@@ -299,7 +300,7 @@ def test_rollback_releases_refs_animated_nodes_and_setters_of_unattached_fibers(
 
     app, r, errors = mount(Root)
     assert r.texts() == ["oops: bad"] and errors == []
-    assert sref.id is None  # not bound to a view that native never got
+    assert sref.current is None  # not bound to a view that native never got
     assert r.driver.nodes == {}  # the Value's node was never created natively (its freeing effect never runs)
     dirty = list(app.dirty)
     setters[0](5)  # the rolled-back fiber is unmounted: no re-render scheduled
@@ -324,7 +325,7 @@ def test_rolled_back_animated_value_registers_again_when_reused():
 
         return View(ErrorBoundary(View(View(style={"opacity": shared}), Maybe()), fallback=Fallback),
                     View(style={"opacity": shared}) if not fail else None,
-                    Button("fix", on_press=lambda: set_fail(False)))
+                    Button(title="fix", on_press=lambda: set_fail(False)))
 
     app, r, _ = mount(Root)
     assert shared.id not in r.driver.nodes and shared._token is None

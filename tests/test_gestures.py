@@ -1,39 +1,17 @@
 from __future__ import annotations
 
-from pyxpo import Modal, Slider, Text, View, component, use_pan_responder, use_state
+from pyxpo import Modal, PanResponder, Text, View, component, use_state
 
 from .test_core import mount
 
 
-def test_slider_touch_and_layout():
-    seen = []
-
-    @component
-    def App():
-        v, set_v = use_state(0.0)
-
-        def ch(x):
-            seen.append(x)
-            set_v(x)
-        return Slider(value=v, minimum=0, maximum=100, on_value_change=ch, native=False)
-
-    app, r = mount(App)
-    root = r.find_all("View")[0]
-    r.emit("layout", root, {"value": {"x": 0, "y": 0, "width": 328, "height": 28}})
-    app.flush() if hasattr(app, "flush") else None
-    r.emit("touch_start", root, {"value": {"x": 164, "y": 10}})
-    assert seen and abs(seen[-1] - 50) < 1e-6
-    r.emit("touch_move", root, {"value": {"x": 1000, "y": 10}})
-    assert seen[-1] == 100
-
-
 def test_pan_responder_deltas():
     got = []
+    pan = PanResponder.create({"onPanResponderMove": lambda e, g: got.append((g.dx, g.dy))})
 
     @component
     def App():
-        pan = use_pan_responder(on_move=lambda g: got.append((g.dx, g.dy)))
-        return View(Text("x"), **pan)
+        return View(Text("x"), **pan.panHandlers)
 
     app, r = mount(App)
     v = r.find_all("View")[0]
@@ -64,11 +42,11 @@ def test_modal_visible_renders_native_modal():
 
 def test_pan_responder_keeps_fling_velocity_on_release():
     got = {}
+    pan = PanResponder.create({"onPanResponderRelease": lambda e, g: got.update(vx=g.vx, dx=g.dx)})
 
     @component
     def App():
-        pan = use_pan_responder(on_end=lambda g: got.update(vx=g.vx, dx=g.dx))
-        return View(Text("x"), **pan)
+        return View(Text("x"), **pan.panHandlers)
 
     app, r = mount(App)
     v = r.find_all("View")[0]
@@ -83,7 +61,7 @@ def _modal_app(box, animation_type):
     def App():
         vis, set_vis = use_state(True)
         box["set"] = set_vis
-        return View(Modal(Text("hi"), visible=vis, animation_type=animation_type, duration=200))
+        return View(Modal(Text("hi"), visible=vis, animation_type=animation_type))
     return App
 
 
@@ -91,14 +69,14 @@ def test_modal_interrupted_fade_out_does_not_unmount():
     box = {}
     app, r = mount(_modal_app(box, "fade"))
     box["set"](False)
-    r.advance(80)
+    r.advance(100)
     box["set"](True)   # interrupts the fade-out
-    r.advance(400)
+    r.advance(500)
     assert r.find_all("Modal")
     box["set"](False)
     # A new fade-out must play: the layer stays until it finishes.
     assert r.find_all("Modal")
-    r.advance(400)
+    r.advance(500)
     assert not r.find_all("Modal")
 
 

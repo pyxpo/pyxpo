@@ -10,7 +10,7 @@ No Chaquopy, Briefcase, python-for-android, Kivy, Flet, or Pyodide (references o
 **Android loader** (`shell-android/`)
 - `libpython3.13.so` cross-built for `arm64-v8a`/`x86_64` in `jniLibs/<abi>`.
 - stdlib, `lib-dynload`, site-packages ship as a versioned asset, extracted to `filesDir/pyxpo/<hash>/` on first launch or hash change.
-- `pyxpo_jni.c` runs `Py_InitializeFromConfig` (home/path = extracted dirs) on a `PyxpoPython` thread, then `app.main`.
+- `pyxpo_jni.c` runs `Py_InitializeFromConfig` (home/path = extracted dirs) on a `PyxpoPython` thread, then `pyxpo.router.entry` (file-based routing over `app/`; legacy `app/main.py` still runs).
 
 **iOS loader** (`shell-ios/`)
 - `Python.xcframework` (device arm64; simulator arm64+x86_64) built from CPython source; `PyxpoRuntime.m` sets `PyConfig` from the bundle.
@@ -77,7 +77,7 @@ run_app(Counter)
 ```
 myapp/
   pyproject.toml   # [tool.pyxpo] name, bundle_id, targets, requires
-  app/main.py      # run_app(App)
+  app/_layout.py, app/index.py, ...   # file-based routes (pyxpo.router)
   assets/
   build/           # generated android/ + ios/ shells from Pyxpo templates (gitignored)
 ```

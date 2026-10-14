@@ -2,7 +2,9 @@ from __future__ import annotations
 
 import time
 
-from pyxpo import Button, FlatList, ThemeProvider, Text, View, component, dark_theme, light_theme, memo, use_state, use_theme
+from pyxpo import Button, FlatList, Text, View, component, create_context, memo, use_context, use_state
+
+ThemeCtx = create_context({"dark": False})
 
 from .test_core import mount
 
@@ -40,7 +42,7 @@ def test_memo_does_not_block_context_updates():
 
     @component
     def Probe():
-        seen.append(use_theme()["dark"])
+        seen.append(use_context(ThemeCtx)["dark"])
         return Text("p")
 
     MProbe = memo(Probe)
@@ -50,7 +52,7 @@ def test_memo_does_not_block_context_updates():
     def App():
         d, set_d = use_state(False)
         box["set"] = set_d
-        return ThemeProvider(MProbe(), theme=dark_theme if d else light_theme)
+        return ThemeCtx.Provider(MProbe(), value={"dark": d})
 
     app, r = mount(lambda: App())
     assert seen == [False]

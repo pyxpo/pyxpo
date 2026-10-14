@@ -14,6 +14,7 @@ import importlib
 
 app_mod = importlib.import_module("pyxpo.app")
 comp_mod = importlib.import_module("pyxpo.component")
+module_name_for = importlib.import_module("pyxpo._internal.modname").module_name_for
 
 PKG = "app"
 
@@ -32,11 +33,7 @@ def _safe_path(base: str, rel: str) -> str:
     return path
 
 
-def _module_name(rel: str) -> Optional[str]:
-    if not rel.endswith(".py"):
-        return None
-    name = rel[:-3].replace("/", ".")
-    return name[: -len(".__init__")] if name.endswith(".__init__") else name
+_module_name = module_name_for
 
 
 def _sha1(data: bytes) -> str:
@@ -47,9 +44,12 @@ class HotReloader:
     def __init__(self, app: Any, base: str, entry: Optional[str] = None) -> None:
         self.app = app
         self.base = os.path.realpath(base)
-        self.entry = os.path.realpath(entry) if entry else None
-        self.loaded: Dict[str, str] = {}
         root = os.path.join(self.base, PKG)
+        entry = os.path.realpath(entry) if entry else None
+        # Only an entry inside the app package is re-executed (legacy app/main.py); the router entry lives in
+        # pyxpo itself and re-renders its live RouterRoot instead.
+        self.entry = entry if entry and entry.startswith(root + os.sep) else None
+        self.loaded: Dict[str, str] = {}
         for dp, dns, fns in os.walk(root):
             dns[:] = [d for d in dns if d != "__pycache__" and not d.startswith(".")]
             for fn in fns:

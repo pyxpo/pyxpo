@@ -1,7 +1,7 @@
 # Pyxpo (working name)
 
 React-Native-style Python framework: declarative components + hooks -> reconciler -> batched JSON ops -> native widgets.
-See DESIGN.md (architecture) and PLAN.md (roadmap). **Milestone 1 (pure-Python core + desktop console preview) is implemented.** Android/iOS shells are not yet built.
+See DESIGN.md (architecture) and PLAN.md (roadmap). Android is verified; iOS renders but native controls and the native stack are not ported.
 
 ## Quickstart
 ```
@@ -10,15 +10,27 @@ python3 -m venv .venv && .venv/bin/pip install -e '.[dev]'
 .venv/bin/pytest
 ```
 
+A project is an `app/` folder of routes, like Expo Router:
+
+```
+app/
+  _layout.py        # Stack / Tabs / Drawer / Slot around the routes below
+  index.py          # "/"
+  details/[id].py   # "/details/7"   -> useLocalSearchParams()["id"]
+  +not-found.py     # unmatched URLs
+```
+
 ```python
-from pyxpo import component, use_state, View, Text, Button, run_app
+# app/index.py
+from pyxpo import Button, Text, View, useState
+from pyxpo.router import Link
 
-@component
-def Counter():
-    n, set_n = use_state(0)
-    return View(Text("Count: ", n), Button("Add", on_press=lambda: set_n(lambda c: c + 1)))
+def Index():
+    n, setN = useState(0)
+    return View(Text("Count: ", n), Button(title="Add", onPress=lambda: setN(n + 1)),
+                Link("Details", href="/details/%d" % n))
 
-run_app(Counter)
+default = Index
 ```
 
 Hooks: use_state, use_effect, use_ref, use_memo, use_callback, use_context, use_async. Lists need `key=`.
@@ -51,5 +63,11 @@ def App():
 - `ErrorBoundary(*children, fallback=lambda error, reset: ...)`.
 - `FlatList` `renderItem` with one parameter gets `{"item", "index"}`; with two it gets `(item, index)`. `SectionList(sections=[{"title", "data"}], renderItem, renderSectionHeader)` (no sticky headers yet).
 - Modules: `Platform.OS`, `Dimensions.addEventListener("change", fn)` (returns an object with `.remove()`), `BackHandler.addEventListener("hardwareBackPress", fn)`, `Keyboard.addListener("keyboardDidShow", fn)`, `Linking.openURL`, `Alert.alert(title, msg, [{"text", "onPress"}])`.
-- RN style values that have no native equivalent (`borderStyle`, `tintColor`, `resizeMode`, ...) log a warning and are ignored. `Pressable` `hit_slop` and `delay_long_press` are not supported.
+- RN style values that have no native equivalent (`borderStyle`, `tintColor`, `resizeMode`, ...) log a warning and are ignored. `Pressable` `hit_slop` and `delay_long_press` are accepted but not applied natively yet.
 - Example: `examples/rn_style`.
+
+## Routing (`pyxpo.router`, Expo Router)
+- Files under `app/` are routes: `index`, `[id]` (dynamic), `[...rest]` (catch-all), `(group)/` (no URL segment), `_layout.py` (navigator), `+not-found.py`. A route module exports `default` (or has a single `@component`).
+- Layouts: `Stack`, `Tabs`, `Drawer`, `Slot`; configure with `Stack.Screen(name=..., options={...})` or `screenOptions`. Options follow react-navigation (`title`, `headerShown`, `headerRight`, `tabBarIcon`, ...). A layout may export `unstable_settings = {"initialRouteName": ...}`.
+- `router.push/navigate/replace/back/dismiss/dismissAll/setParams`, `<Link href=...>`, `<Redirect href=...>`; hooks `useRouter`, `useLocalSearchParams`, `useGlobalSearchParams`, `usePathname`, `useSegments`, `useNavigation`, `useIsFocused`, `useFocusEffect`. Theme: `ThemeProvider`, `DefaultTheme`, `DarkTheme`, `useTheme`.
+- Android hardware back, the stack edge-swipe and the drawer all go through one navigation store. iOS Swift controls and the native stack are not ported yet.

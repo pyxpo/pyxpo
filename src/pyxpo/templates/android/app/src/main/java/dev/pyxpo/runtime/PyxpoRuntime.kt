@@ -40,7 +40,7 @@ class PyxpoRuntime(private val ctx: Context, private val applier: OpApplier) {
 
     private val events = java.util.concurrent.Executors.newSingleThreadExecutor()
 
-    fun start(module: String = "app.main", devEnv: Map<String, String> = emptyMap()) {
+    fun start(module: String = "pyxpo.router.entry", devEnv: Map<String, String> = emptyMap()) {
         if (started) return
         started = true
         val abi = Build.SUPPORTED_ABIS.first { it == "arm64-v8a" || it == "x86_64" }

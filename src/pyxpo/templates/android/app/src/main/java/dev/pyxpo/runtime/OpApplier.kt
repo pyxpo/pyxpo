@@ -516,6 +516,13 @@ class OpApplier(
         }
     }
 
+    private fun vibrator(): android.os.Vibrator {
+        @Suppress("DEPRECATION")
+        return if (Build.VERSION.SDK_INT >= 31)
+            (ctx.getSystemService(Context.VIBRATOR_MANAGER_SERVICE) as android.os.VibratorManager).defaultVibrator
+        else ctx.getSystemService(Context.VIBRATOR_SERVICE) as android.os.Vibrator
+    }
+
     private fun call(id: Int, module: String, method: String, args: JSONArray, wantReply: Boolean) {
         try {
             val out: Any? = when ("$module.$method") {
@@ -548,6 +555,40 @@ class OpApplier(
                         .addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK))
                     null
                 }
+                "TextInput.focus" -> { (views[args.getInt(0)] as? EditText)?.let { focusLater(it) }; null }
+                "TextInput.blur" -> {
+                    (views[args.getInt(0)] as? EditText)?.let {
+                        (ctx.getSystemService(Context.INPUT_METHOD_SERVICE) as android.view.inputmethod.InputMethodManager)
+                            .hideSoftInputFromWindow(it.windowToken, 0)
+                        it.clearFocus()
+                    }
+                    null
+                }
+                "TextInput.clear" -> { (views[args.getInt(0)] as? EditText)?.text?.clear(); null }
+                "TextInput.set_selection" -> {
+                    (views[args.getInt(0)] as? EditText)?.let {
+                        val n = it.text.length
+                        it.setSelection(args.getInt(1).coerceIn(0, n), args.getInt(2).coerceIn(0, n))
+                    }
+                    null
+                }
+                "Linking.can_open_url" -> {
+                    android.content.Intent(android.content.Intent.ACTION_VIEW, android.net.Uri.parse(args.optString(0)))
+                        .resolveActivity(ctx.packageManager) != null
+                }
+                "Linking.open_settings" -> {
+                    ctx.startActivity(android.content.Intent(android.provider.Settings.ACTION_APPLICATION_DETAILS_SETTINGS,
+                        android.net.Uri.fromParts("package", ctx.packageName, null)).addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK))
+                    null
+                }
+                "Vibration.pattern" -> {
+                    val a = args.getJSONArray(0)
+                    val pat = LongArray(a.length()) { a.getLong(it) }
+                    val repeat = if (args.optBoolean(1, false)) 0 else -1
+                    vibrator().vibrate(android.os.VibrationEffect.createWaveform(pat, repeat))
+                    null
+                }
+                "Vibration.cancel" -> { vibrator().cancel(); null }
                 "Toast.show" -> {
                     android.widget.Toast.makeText(ctx, args.optString(0),
                         if (args.optBoolean(1)) android.widget.Toast.LENGTH_LONG else android.widget.Toast.LENGTH_SHORT).show()

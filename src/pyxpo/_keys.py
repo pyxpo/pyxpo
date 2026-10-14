@@ -26,9 +26,7 @@ def to_snake(name: str) -> str:
 # RN prop names that map to a differently named pyxpo prop (everything else follows to_snake)
 PROP_OVERRIDES: Dict[str, str] = {
     "placeholderTextColor": "placeholder_color", "returnKeyType": "return_key", "secureTextEntry": "secure",
-    "minimumValue": "minimum", "maximumValue": "maximum", "minimumTrackTintColor": "min_track_color",
-    "maximumTrackTintColor": "max_track_color", "thumbTintColor": "thumb_color",
-    "ItemSeparatorComponent": "item_separator", "viewBox": "viewbox", "testID": "test_id", "nativeID": "native_id",
+    "viewBox": "viewbox", "testID": "test_id", "nativeID": "native_id",
 }
 
 
@@ -45,3 +43,11 @@ def alias_props(props: Dict[str, Any]) -> Dict[str, Any]:
             raise TypeError("got both %r and %r" % (k, n))
         out[n] = v
     return out
+
+
+def snake_aliases(cls: Any) -> Any:
+    """Gives every camelCase static method of `cls` a snake_case twin (`addEventListener` -> `add_event_listener`)."""
+    for name, val in list(vars(cls).items()):
+        if not name.startswith("_") and not name.islower() and isinstance(val, (staticmethod, classmethod)):
+            setattr(cls, to_snake(name), val)
+    return cls

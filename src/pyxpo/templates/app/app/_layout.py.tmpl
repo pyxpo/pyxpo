@@ -1,0 +1,13 @@
+from pyxpo import component
+from pyxpo.router import Stack
+
+
+@component
+def RootLayout():
+    return Stack(
+        Stack.Screen(name="index", options={"title": "{{name}}"}),
+        Stack.Screen(name="details/[id]", options={"title": "Details"}),
+    )
+
+
+default = RootLayout

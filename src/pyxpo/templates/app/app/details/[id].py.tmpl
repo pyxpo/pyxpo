@@ -1,0 +1,20 @@
+from pyxpo import Button, StyleSheet, Text, View, component
+from pyxpo.router import router, useLocalSearchParams
+
+
+@component
+def Details():
+    params = useLocalSearchParams()
+    return View(
+        Text("Details ", params.get("id", ""), style=styles.title),
+        Button(title="Go back", onPress=router.back),
+        style=styles.container,
+    )
+
+
+styles = StyleSheet.create({
+    "container": {"flex": 1, "padding": 16, "gap": 12},
+    "title": {"fontSize": 20, "fontWeight": "600"},
+})
+
+default = Details

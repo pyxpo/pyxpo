@@ -1,17 +1,13 @@
 # Pyxpo progress
-- Goal: from-scratch Python mobile framework (no Kivy/BeeWare/Chaquopy); all libs via mobile wheels. See DESIGN.md, PLAN.md. Tests: `.venv/bin/pytest -q` (222 pass).
-- Infra done: own CPython 3.13 (Android+iOS sim), C bridge, Kotlin+Swift shells, `pyxpo create|build|run android|ios|desktop`, hot reload, 16 KB ELF check, own numpy wheels (android).
-- Env quirks: host py3.9 (core must stay py3.9); no `timeout`; `sed -i ''`; iOS build ~10 min, may hang; sim UDID AB7F4D9C-C6AA-4F37-8062-F80A000A8315; no iOS tap tool.
-- UI system: units dp/pt; own C flexbox (native/common/pyxpo_layout.c); wire v2 normalized styles; batched JSON ops; events `{"event","id","payload"}`.
-- UI M1-M10 DONE + committed (protocol, C layout, both OS on core, painter, Text, Pressable, TextInput, SafeArea, Animated, ScrollView/FlatList/Image).
-- UI M11-M14 (Modal/Slider/pan, Stack/Tabs, theme kit, memo) committed; Android VERIFIED. Unfixed: Modal in hidden Stack screen.
-- Pending: generic lib support; verify gaps (--release, API 24, 4 KB emu); DESIGN.md update.
+- Goal: from-scratch Python mobile framework (no Kivy/BeeWare/Chaquopy). See DESIGN.md, PLAN.md. Tests: `.venv/bin/pytest -q` (217 pass).
+- Env quirks: host py3.9 (core py3.9-compatible); no `timeout`; `sed -i ''`; iOS build ~10 min; no foreground sleep.
+- Infra done+committed: CPython 3.13, C bridge/flexbox, Kotlin+Swift shells, CLI, hot reload, perf pass. Android verified, iOS renders only.
 - Rules: no Co-Authored-By/Claude attribution in commits/PRs.
-- Widgets (src/pyxpo/widgets.py: InputField/Password/Search/TextArea/Dropdown/MultiSelect/Date/TimePicker/NumberInput/Radio/Stepper/Alert/Chip/TabBar+FAB/Sheet) + examples/ui_components showcase committed. Android renders; polish of lower sections + sheet interaction still to verify on device.
-- Nav: Stack/Tabs/TopTabs/Drawer, Back, icons.py Paths; Android native NavStack (PxNav) VERIFIED. iOS: renders, nav untested, NavStack not ported.
-- Header paints under status bar (_TopInset); StatusBar auto from theme. Android VERIFIED; iOS Swift unbuilt for some parts.
-- Native controls (native.py + PxControls.kt): Switch/Checkbox/Radio/Slider/ProgressBar/ActivityIndicator render platform widgets on Android, props override colors, `native=False` = old custom draw. Android VERIFIED (render, switch tap, slider drag). iOS NOT ported (blank). Native Picker module (modules.Picker: date/time/choose/choose_many) drives DatePicker/TimePicker/Dropdown/MultiSelect via system dialogs on Android (`native=False` = in-app sheet), VERIFIED; status bar reapplied on focus. modules.Toast added (unverified).
-- PERF/STABILITY PASS (wire v1 removed; style normalize cache; Android per-frame layout coalesce, BoxSpec skip, typeface cache, 120Hz hints committed). Uncommitted: iOS ScrollHost always clips (header overlap fix), iOS CADisplayLink 120Hz, PxPerf.kt (`--ez pyxpo_perf true`, logs p50/p95/p99), S1 UTF-16 JNI (pyxpo_utf.c) + S2 bridge state mutex (tests/test_native_bridge.py).
-- Perf pass 2 (uncommitted): reconciler/element/hooks/style hot paths, gc pause during commit (mount -25%, update -38% on bench), _Nav dead fields removed; Android: shared touch Handler, touch_move coalescing, scroll aset without JSON, lazy depCache clear, applyStyle compare without toString, applyImage once per update. 147 tests pass; Android compiles, runtime/fps unverified.
-- RN-API MILESTONE DONE (committed, opus-reviewed): camelCase style keys/props (aliases, snake_case still works), StyleSheet.create + styles.title (also kwargs form), RN hooks (useReducer/useId/useLayoutEffect/...), exception-safe effects, ErrorBoundary (+anim/ref rollback), FlatList renderItem({item,index}), SectionList (no sticky), Platform.OS, Dimensions/Keyboard/BackHandler listeners, Alert.alert buttons, PressState. Example examples/rn_style, README section. No JSX (impossible in Python; optional .pyx compiler idea not taken).
-- Open gaps: listeners added before App creation bind stale env; render error without boundary leaves partial ops; PressState is int not bool; hit_slop/delay_long_press unsupported; RefreshControl/AppState/canOpenURL native not done; test_async flaky under heavy load. Next: user sends new design to try; real-device fps; iOS Swift controls + NavStack.
+## RN-parity + expo-router milestone (UNCOMMITTED, in progress)
+- Done: components/ and apis/ packages mirror react-native (pyxpo/__init__ 93 names); old ui/widgets/navigation/kit/theme/icons removed.
+- Router done+tested: router/{discovery,matching,store,runtime,router,hooks,theme,screen,link,root,entry}, layouts/{header,slot,stack,tabs,drawer}. Entry = pyxpo.router.entry (native strings + cli switched). Legacy app/main.py still runs.
+- Examples converted to app/ routes (counter, todo, rn_style); ui_components deleted. README/DESIGN updated.
+- R9 hot reload with router DONE (Store.set_tree, App.hot_hooks, client base fix); 222 tests pass.
+- A1+A9 partial DONE: Kotlin call() TextInput focus/blur/clear/set_selection, Linking can_open_url/open_settings, Vibration pattern/cancel; manifest <queries>; android build OK (not run on device).
+- TODO: Android native A1-A9 remaining (TextInput onSelectionChange/onKeyPress, hit_slop, delay_long_press, pointer_events, RefreshControl, Text ellipsize/selectable/on_press, Image extras, StatusBar extras, Modal on_show, AppState/Linking/Vibration) then `pyxpo build android` in examples/counter + device check; D3 opus diff review; commit (plain msg).
+- Gaps: iOS Swift controls + NavStack; Modal in hidden Stack screen; render error w/o boundary leaves partial ops; real-device fps unmeasured; SectionList no sticky headers.

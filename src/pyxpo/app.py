@@ -9,8 +9,7 @@ import sys
 import traceback
 from typing import Any, Callable, Dict, List, Optional
 
-from . import env as env_mod
-from . import modules as modules_mod
+from .apis import _bridge, _env as env_mod, _events
 from .animated import runtime as anim_runtime
 from .channel import Channel, LocalChannel
 from .component import Component, component
@@ -78,10 +77,11 @@ class App:
         self.broken = False
         self._call_id = 0
         self._pending: Dict[int, Any] = {}
-        modules_mod.set_app(self)
+        _bridge.set_app(self)
         anim_runtime.set_app(self)
         self._committed: Dict[int, int] = {}  # native node id -> parent id (0 = detached)
         self._error_shown = False
+        self.hot_hooks: List[Callable[[], None]] = []  # run before each hot re-render (router: re-discover routes)
         self.set_root(root, **props)
         channel.set_event_handler(self.dispatch_event)
 
@@ -144,9 +144,9 @@ class App:
             self._request_flush()
             return
         if msg.get("event") == "hardware_back":
-            from .modules import Back
+            from .apis.back_handler import _Back
             try:
-                Back.handle()
+                _Back.handle()
             except Exception as e:  # noqa: BLE001
                 self.on_error(e)
             self._request_flush()
@@ -159,6 +159,13 @@ class App:
                     fut.set_exception(RuntimeError(str(pl["error"])))
                 else:
                     fut.set_result(pl.get("value"))
+            return
+        if msg.get("event") in ("url", "app_state"):
+            try:
+                _events.emit(msg["event"], msg.get("payload") or {})
+            except Exception as e:  # noqa: BLE001
+                self.on_error(e)
+            self._request_flush()
             return
         if msg.get("event") in ("anim_end", "anim_value"):
             try:
@@ -237,6 +244,8 @@ class App:
         self.flushing = True
         try:
             self.clear_error()
+            for hook in list(self.hot_hooks):
+                hook()
             for f in _walk(self.rec.root):
                 reset_deps(f)
             self.dirty = []

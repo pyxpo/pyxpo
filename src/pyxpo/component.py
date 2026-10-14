@@ -20,6 +20,9 @@ class Component:
         self._params: Optional[frozenset] = None
 
     def __call__(self, *children: Any, key: Any = None, **props: Any) -> Element:
+        if len(children) == 1 and callable(children[0]) and not isinstance(children[0], Component):
+            props = {**props, "children": children[0]}  # function as child (RN Pressable): reaches the component as `children`
+            children = ()
         if props and not "".join(props).islower():
             props = self._alias(props)
         return Element(self, props, flatten(children), key)

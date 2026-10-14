@@ -21,7 +21,7 @@ from app.ui import label
 @component
 def Root():
     n, set_n = use_state(0)
-    return View(Text(label(), n), Button("Add", on_press=lambda: set_n(lambda c: c + 1)))
+    return View(Text(label(), n), Button(title="Add", on_press=lambda: set_n(lambda c: c + 1)))
 """
 UI = "def label():\n    return 'Count: '\n"
 

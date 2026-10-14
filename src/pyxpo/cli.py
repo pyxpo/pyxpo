@@ -66,7 +66,7 @@ def cmd_run(args: argparse.Namespace) -> int:
             dev.start()
             os.environ["PYXPO_DEV_URL"], os.environ["PYXPO_DEV_TOKEN"] = dev.url, token
             enable_registry(True)
-    runpy.run_module("app.main", run_name="__main__")
+    runpy.run_module("pyxpo.router.entry", run_name="__main__")
     return 0
 
 

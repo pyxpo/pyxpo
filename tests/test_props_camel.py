@@ -22,7 +22,7 @@ def test_textinput_rn_names():
 
 
 def test_flatlist_rn_names():
-    app, r = mount(lambda: FlatList(data=[1, 2], renderItem=lambda it, i: Text(str(it)),
+    app, r = mount(lambda: FlatList(data=[1, 2], renderItem=lambda info: Text(str(info["item"])),
                                     keyExtractor=lambda it, i: str(it), contentContainerStyle={"padding": 4}))
     assert "1" in r.texts() and "2" in r.texts()
 

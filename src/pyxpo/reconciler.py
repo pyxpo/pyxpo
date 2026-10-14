@@ -7,7 +7,7 @@ from typing import Any, Callable, Dict, List, Optional, Set, Tuple
 
 from .animated import runtime as _anim
 from .element import Element, flatten
-from . import env as _env_mod
+from .apis import _env as _env_mod
 from .hooks import _same, render_with_hooks
 from .style import normalize_shared as normalize_style
 from .ops import Create, Delete, Insert, Op, Remove, Update
@@ -273,7 +273,7 @@ class Reconciler:
                 old_ref._unbind(f.id)  # ref prop swapped or removed: the old ref must not keep this view
             wire, events = self._wire(e.props)
             if ref is not None and hasattr(ref, "_bind"):
-                ref._bind(f.id)
+                ref._bind(f.id, e.type)
             sent = f.sent
             changed = {}
             for k, v in wire.items():
@@ -298,7 +298,7 @@ class Reconciler:
     def _bind_ref(f: Fiber, e: Element) -> None:
         ref = e.props.get("ref")
         if ref is not None and hasattr(ref, "_bind"):
-            ref._bind(f.id)
+            ref._bind(f.id, e.type)
 
     def _render_comp(self, f: Fiber) -> None:
         e = f.element

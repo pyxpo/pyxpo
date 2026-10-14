@@ -3,7 +3,10 @@ from __future__ import annotations
 
 from typing import Any
 
-from ..element import Image, ScrollView, Text, View
+from ..components.image import Image
+from ..components.scroll_view import ScrollView
+from ..components.text import Text
+from ..components.view import View
 from ..hooks import use_effect, use_ref
 from . import runtime
 from .api import Animated as _Animated

@@ -20,7 +20,6 @@ def test_flatten_and_text_children():
     els = flatten([None, [Text("a"), "b"], False, 3])
     assert [e.props["text"] for e in els] == ["a", "b", "3"]
     assert Text("Count: ", 5).props["text"] == "Count: 5"
-    assert Button("Add").props["text"] == "Add"
 
 
 def test_ops_json_roundtrip():
@@ -32,7 +31,7 @@ def test_counter_end_to_end():
     @component
     def Counter(start=0):
         n, set_n = use_state(start)
-        return View(Text("Count: ", n), Button("Add", on_press=lambda: set_n(lambda c: c + 1)))
+        return View(Text("Count: ", n), Button(title="Add", on_press=lambda: set_n(lambda c: c + 1)))
 
     app, r = mount(Counter, start=5)
     assert r.texts() == ["Count: 5"]
@@ -69,12 +68,12 @@ def test_effects_deps_and_cleanup():
         use_effect(lambda: log.append("always"))
         use_effect(lambda: (log.append("once"), lambda: log.append("once-cleanup"))[1], [])
         use_effect(lambda: (log.append("n=%d" % n), lambda: log.append("clean n=%d" % n))[1], [n])
-        return Button("go", on_press=lambda: set_n(n + 1))
+        return Button(title="go", on_press=lambda: set_n(n + 1))
 
     @component
     def Root():
         show, set_show = use_state(True)
-        return View(C() if show else None, Button("hide", on_press=lambda: set_show(False)))
+        return View(C() if show else None, Button(title="hide", on_press=lambda: set_show(False)))
 
     app, r = mount(Root)
     assert log == ["always", "once", "n=0"]
@@ -97,7 +96,7 @@ def test_memo_callback_ref_stable():
         cb = use_callback(lambda: None, [])
         m = use_memo(lambda: object(), [])
         seen.append((ref, cb, m))
-        return Button("x", on_press=lambda: set_n(n + 1))
+        return Button(title="x", on_press=lambda: set_n(n + 1))
 
     app, r = mount(C)
     r.press(r.find_text("x"))
@@ -111,7 +110,7 @@ def test_same_state_does_not_rerender():
     def C():
         n, set_n = use_state(1)
         renders.append(n)
-        return Button("x", on_press=lambda: set_n(1))
+        return Button(title="x", on_press=lambda: set_n(1))
 
     app, r = mount(C)
     r.press(r.find_text("x"))
@@ -133,7 +132,7 @@ def test_prop_diff_emits_minimal_update():
     @component
     def C():
         n, set_n = use_state(0)
-        return View(Text("same"), Text("n", n, style={"a": 1} if n == 0 else {}), Button("b", on_press=lambda: set_n(1)))
+        return View(Text("same"), Text("n", n, style={"a": 1} if n == 0 else {}), Button(title="b", on_press=lambda: set_n(1)))
 
     app, r = mount(C)
     sent = []
@@ -151,9 +150,9 @@ def test_keyed_reorder_add_remove():
     def List():
         items, set_items = use_state(["a", "b", "c"])
         return View(*[Text(i, key=i) for i in items],
-                    Button("ab", on_press=lambda: set_items(["c", "a", "x", "b"])),
-                    Button("rm", on_press=lambda: set_items(["b"])),
-                    Button("rev", on_press=lambda: set_items(list(reversed(items)))))
+                    Button(title="ab", on_press=lambda: set_items(["c", "a", "x", "b"])),
+                    Button(title="rm", on_press=lambda: set_items(["b"])),
+                    Button(title="rev", on_press=lambda: set_items(list(reversed(items)))))
 
     app, r = mount(List)
     ids = {t.props["text"]: t.id for t in r.find_all("Text")}
@@ -173,7 +172,7 @@ def test_fragments_and_conditional_siblings():
     @component
     def Root():
         on, set_on = use_state(False)
-        return View(Text("head"), Frag(on=on), Text("tail"), Button("t", on_press=lambda: set_on(not on)))
+        return View(Text("head"), Frag(on=on), Text("tail"), Button(title="t", on_press=lambda: set_on(not on)))
 
     app, r = mount(Root)
     assert r.texts() == ["head", "tail"]
@@ -189,10 +188,10 @@ def test_handler_with_value_and_zero_args():
 
     @component
     def C():
-        return View(Text("t"), Button("go", on_press=lambda: got.append("p")),
+        return View(Text("t"), Button(title="go", on_press=lambda: got.append("p")),
                     View(key=None, on_change_text=got.append))
 
     app, r = mount(C)
     r.press(r.find_text("go"))
-    r.type_text(r.find_all("View")[1], "hi")
+    r.type_text([n for n in r.find_all("View") if n.props.get("on_change_text")][0], "hi")
     assert got == ["p", "hi"]

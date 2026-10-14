@@ -9,7 +9,7 @@ from pyxpo.config import load_config
 def test_create_and_config(tmp_path):
     assert cli.main(["create", "demo", "--dir", str(tmp_path)]) == 0
     proj = tmp_path / "demo"
-    assert (proj / "app" / "main.py").is_file() and (proj / ".gitignore").is_file()
+    assert (proj / "app" / "_layout.py").is_file() and (proj / "app" / "index.py").is_file() and (proj / "app" / "details" / "[id].py").is_file() and (proj / ".gitignore").is_file()
     cfg = load_config(proj)
     assert cfg["name"] == "demo" and cfg["bundle_id"] == "com.example.demo" and cfg["requires"] == []
     assert cli.main(["create", "demo", "--dir", str(tmp_path)]) == 2
