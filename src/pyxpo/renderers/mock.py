@@ -85,8 +85,14 @@ class MockRenderer:
             n.parent = None
         elif isinstance(op, Delete):
             n = self._node(op.id)
-            if n.parent is not None:
+            top = n
+            while top.parent is not None:
+                top = top.parent
+            if top is self.root:
                 raise MockError("delete of attached node %d" % op.id)
+            if n.parent is not None:
+                n.parent.children.remove(n)
+                n.parent = None
             del self.nodes[op.id]
         elif isinstance(op, Call):
             self.calls.append(op)

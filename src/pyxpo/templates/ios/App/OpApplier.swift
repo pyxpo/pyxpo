@@ -549,6 +549,7 @@ final class OpApplier {
             if p >= 0 { px_node_reset(tree, nid, p) }
         }
         styles[id] = s
+        v.isHidden = (s["display"] as? String) == "none"
         paint(id, v, s)
         px_node_mark_dirty(tree, nid)
     }

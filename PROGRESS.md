@@ -1,5 +1,5 @@
 # Pyxpo progress
-- Goal: from-scratch Python mobile framework (no Kivy/BeeWare/Chaquopy); all libs via mobile wheels. See DESIGN.md, PLAN.md. Tests: `.venv/bin/pytest -q` (99 pass).
+- Goal: from-scratch Python mobile framework (no Kivy/BeeWare/Chaquopy); all libs via mobile wheels. See DESIGN.md, PLAN.md. Tests: `.venv/bin/pytest -q` (104 pass).
 - Infra done: own CPython 3.13 (Android arm64/x86_64, iOS sim arm64), C bridge, Kotlin + Swift shells, `pyxpo create|build|run android|ios|desktop`, hot reload (`pyxpo run`, --no-reload), config `wheel_index`, 16 KB ELF check, own numpy 2.5.4 wheels (android).
 - Env quirks: Gradle needs IPv6 flag (in template); host py3.9; no `timeout`; `sed -i ''`; iOS build ~10 min and may hang; iOS sim UDID AB7F4D9C-C6AA-4F37-8062-F80A000A8315; no iOS tap tool. Core must stay py3.9 compatible.
 - UI system: units dp/pt; own C flexbox (native/common/pyxpo_layout.c); wire v2 normalized styles; batched JSON ops; events `{"event","id","payload"}`.
@@ -7,6 +7,7 @@
 - UI M10 DONE + committed (ScrollView/FlatList/Image/Animated.event/on_layout/ScrollRef).
 - UI M11 (Modal/Slider/use_pan_responder/on_touch_*) committed. Android VERIFIED (slider drag, pan, modal slide/backdrop/touch-block, back button -> request_close). iOS port written, build/verify pending.
 - Deferred from M10: pull-to-refresh, snap_to_interval, inverted, horizontal multi-column, keyboard_dismiss_mode, recycling (M14), image blur/placeholder.
-- Next: M11 Modal/Slider/gestures, M12 navigation, M13 theme/UI kit + final opus full-diff review (1 opus run left), M14 perf/recycling.
+- UI M12 (Stack/Tabs/use_navigation, src/pyxpo/navigation.py) committed. Android VERIFIED (tabs, push/pop, header back, display:none now native-hidden). iOS unbuilt. Gaps: Android hardware back for Stack, animated transitions.
+- Next: M13 theme/UI kit + final opus full-diff review (1 opus run left), M14 perf/recycling.
 - Other pending: generic lib support (non-meson wheels, sdist build, CI+index, iOS wheels, OpenBLAS/Pillow/litert); verify gaps (iOS tap, device slices, --release, API 24, 4 KB emulator); DESIGN.md update.
 - Rules: no Co-Authored-By/Claude attribution in commits/PRs.

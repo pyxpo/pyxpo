@@ -773,6 +773,7 @@ class OpApplier(
             if (!s.has(k)) { val p = prop(k); if (p >= 0) layout.reset(id, p) }
         }
         styles[id] = s
+        v.visibility = if (s.optString("display") == "none") View.GONE else View.VISIBLE
         paint(id, v, s)
         layout.markDirty(id)
     }
