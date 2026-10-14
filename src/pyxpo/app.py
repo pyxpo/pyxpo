@@ -123,6 +123,14 @@ class App:
                 self.on_error(e)
             self._request_flush()
             return
+        if msg.get("event") == "hardware_back":
+            from .modules import Back
+            try:
+                Back.handle()
+            except Exception as e:  # noqa: BLE001
+                self.on_error(e)
+            self._request_flush()
+            return
         if msg.get("event") == "call_result":
             fut = self._pending.pop(msg["id"], None)
             pl = msg.get("payload") or {}

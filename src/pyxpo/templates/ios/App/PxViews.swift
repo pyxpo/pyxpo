@@ -279,3 +279,46 @@ final class BoxLayer: CALayer {
         }
     }
 }
+
+/// Vector shape: replays move/line/cubic/close commands scaled from a `viewbox` square to the view size.
+final class PxPath: UIView {
+    private let shape = CAShapeLayer()
+    private var cmds: [[Double]] = []
+    private var box: CGFloat = 24
+    var strokeWidth: CGFloat = 2 { didSet { rebuild() } }
+    var strokeColorCache: UIColor?
+    var fillColorCache: UIColor?
+
+    override init(frame: CGRect) {
+        super.init(frame: frame)
+        isUserInteractionEnabled = false
+        shape.lineCap = .round; shape.lineJoin = .round
+        shape.fillColor = nil; shape.strokeColor = nil
+        layer.addSublayer(shape)
+    }
+    required init?(coder: NSCoder) { fatalError() }
+
+    func setCommands(_ c: [[Double]]) { cmds = c; rebuild() }
+    func setBox(_ b: CGFloat) { box = b; rebuild() }
+    func setColors(stroke: UIColor?, fill: UIColor?) { shape.strokeColor = stroke?.cgColor; shape.fillColor = fill?.cgColor }
+
+    override func layoutSubviews() { super.layoutSubviews(); rebuild() }
+
+    private func rebuild() {
+        let s = min(bounds.width, bounds.height) / box
+        shape.frame = bounds
+        shape.lineWidth = strokeWidth * s
+        let ox = (bounds.width - box * s) / 2, oy = (bounds.height - box * s) / 2
+        let p = UIBezierPath()
+        func pt(_ x: Double, _ y: Double) -> CGPoint { CGPoint(x: ox + CGFloat(x) * s, y: oy + CGFloat(y) * s) }
+        for c in cmds {
+            switch Int(c[0]) {
+            case 0: p.move(to: pt(c[1], c[2]))
+            case 1: p.addLine(to: pt(c[1], c[2]))
+            case 2: p.addCurve(to: pt(c[5], c[6]), controlPoint1: pt(c[1], c[2]), controlPoint2: pt(c[3], c[4]))
+            default: p.close()
+            }
+        }
+        shape.path = p.cgPath
+    }
+}

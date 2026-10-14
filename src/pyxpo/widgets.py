@@ -9,7 +9,8 @@ import datetime as _dt
 from typing import Any, Callable, Dict, List, Optional, Sequence
 
 from .component import component
-from .element import Text, TextInput, View
+from .element import Path, Text, TextInput, View
+from .icons import icon_commands
 from .hooks import use_state
 from .theme import use_theme
 from .ui import Modal, Pressable
@@ -37,13 +38,10 @@ def Icon(*children: Any, name: str = "", size: float = 18, color: Optional[str] 
     name = name or _s(children)
     c = use_theme()["colors"]
     col = color or c["text_muted"]
-    if name == "user":  # drawn: the glyph set has no monochrome person
-        return View(View(style={"width": size * 0.42, "height": size * 0.42, "border_radius": size * 0.21,
-                                "background_color": col}),
-                    View(style={"width": size * 0.82, "height": size * 0.4, "border_top_left_radius": size * 0.41,
-                                "border_top_right_radius": size * 0.41, "margin_top": size * 0.08,
-                                "background_color": col}),
-                    style=[{"width": size, "height": size, "align_items": "center", "justify_content": "center"}, style])
+    cmds = icon_commands(name)
+    if cmds is not None:
+        return Path(d=cmds, stroke=col, stroke_width=2 if size >= 16 else 2.4,
+                    style=[{"width": size, "height": size}, style])
     return Text(ICONS.get(name, name), style=[{"font_size": size * _ICON_SCALE.get(name, 1.0), "color": col,
                                                 "text_align": "center", "min_width": size}, style])
 
@@ -453,6 +451,8 @@ def TabBar(tabs: Sequence[Dict[str, Any]] = (), value: Any = None, on_change: Op
             on_press=(lambda k=tab["key"]: on_change(k) if on_change else None), key=str(tab["key"]),
             accessibility_role="tab", accessibility_state={"selected": on},
             style={"flex": 1, "align_items": "center", "justify_content": "center", "padding_vertical": 6}))
-    return View(*items, style=[{"flex_direction": "row", "align_items": "center", "height": 62,
-                                "background_color": c["surface"], "border_top_width": 1, "border_color": c["border"]},
-                               style])
+    from .env import use_safe_area_insets
+    inset = use_safe_area_insets()["bottom"]  # the bar itself paints under the home indicator
+    return View(*items, style=[{"flex_direction": "row", "align_items": "center", "height": 62 + inset,
+                                "padding_bottom": inset, "background_color": c["surface"], "border_top_width": 1,
+                                "border_color": c["border"]}, style])

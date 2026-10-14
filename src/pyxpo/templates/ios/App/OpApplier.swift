@@ -148,6 +148,7 @@ final class OpApplier {
             v = t
         case "Image":
             let i = UIImageView(); i.clipsToBounds = true; i.contentMode = .scaleAspectFill; v = i
+        case "Path": v = PxPath()
         case "ScrollView": v = ScrollHost()
         default: v = PxGroup()
         }
@@ -250,6 +251,20 @@ final class OpApplier {
             if let sh = v as? ScrollHost { scrollProp(sh, k, nil) }
             if let i = v as? UIImageView, ["source", "resize_mode", "tint_color"].contains(k), props[k] == nil {
                 applyImage(id, i, [:], removed)
+            }
+        }
+        if let pv = v as? PxPath {
+            if let c = props["path"] as? [[Any]] {
+                pv.setCommands(c.map { $0.map { ($0 as? NSNumber)?.doubleValue ?? 0 } })
+            } else if removed.contains("path") { pv.setCommands([]) }
+            if let b = props["viewbox"] as? NSNumber { pv.setBox(CGFloat(b.doubleValue)) }
+            if let w = props["stroke_width"] as? NSNumber { pv.strokeWidth = CGFloat(w.doubleValue) }
+            if props["stroke"] != nil || props["fill"] != nil || removed.contains("stroke") || removed.contains("fill") {
+                if let n = props["stroke"] as? NSNumber { pv.strokeColorCache = Self.color(n.uint32Value) }
+                else if removed.contains("stroke") { pv.strokeColorCache = nil }
+                if let n = props["fill"] as? NSNumber { pv.fillColorCache = Self.color(n.uint32Value) }
+                else if removed.contains("fill") { pv.fillColorCache = nil }
+                pv.setColors(stroke: pv.strokeColorCache, fill: pv.fillColorCache)
             }
         }
         if a11yDirty {
@@ -457,6 +472,7 @@ final class OpApplier {
             scrollTo(args[0] as? Int ?? 0, (args[1] as? NSNumber)?.doubleValue, (args[2] as? NSNumber)?.doubleValue,
                      args.count > 3 ? args[3] as? Bool ?? true : true)
         case "Scroll.to_end": scrollTo(args[0] as? Int ?? 0, nil, nil, args.count > 1 ? args[1] as? Bool ?? true : true)
+        case "Back.set_enabled", "Back.exit": break  // iOS has no hardware back
         case "Keyboard.dismiss":
             UIApplication.shared.sendAction(#selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil)
         case "Clipboard.set_string": UIPasteboard.general.string = args.first as? String ?? ""

@@ -1,5 +1,5 @@
 # Pyxpo progress
-- Goal: from-scratch Python mobile framework (no Kivy/BeeWare/Chaquopy); all libs via mobile wheels. See DESIGN.md, PLAN.md. Tests: `.venv/bin/pytest -q` (126 pass).
+- Goal: from-scratch Python mobile framework (no Kivy/BeeWare/Chaquopy); all libs via mobile wheels. See DESIGN.md, PLAN.md. Tests: `.venv/bin/pytest -q` (130 pass).
 - Infra done: own CPython 3.13 (Android arm64/x86_64, iOS sim arm64), C bridge, Kotlin + Swift shells, `pyxpo create|build|run android|ios|desktop`, hot reload (`pyxpo run`, --no-reload), config `wheel_index`, 16 KB ELF check, own numpy 2.5.4 wheels (android).
 - Env quirks: Gradle needs IPv6 flag (in template); host py3.9; no `timeout`; `sed -i ''`; iOS build ~10 min and may hang; iOS sim UDID AB7F4D9C-C6AA-4F37-8062-F80A000A8315; no iOS tap tool. Core must stay py3.9 compatible.
 - UI system: units dp/pt; own C flexbox (native/common/pyxpo_layout.c); wire v2 normalized styles; batched JSON ops; events `{"event","id","payload"}`.
@@ -12,3 +12,4 @@
 - Other pending: generic lib support (non-meson wheels, sdist build, CI+index, iOS wheels, OpenBLAS/Pillow/litert); verify gaps (iOS tap, device slices, --release, API 24, 4 KB emulator); DESIGN.md update.
 - Rules: no Co-Authored-By/Claude attribution in commits/PRs.
 - Widgets (src/pyxpo/widgets.py: InputField/Password/Search/TextArea/Dropdown/MultiSelect/Date/TimePicker/NumberInput/Radio/Stepper/Alert/Chip/TabBar+FAB/Sheet) + examples/ui_components showcase committed. Android renders; polish of lower sections + sheet interaction still to verify on device.
+- Nav upgrade (uncommitted->committed): navigation.py Stack (animated slide, parent bubbling), Tabs (TabBar widget), TopTabs, Drawer (swipe/scrim/hamburger); modules.Back + hardware_back event; icons.py Path icons (native PxPath both OS); TabBar paints under home indicator; Android text measure +1px (glyph clip fix). Android VERIFIED: drawer, tabs, stack push/pop, hw back (pop, exit), TopTabs scroll. iOS build in progress (/tmp/ios_build.log); Swift PxPath/Back unverified. Next: iOS verify, perf pass, icons test.

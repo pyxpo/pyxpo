@@ -142,6 +142,22 @@ def ScrollView(*children: Any, key: Any = None, **props: Any) -> Element:
     return Element("ScrollView", props, kids, key)
 
 
+def Path(*children: Any, key: Any = None, d: Any = None, stroke: Any = None, fill: Any = None, stroke_width: float = 2,
+         viewbox: float = 24, **props: Any) -> Element:
+    """Vector shape. `d` is SVG path data (str) or commands from `icons.parse_path`; drawn scaled from a
+    `viewbox` x `viewbox` square to the view size (set width/height in `style`)."""
+    from .icons import parse_path
+    from .style import parse_color
+    props["path"] = parse_path(d) if isinstance(d, str) else (d or [])
+    props["viewbox"] = float(viewbox)
+    props["stroke_width"] = float(stroke_width)
+    if stroke is not None:
+        props["stroke"] = parse_color(stroke)
+    if fill is not None:
+        props["fill"] = parse_color(fill)
+    return Element("Path", props, [], key)
+
+
 def Image(*children: Any, key: Any = None, **props: Any) -> Element:
     """Image from `source`: a path, an http(s) URL, a data: URI, `asset:name`, or `{"uri": ...}`."""
     src = props.get("source")

@@ -120,6 +120,7 @@ class OpApplier(
                 it.setOnClickListener { event("press", id) }
             }
             "Image" -> ImageView(ctx)
+            "Path" -> PxPath(ctx)
             "TextInput" -> EditText(ctx)
             "ScrollView" -> (if (props.optBoolean("horizontal")) PxHScroll(ctx) else PxScroll(ctx)).also {
                 it.addView(PxGroup(ctx), ViewGroup.LayoutParams(-2, -2))
@@ -211,6 +212,13 @@ class OpApplier(
             if (v is ImageView && !props.has(k) && (k == "source" || k == "resize_mode" || k == "tint_color")) applyImage(id, v, JSONObject(), r)
         }
         if (v is EditText) applyInput(id, v, props, r)
+        if (v is PxPath) {
+            if (props.has("path")) v.setCommands(props.optJSONArray("path")) else if ("path" in r) v.setCommands(null)
+            if (props.has("viewbox")) v.setBox(props.optDouble("viewbox", 24.0).toFloat())
+            if (props.has("stroke_width")) v.setStrokeWidth(props.optDouble("stroke_width", 2.0).toFloat())
+            if (props.has("stroke")) v.setStroke(props.optLong("stroke").toInt()) else if ("stroke" in r) v.setStroke(null)
+            if (props.has("fill")) v.setFill(props.optLong("fill").toInt()) else if ("fill" in r) v.setFill(null)
+        }
         if (textDirty && v is TextView) { applyText(id, v); layout.markDirty(id) }
         if (a11yDirty) a11y[id] = (a11y[id] ?: JSONObject()).also { merge(it, props, r) }.also { applyA11y(v, it) }
         if (!batching) flush()
@@ -452,6 +460,8 @@ class OpApplier(
             val out: Any? = when ("$module.$method") {
                 "Scroll.to" -> { scrollTo(args.getInt(0), args.getDouble(1), args.getDouble(2), args.optBoolean(3, true)); null }
                 "Scroll.to_end" -> { scrollTo(args.getInt(0), null, null, args.optBoolean(1, true)); null }
+                "Back.exit" -> { (ctx as? android.app.Activity)?.finish(); null }
+                "Back.set_enabled" -> { backEnabled = args.optBoolean(0, false); null }
                 "Keyboard.dismiss" -> {
                     val act = ctx as? android.app.Activity
                     val f = act?.currentFocus
@@ -668,8 +678,12 @@ class OpApplier(
             val id = views.entries.firstOrNull { it.value === root.getChildAt(i) }?.key ?: continue
             if (types[id] == "Modal") { if (closeListeners.contains(id)) event("request_close", id); return true }
         }
+        if (backEnabled) { event("hardware_back", 0); return true }  // Python navigators consume it
         return false
     }
+
+    /** Set by the Python `Back` module while a navigator has something to pop (a Stack past its root, an open Drawer). */
+    private var backEnabled = false
 
     private fun insert(parent0: Int, id: Int, index0: Int) {
         val parent = host(id, parent0)
@@ -902,7 +916,7 @@ class OpApplier(
             else -> MeasureSpec.makeMeasureSpec(max(0, (size * d).roundToInt()) + pad, MeasureSpec.AT_MOST)
         }
         v.measure(spec(w, wm, p[0] + p[2]), spec(h, hm, p[1] + p[3]))
-        val mw = max(0, v.measuredWidth - p[0] - p[2]) / d
+        val mw = (max(0, v.measuredWidth - p[0] - p[2]) + (if (v is android.widget.TextView) 1 else 0)) / d  // +1px: frame rounding must not clip the last glyph
         val mh = max(0, v.measuredHeight - p[1] - p[3]) / d
         return (java.lang.Float.floatToRawIntBits(mw).toLong() shl 32) or
             (java.lang.Float.floatToRawIntBits(mh).toLong() and 0xffffffffL)

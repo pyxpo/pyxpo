@@ -18,7 +18,7 @@ def test_stack_push_pop_and_params():
         box["detail"] = navigation
         return Text("detail %s" % params.get("id"))
 
-    app, r = mount(lambda: Stack(screens={"Home": Home, "Detail": Detail}, initial="Home"))
+    app, r = mount(lambda: Stack(screens={"Home": Home, "Detail": Detail}, initial="Home", animate=False))
     assert "home" in r.texts() and "detail 7" not in r.texts()
     box["home"].navigate("Detail", id=7)
     assert "detail 7" in r.texts()
@@ -38,9 +38,11 @@ def test_stack_header_back_button():
     def Detail(navigation, params):
         return Text("detail")
 
-    app, r = mount(lambda: Stack(screens={"Home": Home, "Detail": Detail}))
+    app, r = mount(lambda: Stack(screens={"Home": Home, "Detail": Detail}, animate=False))
     box["n"].navigate("Detail")
-    r.press(r.find_text("‹").parent)
+    back = [n for n in r.root.walk() if n.props.get("accessibility_label") == "Back"]
+    assert len(back) == 1
+    r.press(back[0])
     assert "detail" not in r.texts()
 
 
@@ -194,3 +196,68 @@ def test_tabs_screens_toggle_empty_keeps_hook_order():
     app, r = mount(App)
     box["set"](True)
     assert "a" in r.texts()
+
+
+def test_stack_pop_keeps_leaving_screen_until_animation_ends():
+    box = {}
+
+    def Home(navigation, params):
+        box["n"] = navigation
+        return Text("home")
+
+    app, r = mount(lambda: Stack(screens={"Home": Home, "Detail": lambda navigation, params: Text("detail")}))
+    box["n"].navigate("Detail")
+    box["n"].go_back()
+    assert "detail" in r.texts()  # still sliding out
+    nav = box["n"]._nav
+    nav.exit_done(nav.leaving[0].key)
+    assert "detail" not in r.texts()
+
+
+def test_navigate_bubbles_to_parent_navigator():
+    box = {}
+
+    def Inner(navigation, params):
+        box["inner"] = navigation
+        return Text("inner")
+
+    def Outer(navigation, params):
+        return Stack(screens={"Inner": Inner}, animate=False)
+
+    app, r = mount(lambda: Stack(screens={"Outer": Outer, "Other": lambda navigation, params: Text("other")},
+                                 animate=False))
+    assert box["inner"].parent is not None
+    box["inner"].navigate("Other")
+    assert "other" in r.texts()
+
+
+def test_drawer_open_close_select():
+    from pyxpo import Drawer
+    box = {}
+
+    def A(navigation, params):
+        box["n"] = navigation
+        return Text("page a")
+
+    app, r = mount(lambda: Drawer(screens={"A": A, "B": lambda navigation, params: Text("page b")}))
+    assert "page a" in r.texts() and "A" in r.texts()
+    box["n"].open_drawer()
+    assert r.find_text("B") is not None  # drawer item listed
+    r.press(r.find_text("B").parent)
+    assert "page b" in r.texts()
+    box["n"].toggle_drawer()
+    assert r.find_text("A") is not None
+
+
+def test_top_tabs_lazy_mount_and_switch():
+    from pyxpo import TopTabs
+    box = {}
+
+    def A(navigation, params):
+        box["n"] = navigation
+        return Text("page a")
+
+    app, r = mount(lambda: TopTabs(screens={"A": A, "B": lambda navigation, params: Text("page b")}))
+    assert "page b" not in r.texts()
+    box["n"].navigate("B")
+    assert "page b" in r.texts()

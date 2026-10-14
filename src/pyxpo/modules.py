@@ -21,6 +21,37 @@ def call(module: str, method: str, *args: Any, reply: bool = False) -> Any:
     return _app.call(module, method, *args, reply=reply)
 
 
+class Back:
+    """Android hardware back. Navigators register a handler; the newest handler that returns True consumes it."""
+    _handlers: list = []
+    _enabled = False
+
+    @classmethod
+    def add(cls, fn: Any) -> Any:
+        cls._handlers.append(fn)
+        cls._sync()
+
+        def remove() -> None:
+            if fn in cls._handlers:
+                cls._handlers.remove(fn)
+            cls._sync()
+        return remove
+
+    @classmethod
+    def _sync(cls) -> None:
+        on = bool(cls._handlers)
+        if on != cls._enabled and _app is not None:
+            cls._enabled = on
+            call("Back", "set_enabled", on)
+
+    @classmethod
+    def handle(cls) -> None:
+        for fn in reversed(list(cls._handlers)):
+            if fn():
+                return
+        call("Back", "exit")  # nobody consumed it: leave the app
+
+
 class Keyboard:
     @staticmethod
     def dismiss() -> None:
