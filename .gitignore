@@ -18,3 +18,4 @@ dist/
 *.aab
 local.properties
 .gradle/
+wheels/dist/

@@ -1,0 +1,9 @@
+[package]
+name = "numpy"
+version = "2.5.4"
+
+[build]
+# cibuildwheel identifiers: android archs
+android_archs = ["arm64_v8a", "x86_64"]
+# no BLAS/LAPACK yet (no Fortran/OpenBLAS for Android); linalg is slow but correct
+config_settings = ["setup-args=-Dallow-noblas=true", "setup-args=-Dblas=none", "setup-args=-Dlapack=none"]

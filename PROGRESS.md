@@ -13,3 +13,8 @@
 - Next: M4 wheels index (16 KB) + more components. Opus final diff review still pending.
 
 - 16 KB: own CPython libs verified 16 KB-aligned (81/81 LOAD p_align=0x4000). Build now runs build/elfcheck.py on site/ + jniLibs and fails on 4 KB libs (Chaquopy numpy) unless `allow_4kb_libs = true`. Real fix = own 16 KB wheels (M4 pyxpo-wheels); post-hoc ELF realign not feasible.
+
+- M4 step 21 (wheels) partly done: upstream PyPI has no android/ios numpy wheels. Own numpy 2.5.4 (no BLAS) built via cibuildwheel 3.x (.cache/cibw venv py3.12; host py auto-downloaded, no sudo) for android arm64_v8a + x86_64, all 16 KB aligned. VERIFIED on Pixel_10 (16 KB): `requires=["numpy"]`, elfcheck passes without allow_4kb_libs. Needs meson cross file wheels/meson-android.ini (longdouble_format). numpy.libs has libc++_shared via RUNPATH.
+- Config: `wheel_index = [url|dir]` / env PYXPO_WHEEL_INDEX -> pip --extra-index-url/--find-links (config.pip_index_args). Chaquopy no longer needed.
+- Files: wheels/{build.py,check_wheel.py,recipes/numpy.toml,meson-android.ini}. 36 tests pass.
+- Next: CI workflow + index (S4), iOS wheels (S5), OpenBLAS/Pillow/litert (S6), then step 23 (FlatList, Switch, navigation, flexbox). Opus diff review pending.

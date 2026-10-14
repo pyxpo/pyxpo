@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import ast
+import os
 import re
 from pathlib import Path
 from typing import Any, Dict
@@ -52,3 +53,21 @@ def set_requires(project_dir: Path, requires: list) -> None:
     else:
         text = text.replace("[tool.pyxpo]", "[tool.pyxpo]\n" + line, 1)
     path.write_text(text)
+
+
+def pip_index_args(cfg: Dict[str, Any], project_dir: Path) -> list:
+    """pip args for extra wheel sources: `wheel_index` in [tool.pyxpo], or PYXPO_WHEEL_INDEX (comma-separated).
+
+    http(s) entries become --extra-index-url; anything else is a local dir/file URL for --find-links
+    (relative paths resolve against the project dir).
+    """
+    env = os.environ.get("PYXPO_WHEEL_INDEX")
+    entries = [e.strip() for e in env.split(",") if e.strip()] if env else list(cfg.get("wheel_index", []))
+    args: list = []
+    for e in entries:
+        if e.startswith(("http://", "https://")):
+            args += ["--extra-index-url", e]
+        else:
+            p = Path(e[len("file://"):] if e.startswith("file://") else e)
+            args += ["--find-links", str(p if p.is_absolute() else (Path(project_dir) / p).resolve())]
+    return args

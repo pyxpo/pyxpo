@@ -10,7 +10,7 @@ import sys
 from pathlib import Path
 from typing import Dict, List, Optional
 
-from ..config import load_config
+from ..config import load_config, pip_index_args
 from .android import BuildError, _run, _skip_runtime_file, _zip_tree  # noqa: F401  (shared helpers)
 
 REPO = Path(__file__).resolve().parents[3]
@@ -66,14 +66,14 @@ def render_shell(dest: Path, values: Dict[str, str]) -> None:
     (dest / "Python.xcframework").symlink_to(DIST / "Python.xcframework")
 
 
-def install_requires(requires: List[str], kind: str, target: Path) -> None:
+def install_requires(requires: List[str], kind: str, target: Path, index_args: List[str] = ()) -> None:
     if target.exists():
         shutil.rmtree(str(target))
     target.mkdir(parents=True)
     if not requires:
         return
     _run([sys.executable, "-m", "pip", "install", "--target", target, "--platform", PIP_TAGS[kind],
-          "--python-version", "3.13", "--implementation", "cp", "--only-binary=:all:", "--no-compile"] + requires)
+          "--python-version", "3.13", "--implementation", "cp", "--only-binary=:all:", "--no-compile"] + list(index_args) + requires)
 
 
 def _stage_stdlib(slice_dir: Path, dest: Path, compile_with: Optional[Path]) -> None:
@@ -170,7 +170,7 @@ def build(project: Path, release: bool = False, kind: str = "simulator") -> Path
     host_py = REPO / ".cache" / "Python-3.13.7" / "cross-build" / "build" / "python.exe"
     _stage_stdlib(slice_dir, st / ("python-" + kind), host_py)
     _stage_app(project, st / "app_root", release)
-    install_requires(list(cfg.get("requires", [])), kind, st / ("site-" + kind))
+    install_requires(list(cfg.get("requires", [])), kind, st / ("site-" + kind), pip_index_args(cfg, project))
 
     _run(["xcodegen", "generate", "--spec", shell / "project.yml", "--project", shell], cwd=str(shell))
     sdk = "iphonesimulator" if kind == "simulator" else "iphoneos"

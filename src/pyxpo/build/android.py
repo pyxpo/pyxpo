@@ -9,7 +9,7 @@ import zipfile
 from pathlib import Path
 from typing import Dict, List, Optional
 
-from ..config import load_config
+from ..config import load_config, pip_index_args
 from . import elfcheck
 
 REPO = Path(__file__).resolve().parents[3]
@@ -89,14 +89,14 @@ def _zip_tree(zpath: Path, root: Path, arcprefix: str = "", skip=()) -> None:
             z.write(str(p), arcprefix + str(rel))
 
 
-def install_requires(requires: List[str], abi: str, target: Path) -> None:
+def install_requires(requires: List[str], abi: str, target: Path, index_args: List[str] = ()) -> None:
     if target.exists():
         shutil.rmtree(str(target))
     target.mkdir(parents=True)
     if not requires:
         return
     _run([sys.executable, "-m", "pip", "install", "--target", target, "--platform", ABI_TAGS[abi],
-          "--python-version", "3.13", "--implementation", "cp", "--only-binary=:all:", "--no-compile"] + requires)
+          "--python-version", "3.13", "--implementation", "cp", "--only-binary=:all:", "--no-compile"] + list(index_args) + requires)
 
 
 def _hoist_shared_libs(site: Path, jni_abi: Path) -> None:
@@ -191,7 +191,7 @@ def build(project: Path, release: bool = False, install: bool = False, run: bool
         _zip_tree(assets / ("stdlib-%s.zip" % abi), prefix / "lib" / "python3.13",
                   arcprefix="lib/python3.13/", skip=STDLIB_SKIP)
         site = stage / "site" / abi
-        install_requires(list(cfg.get("requires", [])), abi, site)
+        install_requires(list(cfg.get("requires", [])), abi, site, pip_index_args(cfg, project))
         (jni / abi).mkdir(parents=True)
         _hoist_shared_libs(site, jni / abi)
         _check_16kb(site, jni / abi, abi, bool(cfg.get("allow_4kb_libs", False)))
