@@ -14,6 +14,13 @@ from .icons import icon_commands
 from .hooks import use_state
 from .theme import use_theme
 from .ui import Modal, Pressable
+from . import modules as _modules
+from .env import Platform as _Platform
+
+
+def _native_dialogs(native: bool) -> bool:
+    """System dialogs (date / time / choice) are used when the platform has them; else the in-app sheet."""
+    return bool(native) and _Platform.os() == "android"
 
 ICONS: Dict[str, str] = {
     "check": "✓", "close": "✕", "plus": "+", "minus": "−", "chevron-down": "▾", "chevron-up": "▴",
@@ -130,8 +137,8 @@ def _opt(o: Any) -> Dict[str, Any]:
 
 @component
 def Dropdown(options: Sequence[Any] = (), value: Any = None, on_change: Optional[Callable[[Any], Any]] = None,
-             label: Optional[str] = None, placeholder: str = "Select option", style: Any = None):
-    """Single choice. `options`: values or `{"value", "label"}` dicts."""
+             label: Optional[str] = None, placeholder: str = "Select option", style: Any = None, native: bool = True):
+    """Single choice. `options`: values or `{"value", "label"}` dicts. `native`: system choice dialog."""
     t = use_theme()
     c = t["colors"]
     open_, set_open = use_state(False)
@@ -142,6 +149,19 @@ def Dropdown(options: Sequence[Any] = (), value: Any = None, on_change: Optional
         set_open(False)
         if on_change:
             on_change(v)
+
+    if _native_dialogs(native):
+        async def choose() -> None:
+            i = await _modules.Picker.choose([o["label"] for o in opts], next((k for k, o in enumerate(opts) if o["value"] == value), -1),
+                                             label or placeholder)
+            if i is not None and on_change:
+                on_change(opts[i]["value"])
+        return View(
+            Label(label) if label else None,
+            Pressable(Text(cur["label"] if cur else placeholder,
+                           style={"flex": 1, "font_size": 15, "color": c["text"] if cur else c["text_muted"]}),
+                      Icon("chevron-down"), on_press=lambda: _modules.spawn(choose()), accessibility_role="button",
+                      style=[_field_box(t, 44), style]))
 
     rows = [Pressable(Text(o["label"], style={"flex": 1, "font_size": 16, "color": c["text"]}),
                       Icon("check", color=c["primary"]) if o["value"] == value else None,
@@ -180,7 +200,7 @@ def Chip(*children: Any, label: str = "", tone: str = "primary", selected: bool 
 
 @component
 def MultiSelect(options: Sequence[Any] = (), value: Sequence[Any] = (), on_change: Optional[Callable[[List[Any]], Any]] = None,
-                label: Optional[str] = None, placeholder: str = "Select", style: Any = None):
+                label: Optional[str] = None, placeholder: str = "Select", style: Any = None, native: bool = True):
     t = use_theme()
     c = t["colors"]
     open_, set_open = use_state(False)
@@ -193,6 +213,19 @@ def MultiSelect(options: Sequence[Any] = (), value: Sequence[Any] = (), on_chang
 
     chips = [Chip(label=o["label"], tone="neutral", on_remove=(lambda v=o["value"]: toggle(v)), key=str(o["value"]),
                   style={"margin_right": 6, "padding_horizontal": 10, "padding_vertical": 4}) for o in opts if o["value"] in chosen]
+    if _native_dialogs(native):
+        async def choose() -> None:
+            idx = await _modules.Picker.choose_many([o["label"] for o in opts],
+                                                    [k for k, o in enumerate(opts) if o["value"] in chosen], label or placeholder)
+            if idx is not None and on_change:
+                on_change([opts[k]["value"] for k in idx])
+        return View(
+            Label(label) if label else None,
+            Pressable(View(*chips, style={"flex": 1, "flex_direction": "row", "flex_wrap": "wrap"}) if chips else
+                      Text(placeholder, style={"flex": 1, "font_size": 15, "color": c["text_muted"]}),
+                      Icon("chevron-down"), on_press=lambda: _modules.spawn(choose()), accessibility_role="button",
+                      style=[_field_box(t, None), {"padding_vertical": 6}, style]))
+
     rows = [Pressable(Text(o["label"], style={"flex": 1, "font_size": 16, "color": c["text"]}),
                       Icon("check", color=c["primary"]) if o["value"] in chosen else None,
                       on_press=(lambda v=o["value"]: toggle(v)), key=str(o["value"]),
@@ -249,13 +282,27 @@ def _StepperCol(label: str = "", value: int = 0, on_up: Any = None, on_down: Any
 
 @component
 def DatePicker(value: Optional[_dt.date] = None, on_change: Optional[Callable[[_dt.date], Any]] = None,
-               label: Optional[str] = None, style: Any = None):
-    """Date field; tap to open a sheet with year / month / day spinners."""
+               label: Optional[str] = None, style: Any = None, native: bool = True,
+               minimum: Optional[_dt.date] = None, maximum: Optional[_dt.date] = None):
+    """Date field; tap opens the system date dialog (`native=False`: sheet with year / month / day spinners)."""
     t = use_theme()
     c = t["colors"]
     open_, set_open = use_state(False)
     cur = value or _dt.date.today()
     draft, set_draft = use_state(cur)
+
+    if _native_dialogs(native):
+        async def pick() -> None:
+            r = await _modules.Picker.date(cur.year, cur.month, cur.day, minimum and (minimum.year, minimum.month, minimum.day),
+                                           maximum and (maximum.year, maximum.month, maximum.day), label or "")
+            if r is not None and on_change:
+                on_change(_dt.date(*r))
+        return View(
+            Label(label) if label else None,
+            Pressable(Icon("calendar"), Text(cur.strftime("%b %d, %Y"), style={"flex": 1, "margin_left": 8, "font_size": 14,
+                                                                               "number_of_lines": 1, "color": c["text"]}),
+                      on_press=lambda: _modules.spawn(pick()), accessibility_role="button",
+                      style=[_field_box(t, 46), style]))
 
     def shift(field: str, d: int) -> None:
         y, m, day = draft.year, draft.month, draft.day
@@ -307,13 +354,26 @@ def _done_button(on_press: Any):
 
 @component
 def TimePicker(value: Optional[_dt.time] = None, on_change: Optional[Callable[[_dt.time], Any]] = None,
-               label: Optional[str] = None, minute_step: int = 1, style: Any = None):
-    """Time field; tap to open a sheet with hour / minute / AM-PM spinners."""
+               label: Optional[str] = None, minute_step: int = 1, style: Any = None, native: bool = True,
+               is_24h: bool = False):
+    """Time field; tap opens the system time dialog (`native=False`: sheet with hour / minute / AM-PM spinners)."""
     t = use_theme()
     c = t["colors"]
     open_, set_open = use_state(False)
     cur = value or _dt.time(9, 0)
     draft, set_draft = use_state(cur)
+
+    if _native_dialogs(native):
+        async def pick() -> None:
+            r = await _modules.Picker.time(cur.hour, cur.minute, is_24h, label or "")
+            if r is not None and on_change:
+                on_change(_dt.time(*r))
+        return View(
+            Label(label) if label else None,
+            Pressable(Icon("clock"), Text(_fmt_time(cur), style={"flex": 1, "margin_left": 8, "font_size": 15,
+                                                                  "color": c["text"]}),
+                      on_press=lambda: _modules.spawn(pick()), accessibility_role="button",
+                      style=[_field_box(t, 46), style]))
 
     def shift(field: str, d: int) -> None:
         mins = draft.hour * 60 + draft.minute

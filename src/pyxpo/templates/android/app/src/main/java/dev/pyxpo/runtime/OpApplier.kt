@@ -461,32 +461,36 @@ class OpApplier(
         event("call_result", id, p)
     }
 
+    private var statusLight: Boolean? = null
+
+    /** Dark glyphs on a light background. Dialogs reset the window appearance, so this is reapplied on focus. */
+    fun applyStatusBar() {
+        val light = statusLight ?: return
+        val act = ctx as? android.app.Activity ?: return
+        act.runOnUiThread {
+            val w = act.window
+            if (Build.VERSION.SDK_INT >= 30) {
+                val m = android.view.WindowInsetsController.APPEARANCE_LIGHT_STATUS_BARS or
+                    android.view.WindowInsetsController.APPEARANCE_LIGHT_NAVIGATION_BARS
+                w.insetsController?.setSystemBarsAppearance(if (light) m else 0, m)
+            } else if (Build.VERSION.SDK_INT >= 23) {
+                @Suppress("DEPRECATION") run {
+                    var f = w.decorView.systemUiVisibility
+                    f = if (light) f or android.view.View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR
+                        else f and android.view.View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR.inv()
+                    w.decorView.systemUiVisibility = f
+                }
+            }
+        }
+    }
+
     private fun call(id: Int, module: String, method: String, args: JSONArray, wantReply: Boolean) {
         try {
             val out: Any? = when ("$module.$method") {
                 "Scroll.to" -> { scrollTo(args.getInt(0), args.getDouble(1), args.getDouble(2), args.optBoolean(3, true)); null }
                 "Scroll.to_end" -> { scrollTo(args.getInt(0), null, null, args.optBoolean(1, true)); null }
                 "Back.exit" -> { (ctx as? android.app.Activity)?.finish(); null }
-                "StatusBar.set_style" -> {
-                    val act = ctx as? android.app.Activity
-                    val light = args.optString(0, "dark") == "dark"  // dark content on a light background
-                    act?.runOnUiThread {
-                        val w = act.window
-                        if (android.os.Build.VERSION.SDK_INT >= 30) {
-                            val m = android.view.WindowInsetsController.APPEARANCE_LIGHT_STATUS_BARS or
-                                android.view.WindowInsetsController.APPEARANCE_LIGHT_NAVIGATION_BARS
-                            w.insetsController?.setSystemBarsAppearance(if (light) m else 0, m)
-                        } else if (android.os.Build.VERSION.SDK_INT >= 23) {
-                            @Suppress("DEPRECATION") run {
-                                var f = w.decorView.systemUiVisibility
-                                f = if (light) f or android.view.View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR
-                                    else f and android.view.View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR.inv()
-                                w.decorView.systemUiVisibility = f
-                            }
-                        }
-                    }
-                    null
-                }
+                "StatusBar.set_style" -> { statusLight = args.optString(0, "dark") == "dark"; applyStatusBar(); null }
                 "Back.set_enabled" -> { backEnabled = args.optBoolean(0, false); null }
                 "Keyboard.dismiss" -> {
                     val act = ctx as? android.app.Activity
@@ -522,6 +526,62 @@ class OpApplier(
                         (ctx.getSystemService(Context.VIBRATOR_SERVICE) as android.os.Vibrator).vibrate(ms)
                     }
                     null
+                }
+                "Picker.date" -> {
+                    val act = ctx
+                    var done = false
+                    fun fin(v: Any?) { if (!done) { done = true; if (wantReply) reply(id, v) } }
+                    val d = android.app.DatePickerDialog(act, { _, y, m, dd -> fin(JSONArray().put(y).put(m + 1).put(dd)) },
+                        args.getInt(0), args.getInt(1) - 1, args.getInt(2))
+                    fun ms(a: JSONArray?): Long? = a?.let {
+                        java.util.Calendar.getInstance().apply { clear(); set(it.getInt(0), it.getInt(1) - 1, it.getInt(2)) }.timeInMillis
+                    }
+                    ms(args.optJSONArray(3))?.let { d.datePicker.minDate = it }
+                    ms(args.optJSONArray(4))?.let { d.datePicker.maxDate = it }
+                    args.optString(5).takeIf { it.isNotEmpty() }?.let { d.setTitle(it) }
+                    d.setOnCancelListener { fin(null) }
+                    d.show()
+                    return
+                }
+                "Picker.time" -> {
+                    var done = false
+                    fun fin(v: Any?) { if (!done) { done = true; if (wantReply) reply(id, v) } }
+                    val d = android.app.TimePickerDialog(ctx, { _, h, m -> fin(JSONArray().put(h).put(m)) },
+                        args.getInt(0), args.getInt(1), args.optBoolean(2, false))
+                    args.optString(3).takeIf { it.isNotEmpty() }?.let { d.setTitle(it) }
+                    d.setOnCancelListener { fin(null) }
+                    d.show()
+                    return
+                }
+                "Picker.choose" -> {
+                    val labels = args.getJSONArray(0)
+                    val items = Array(labels.length()) { labels.getString(it) }
+                    var done = false
+                    fun fin(v: Any?) { if (!done) { done = true; if (wantReply) reply(id, v) } }
+                    val b = android.app.AlertDialog.Builder(ctx)
+                    args.optString(2).takeIf { it.isNotEmpty() }?.let { b.setTitle(it) }
+                    b.setSingleChoiceItems(items, args.optInt(1, -1)) { dlg, i -> fin(i); dlg.dismiss() }
+                    b.setOnCancelListener { fin(null) }
+                    b.show()
+                    return
+                }
+                "Picker.choose_many" -> {
+                    val labels = args.getJSONArray(0)
+                    val items = Array(labels.length()) { labels.getString(it) }
+                    val sel = args.optJSONArray(1) ?: JSONArray()
+                    val checked = BooleanArray(items.size) { i -> (0 until sel.length()).any { sel.getInt(it) == i } }
+                    var done = false
+                    fun fin(v: Any?) { if (!done) { done = true; if (wantReply) reply(id, v) } }
+                    val b = android.app.AlertDialog.Builder(ctx)
+                    args.optString(2).takeIf { it.isNotEmpty() }?.let { b.setTitle(it) }
+                    b.setMultiChoiceItems(items, checked) { _, i, c -> checked[i] = c }
+                    b.setPositiveButton(android.R.string.ok) { _, _ ->
+                        fin(JSONArray().also { a -> checked.forEachIndexed { i, c -> if (c) a.put(i) } })
+                    }
+                    b.setNegativeButton(android.R.string.cancel) { _, _ -> fin(null) }
+                    b.setOnCancelListener { fin(null) }
+                    b.show()
+                    return
                 }
                 "Alert.alert" -> {
                     val labels = args.optJSONArray(2) ?: JSONArray().put("OK")

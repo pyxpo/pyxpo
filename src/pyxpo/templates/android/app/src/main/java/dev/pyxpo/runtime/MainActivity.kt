@@ -64,6 +64,11 @@ class MainActivity : Activity() {
     }
 
     @Deprecated("Deprecated in Java")
+    override fun onWindowFocusChanged(hasFocus: Boolean) {
+        super.onWindowFocusChanged(hasFocus)
+        if (hasFocus) applier?.applyStatusBar()
+    }
+
     override fun onBackPressed() {
         if (applier?.handleBack() != true) @Suppress("DEPRECATION") super.onBackPressed()
     }
