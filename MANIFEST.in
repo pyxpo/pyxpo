@@ -1,0 +1,11 @@
+include LICENSE README.md
+recursive-include src/pyxpo/templates *
+recursive-include src/pyxpo/_native *
+include src/pyxpo/build/runtime_manifest.json
+prune dist
+prune native
+prune .cache
+prune tests
+prune wheels
+prune examples
+global-exclude __pycache__ *.pyc .DS_Store

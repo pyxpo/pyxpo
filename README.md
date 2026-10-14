@@ -1,9 +1,18 @@
-# Pyxpo (working name)
+# Pyxpo
 
 React-Native-style Python framework: declarative components + hooks -> reconciler -> batched JSON ops -> native widgets.
-See DESIGN.md (architecture) and PLAN.md (roadmap). Android is verified; iOS renders but native controls and the native stack are not ported.
+See DESIGN.md (architecture) and PLAN.md (roadmap). Android and iOS are both supported.
 
-## Quickstart
+## Install
+```
+pip install pyxpo
+pyxpo create demo && cd demo
+pyxpo doctor            # check Xcode / Android SDK / Gradle
+pyxpo run android       # or: pyxpo run ios
+```
+The first mobile build downloads the prebuilt CPython runtime (about 20-60 MB per target) into `~/.cache/pyxpo`.
+
+## Develop pyxpo itself
 ```
 python3 -m venv .venv && .venv/bin/pip install -e '.[dev]'
 .venv/bin/pyxpo create demo && cd demo && ../.venv/bin/pyxpo run desktop   # type 1 + Enter to press the button, q to quit

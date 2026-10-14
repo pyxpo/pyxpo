@@ -1,6 +1,6 @@
 package dev.pyxpo.runtime
 
-/** Kotlin face of the shared C flexbox engine (native/common/pyxpo_layout.c). UI thread only. */
+/** Kotlin face of the shared C flexbox engine (_native/common/pyxpo_layout.c). UI thread only. */
 class NativeLayout(private val measurer: (Int, Float, Int, Float, Int) -> Long) {
     private var ptr: Long = 0
     private var buf = FloatArray(5 * 64)

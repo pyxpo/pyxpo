@@ -1,5 +1,5 @@
-"""Native bridge tests: UTF-16 <-> UTF-8 conversion used by the JNI layer (native/common/pyxpo_utf.c) and
-the init/finalize lifecycle of native/common/pyxpo_bridge.c, driven by a small embedding harness."""
+"""Native bridge tests: UTF-16 <-> UTF-8 conversion used by the JNI layer (src/pyxpo/_native/common/pyxpo_utf.c) and
+the init/finalize lifecycle of src/pyxpo/_native/common/pyxpo_bridge.c, driven by a small embedding harness."""
 from __future__ import annotations
 
 import ctypes as C
@@ -11,7 +11,7 @@ from pathlib import Path
 
 import pytest
 
-COMMON = Path(__file__).resolve().parents[1] / "native" / "common"
+COMMON = Path(__file__).resolve().parents[1] / "src" / "pyxpo" / "_native" / "common"
 
 
 def _cc() -> str:

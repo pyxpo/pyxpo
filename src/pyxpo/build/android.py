@@ -12,20 +12,16 @@ from typing import Dict, List, Optional
 from .. import native_config
 from ..config import load_config, pip_index_args
 from . import prebuild as prebuild_mod
-from . import elfcheck
+from . import elfcheck, runtime
+from .runtime import BuildError  # noqa: F401  (re-exported)
 
-REPO = Path(__file__).resolve().parents[3]
-DIST = Path(os.environ.get("PYXPO_ANDROID_DIST", REPO / "dist" / "android"))
-COMMON = Path(os.environ.get("PYXPO_NATIVE_COMMON", REPO / "native" / "common"))
+DIST = runtime.dist_path("android")
+COMMON = runtime.native_common()
 TEMPLATE = Path(__file__).resolve().parent.parent / "templates" / "android"
 
 ABI_TAGS = {"arm64-v8a": "android_24_arm64_v8a", "x86_64": "android_24_x86_64"}
 SO_FOR_JNILIBS = ["libpython3.13.so", "libcrypto_python.so", "libssl_python.so", "libsqlite3_python.so"]
 STDLIB_SKIP = ("test", "idlelib", "tkinter", "turtledemo", "ensurepip", "lib2to3", "config-3.13")
-
-
-class BuildError(Exception):
-    pass
 
 
 def _run(cmd: List[str], **kw) -> None:
@@ -58,10 +54,10 @@ def find_gradle() -> str:
     g = shutil.which("gradle")
     if g:
         return g
-    cached = sorted(REPO.glob(".cache/gradle-*/bin/gradle"))
+    cached = sorted(runtime.REPO.glob(".cache/gradle-*/bin/gradle")) if runtime.is_dev_checkout() else []
     if cached:
         return str(cached[-1])
-    raise BuildError("gradle not found; install it or put it on PATH")
+    raise BuildError("gradle not found; install Gradle 8+ (brew install gradle, or sdkman) and put it on PATH")
 
 
 GEN = "pyxpo-gen"
@@ -103,14 +99,23 @@ def render_gen(native: Path, nc: Dict[str, object], project: Path, abis: List[st
     return gen
 
 
-def available_abis() -> List[str]:
-    return [a for a in ABI_TAGS if (DIST / a / "prefix" / "lib" / "libpython3.13.so").is_file()]
+def available_abis(requested: Optional[List[str]] = None) -> List[str]:
+    """ABIs with a CPython build, fetching them first when they live in the pyxpo cache."""
+    runtime.ensure("android", requested, DIST)
+    return [a for a in ABI_TAGS if (requested is None or a in requested)
+            and (DIST / a / "prefix" / "lib" / "libpython3.13.so").is_file()]
+
+
+def _cfg_abis(cfg: Dict[str, object]) -> Optional[List[str]]:
+    v = cfg.get("abis")
+    return [str(a) for a in v] if isinstance(v, (list, tuple)) and v else None
 
 
 def prebuild(project: Path, clean: bool = False) -> Path:
     """Ejects `<project>/android`: user-owned files are written once (edited ones are kept), `pyxpo-gen/` is refreshed."""
     project = Path(project).resolve()
-    nc = native_config.resolve(load_config(project), project)
+    cfg = load_config(project)
+    nc = native_config.resolve(cfg, project)
     dest = project / "android"
     if clean and dest.exists():
         shutil.rmtree(str(dest))
@@ -120,7 +125,7 @@ def prebuild(project: Path, clean: bool = False) -> Path:
     for action, rel in prebuild_mod.apply(rendered, dest, __version__):
         if action == "conflict":
             print("kept your edited %s; new version saved as %s.pyxpo-new" % (rel, rel))
-    render_gen(dest, nc, project, available_abis())
+    render_gen(dest, nc, project, available_abis(_cfg_abis(cfg)))
     return dest
 
 
@@ -234,9 +239,9 @@ def build(project: Path, release: bool = False, install: bool = False, run: bool
     project = Path(project).resolve()
     cfg = load_config(project)
     nc = native_config.resolve(cfg, project)
-    abis = available_abis()
+    abis = available_abis(_cfg_abis(cfg))
     if not abis:
-        raise BuildError("no CPython build in %s; run native/android/build_cpython.py" % DIST)
+        raise BuildError("no Android CPython build in %s (set PYXPO_ANDROID_DIST, or see `pyxpo doctor`)" % DIST)
     sdk = find_sdk()
     if find_ndk(sdk) is None:
         raise BuildError("NDK 27.3.13750724 missing; sdkmanager 'ndk;27.3.13750724'")

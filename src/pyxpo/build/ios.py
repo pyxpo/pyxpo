@@ -12,11 +12,11 @@ from typing import Dict, List, Optional
 from .. import native_config
 from ..config import load_config, pip_index_args
 from . import prebuild as prebuild_mod
+from . import runtime
 from .android import BuildError, _run, _skip_runtime_file  # noqa: F401  (shared helpers)
 
-REPO = Path(__file__).resolve().parents[3]
-DIST = Path(os.environ.get("PYXPO_IOS_DIST", REPO / "dist" / "ios"))
-COMMON = Path(os.environ.get("PYXPO_NATIVE_COMMON", REPO / "native" / "common"))
+DIST = runtime.dist_path("ios")
+COMMON = runtime.native_common()
 TEMPLATE = Path(__file__).resolve().parent.parent / "templates" / "ios"
 WRAP_SCRIPT = Path(__file__).resolve().parent / "ios_wrap.py"
 
@@ -78,6 +78,7 @@ def xcconfig_text(nc: Dict[str, object]) -> str:
 
 def render_gen(native: Path, nc: Dict[str, object]) -> Path:
     """Recreates the framework-owned `pyxpo-gen/` folder. Never touches anything outside it."""
+    runtime.ensure("ios", path=DIST)
     gen = native / GEN
     if gen.exists():
         shutil.rmtree(str(gen))
@@ -117,14 +118,15 @@ def prebuild(project: Path, clean: bool = False) -> Path:
 
 def stage(native: Path, project: Path, cfg: Dict[str, object], release: bool, kind: str) -> None:
     """Refreshes pyxpo-gen/ (config, runtime, Python, app, site-packages). User-owned files stay untouched."""
+    runtime.ensure("ios", path=DIST)
     slice_dir = find_slice(kind)
     if slice_dir is None:
-        raise BuildError("no iOS %s CPython in %s; run native/ios/build_cpython.py" % (kind, DIST))
+        raise BuildError("no iOS %s CPython in %s (device builds need an ios-arm64 slice in the runtime; "
+                         "set PYXPO_IOS_DIST or see `pyxpo doctor`)" % (kind, DIST))
     nc = native_config.resolve(cfg, project)
     gen = render_gen(native, nc)
     st = gen / "stage"
-    host_py = REPO / ".cache" / "Python-3.13.7" / "cross-build" / "build" / "python.exe"
-    _stage_stdlib(slice_dir, st / ("python-" + kind), host_py)
+    _stage_stdlib(slice_dir, st / ("python-" + kind), host_python())
     _stage_app(project, st / "app_root", release)
     install_requires(list(cfg.get("requires", [])), kind, st / ("site-" + kind), pip_index_args(cfg, project))
 
@@ -139,13 +141,26 @@ def install_requires(requires: List[str], kind: str, target: Path, index_args: L
           "--python-version", "3.13", "--implementation", "cp", "--only-binary=:all:", "--no-compile"] + list(index_args) + requires)
 
 
+def host_python() -> Optional[Path]:
+    """A CPython 3.13 interpreter for compiling the stdlib to .pyc, when the runtime does not ship them."""
+    cands = [os.environ.get("PYXPO_HOST_PYTHON"), sys.executable if sys.version_info[:2] == (3, 13) else None,
+             shutil.which("python3.13")]
+    if runtime.is_dev_checkout():
+        cands.append(str(runtime.REPO / ".cache" / "Python-3.13.7" / "cross-build" / "build" / "python.exe"))
+    for c in cands:
+        if c and Path(c).is_file():
+            return Path(c)
+    return None
+
+
 def _stage_stdlib(slice_dir: Path, dest: Path, compile_with: Optional[Path]) -> None:
     if dest.exists():
         shutil.rmtree(str(dest))
     src = slice_dir / "lib" / "python3.13"
     shutil.copytree(str(src), str(dest / "lib" / "python3.13"), symlinks=True,
-                    ignore=lambda d, names: [n for n in names if n in STDLIB_SKIP or n == "__pycache__"])
-    if compile_with and compile_with.is_file():  # read-only bundle: ship .pyc so startup is fast
+                    ignore=lambda d, names: [n for n in names if n in STDLIB_SKIP])
+    shipped_pyc = any((dest / "lib" / "python3.13" / "__pycache__").glob("os.*.pyc"))
+    if not shipped_pyc and compile_with and compile_with.is_file():  # read-only bundle: ship .pyc so startup is fast
         subprocess.run([str(compile_with), "-m", "compileall", "-q", "-j0", str(dest / "lib" / "python3.13")],
                        check=False, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
 

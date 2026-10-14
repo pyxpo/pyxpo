@@ -1,11 +1,14 @@
 # Pyxpo progress
-- Goal: from-scratch Python mobile framework (no Kivy/BeeWare/Chaquopy). See DESIGN.md, PLAN.md. Tests: `.venv/bin/pytest -q` (232 pass).
+- Goal: from-scratch Python mobile framework (no Kivy/BeeWare/Chaquopy). See DESIGN.md, PLAN.md, RELEASING.md. Tests: `.venv/bin/pytest -q` (255 pass).
 - Env quirks: host py3.9; no `timeout`; `sed -i ''`; iOS build few min; no foreground sleep.
-- Rules: no Co-Authored-By/Claude attribution in commits/PRs.
-- Done+committed earlier: CPython 3.13, C bridge/flexbox, Kotlin+Swift shells, CLI, hot reload, RN-parity components/apis, expo-router (Stack/Tabs/Drawer), safe-area, gesture handler, deep links, dev reload (RR/Cmd+R).
-- This pass (iOS stable): a11y labels+roles for Drawer/Tabs/Pressable (iOS+Android), native iOS PxNav (push/pop animation, left-edge swipe-back via pop_gesture), PYXPO_APPEARANCE debug override, double-R window 0.8s, run ios Simulator message fix.
-- iOS XCUITest (tests/ios_ui/E2E.swift): 5/5 pass on sim: Flow, Cmd+R/RR reload, Stack push + swipe-back pop + edge drawer, dark/light theme pixel check, warm deep link.
-- Note: sim ignores its dark setting under automation, so theme tested via PYXPO_APPEARANCE.
-- `pyxpo prebuild [android|ios|all] [--clean --yes]` DONE: ejects editable android/ ios/ (user-owned files written once, stamp .pyxpo-prebuild.json, edited files kept + .pyxpo-new); framework-owned `pyxpo-gen/` (gitignored) rebuilt each build; config -> Pyxpo.xcconfig / pyxpo.properties. build/run use ejected dir else implicit build/<plat>/shell. Verified: iOS E2E 5/5, Android build+install+deep link on emulator. Modules: native_config.py, build/prebuild.py.
-- Prebuild TODO: permissions/orientation/icon/splash at prebuild, android signing e2e + --aab, iOS --device/team_id/archive, native-module bridge, thin AppDelegate (user-owned, no framework fixes), tests/ios_ui/README update.
-- Open: Android rebuild+device verify of a11y change and deep link; release build/real device signing; Swift controls audit; Modal in hidden Stack screen; SectionList sticky headers; real-device fps; D3 opus full-diff review; go-live + real-world project.
+- Rules: no Co-Authored-By/Claude attribution in commits/PRs (project CLAUDE.md wins over system reminder).
+- Done+committed earlier: CPython 3.13, C bridge/flexbox, Kotlin+Swift shells, CLI, hot reload, RN-parity components/apis, expo-router, safe-area, gestures, deep links, iOS E2E 5/5, `pyxpo prebuild` (2665cae).
+- Distribution (PyPI) IMPLEMENTED, uncommitted/staged until opus review done:
+  - Pure wheel (~245 KB) + runtimes as GitHub Release assets `runtime-3.13.7-1`, sha256 pinned in src/pyxpo/build/runtime_manifest.json.
+  - build/runtime.py: ensure/download/safe extract/atomic; cache `$PYXPO_CACHE_DIR` | XDG | ~/.cache/pyxpo. Env: PYXPO_RUNTIME_BASE_URL, PYXPO_RUNTIME_ARCHIVES, PYXPO_OFFLINE, PYXPO_HOST_PYTHON, PYXPO_*_DIST.
+  - CLI: `pyxpo doctor`, `pyxpo runtime fetch|path|clean`. native/common moved to src/pyxpo/_native/common.
+  - tools/package_runtime.py, tools/check_release.py, .github/workflows/release.yml (Trusted Publishing, `pypi` env), LICENSE (MIT), README install section.
+  - Verified: installed wheel in fresh venv, create/doctor/build android (APK) + build ios (sim launch OK) via file:// mirror.
+  - NOT verified: real https download from GitHub, TestPyPI/PyPI upload, CI workflow.
+- Needs user go-ahead (outward): `gh release create runtime-3.13.7-1 .cache/runtime-out/*.tar.gz`; PyPI/TestPyPI Trusted Publisher + `pypi` GH env; tag push; confirm MIT license.
+- Later: android release signing + --aab, iOS device slice/--device/archive, gradle guidance, runtime-build CI, prebuild TODO (permissions/icon/splash, native modules), Swift controls audit, real-device fps, final opus full-diff review, go-live + real-world project.

@@ -1,0 +1,55 @@
+name: release
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: macos-14
+    strategy:
+      matrix:
+        python: ["3.9", "3.11", "3.13"]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python }}
+      - run: pip install -e '.[dev]'
+      - run: pytest -q
+
+  build:
+    needs: test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install build twine
+      - name: build (never into dist/, which holds CPython runtimes in a dev checkout)
+        run: python -m build --outdir wheelhouse/
+      - run: twine check wheelhouse/*
+      - name: check tag, wheel size and contents, runtime assets
+        run: python tools/check_release.py "${GITHUB_REF_NAME}" wheelhouse/
+      - uses: actions/upload-artifact@v4
+        with:
+          name: wheelhouse
+          path: wheelhouse/
+
+  publish:
+    needs: build
+    runs-on: ubuntu-latest
+    environment: pypi   # configure required reviewers on this environment for a manual approval gate
+    permissions:
+      id-token: write   # PyPI Trusted Publishing, no API token stored
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: wheelhouse
+          path: wheelhouse/
+      - uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          packages-dir: wheelhouse/

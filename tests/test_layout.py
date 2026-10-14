@@ -1,4 +1,4 @@
-"""ctypes tests for the C flexbox engine (native/common/pyxpo_layout.c)."""
+"""ctypes tests for the C flexbox engine (src/pyxpo/_native/common/pyxpo_layout.c)."""
 from __future__ import annotations
 
 import ctypes as C
@@ -9,7 +9,7 @@ from pathlib import Path
 
 import pytest
 
-SRC = Path(__file__).resolve().parents[1] / "native" / "common" / "pyxpo_layout.c"
+SRC = Path(__file__).resolve().parents[1] / "src" / "pyxpo" / "_native" / "common" / "pyxpo_layout.c"
 MEASURE = C.CFUNCTYPE(None, C.c_void_p, C.c_int, C.c_float, C.c_int, C.c_float, C.c_int,
                       C.POINTER(C.c_float), C.POINTER(C.c_float))
 

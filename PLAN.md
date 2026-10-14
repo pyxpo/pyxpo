@@ -46,7 +46,7 @@ See DESIGN.md. Each step can be done on its own, and each one ends with passing 
     - Files: `native/android/build_cpython.py`.
     - Uses CPython 3.13 source with its in-tree `Android/` build support and the NDK. Outputs `dist/android/<abi>/{libpython3.13.so, lib/python3.13/, lib-dynload}` for arm64-v8a and x86_64, with a hash manifest.
 13. **C bridge module.**
-    - Files: `native/common/pyxpo_bridge.c`, `native/common/pyxpo_bridge.h`.
+    - Files: `src/pyxpo/_native/common/pyxpo_bridge.c`, `src/pyxpo/_native/common/pyxpo_bridge.h`.
     - Builtin module `_pyxpo_bridge` with `post(str)` and `set_event_handler(fn)`. A platform callback pointer is set by the host. Native-to-Python calls use `PyGILState_Ensure`.
 14. **Python-side native channel.**
     - Files: `src/pyxpo/channel_native.py`.

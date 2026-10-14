@@ -187,6 +187,47 @@ def cmd_doctor(args: argparse.Namespace) -> int:
         row(tool, shutil.which(tool))
     for var in ("ANDROID_HOME", "ANDROID_NDK_HOME"):
         row(var, os.environ.get(var))
+    from .build import runtime
+
+    st = runtime.status()
+    print("runtime %s (cache %s):" % (st["runtime"], st["cache"]))
+    for plat, info in st["platforms"].items():
+        for item, state in info["items"].items():
+            row("%s" % item, "%s [%s]" % (state, info["source"]))
+    probe = runtime.cache_root()
+    while not probe.exists() and probe != probe.parent:
+        probe = probe.parent
+    print("  free disk     %.1f GB" % (shutil.disk_usage(str(probe)).free / 1e9))
+    return 0
+
+
+def cmd_runtime(args: argparse.Namespace) -> int:
+    from .build import runtime
+
+    try:
+        if args.action == "path":
+            for plat in ("ios", "android"):
+                print("%s %s" % (plat, runtime.dist_path(plat)))
+        elif args.action == "clean":
+            for p in runtime.clean(all_versions=args.all):
+                print("removed %s" % p)
+        elif args.action == "fetch":
+            if args.source:
+                os.environ["PYXPO_RUNTIME_ARCHIVES"] = str(Path(args.source).resolve())
+            plats = [args.platform] if args.platform else ["ios", "android"]
+            if args.abi:
+                known = [a["dir"].split("/", 1)[1] for a in runtime.load_manifest()["assets"].values() if a["dir"].startswith("android/")]
+                if args.abi not in known:
+                    raise runtime.BuildError("unknown --abi %r (available: %s)" % (args.abi, ", ".join(known)))
+            for plat in plats:
+                if runtime.source(plat) != "cache":
+                    print("%s: using %s (%s)" % (plat, runtime.source(plat), runtime.dist_path(plat)))
+                    continue
+                runtime.ensure(plat, [args.abi] if args.abi else None, runtime.dist_path(plat))
+                print("%s: ready in %s" % (plat, runtime.dist_path(plat)))
+    except runtime.BuildError as e:
+        print("error: %s" % e, file=sys.stderr)
+        return 1
     return 0
 
 
@@ -242,6 +283,13 @@ def build_parser() -> argparse.ArgumentParser:
     pb.add_argument("--yes", action="store_true", help="skip the --clean confirmation")
     pb.add_argument("--dir")
     pb.set_defaults(fn=cmd_prebuild)
+    rt = sub.add_parser("runtime", help="manage the prebuilt CPython runtime cache")
+    rt.add_argument("action", choices=["fetch", "path", "clean"])
+    rt.add_argument("--platform", choices=["ios", "android"])
+    rt.add_argument("--abi")
+    rt.add_argument("--from", dest="source", help="directory holding the runtime .tar.gz files (offline)")
+    rt.add_argument("--all", action="store_true", help="clean: remove every cached runtime version")
+    rt.set_defaults(fn=cmd_runtime)
     d = sub.add_parser("doctor", help="check installed toolchains")
     d.set_defaults(fn=cmd_doctor)
     a = sub.add_parser("add-lib", help="check mobile wheel availability and add a dependency")
