@@ -69,7 +69,7 @@ def test_env_hooks_rerender_and_style_list():
     app = pyxpo.create_app(App, ch)
     assert _texts(ch)[-1] == "360 sm False"
     first = json.loads(ch.sent[0])
-    assert [o for o in first if o["op"] == "create" and o["type"] == "View"][0]["props"]["style"] == {"padding": 1, "flex": 1}
+    assert [o for o in first if o["op"] == "create" and o["type"] == "View"][0]["props"]["style"]["padding_left"] == 1
     ch_msg = json.dumps({"event": "env", "id": 0, "payload": {"window": {"width": 700}, "color_scheme": "dark"}})
     ch.emit_event(ch_msg)
     assert _texts(ch)[-1] == "700 md True"
@@ -85,7 +85,6 @@ def test_platform_select():
 
 
 def test_wire_v2_normalizes_style(monkeypatch):
-    monkeypatch.setenv("PYXPO_WIRE", "2")
     monkeypatch.setenv("PYXPO_ENV", '{"window": {"width": 412, "height": 900}, "scale": 2.5}')
     from pyxpo import View, Text
     from pyxpo.app import App

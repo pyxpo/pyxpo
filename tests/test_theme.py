@@ -9,8 +9,12 @@ from .test_core import mount
 
 
 def _style(n):
-    from pyxpo.style import flatten
-    return flatten(n.props.get("style"))
+    return n.props.get("style")
+
+
+def _c(v):
+    from pyxpo.style import parse_color
+    return parse_color(v)
 
 
 def test_create_theme_deep_merge():
@@ -56,28 +60,28 @@ def test_kit_components_use_theme_colors():
         mode="dark"))
     d = dark_theme["colors"]
     t = r.find_text("hi")
-    assert _style(t)["color"] == d["text"] and _style(t)["font_size"] == 28
+    assert _style(t)["color"] == _c(d["text"]) and _style(t)["font_size"] == 28
     go = r.find_text("Go")
-    assert _style(go)["color"] == d["on_danger"]
-    assert _style(go.parent)["background_color"] == d["danger"]
-    bar = [n for n in r.root.walk() if _style(n).get("width") == "100%"]
+    assert _style(go)["color"] == _c(d["on_danger"])
+    assert _style(go.parent)["background_color"] == _c(d["danger"])
+    bar = [n for n in r.root.walk() if (_style(n) or {}).get("width") == "100%"]
     assert bar
 
 
 def test_field_error_state():
     app, r = mount(lambda: Field(label="Name", error="Required", value=""))
     assert "Name" in r.texts() and "Required" in r.texts()
-    assert _style(r.find_all("TextInput")[0])["border_color"] == light_theme["colors"]["danger"]
+    assert _style(r.find_all("TextInput")[0])["border_top_color"] == _c(light_theme["colors"]["danger"])
 
 
 def test_navigation_header_follows_theme():
     app, r = mount(lambda: ThemeProvider(Stack(screens={"Home": lambda navigation, params: Text("h")}), mode="dark"))
     title = r.find_text("Home")
-    assert _style(title)["color"] == dark_theme["colors"]["text"]
+    assert _style(title)["color"] == _c(dark_theme["colors"]["text"])
 
 
 def test_screen_scroll_applies_style_to_content():
     from pyxpo.kit import Screen
     app, r = mount(lambda: Screen(Text("x"), scroll=True, style={"background_color": "#123456"}))
     content = r.find_text("x").parent
-    assert content.props["style"]["background_color"] == "#123456"
+    assert content.props["style"]["background_color"] == _c("#123456")

@@ -48,7 +48,7 @@ def test_pressable_style_and_child_callables():
     assert r.texts() == ["up"]
     r.emit("press_in", first(r, "View"))
     assert r.texts() == ["down"]
-    assert first(r, "View").props["style"]["background_color"] == "#f00"
+    assert first(r, "View").props["style"]["background_color"] == 0xFFFF0000
 
 
 def test_switch_toggles():

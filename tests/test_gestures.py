@@ -103,7 +103,6 @@ def test_modal_interrupted_fade_out_does_not_unmount():
 
 
 def test_modal_slide_does_not_create_nodes_per_render(monkeypatch):
-    monkeypatch.setenv("PYXPO_WIRE", "2")  # v1 wire does not encode animated values inside `transform`
     box = {}
 
     @component

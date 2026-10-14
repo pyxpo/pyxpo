@@ -47,7 +47,6 @@ static void post_to_main(const char *json) {
 
 - (void)runWithHome:(NSString *)home paths:(NSArray<NSString *> *)paths module:(NSString *)module {
     setenv("PYXPO_TARGET", "ios", 1);
-    setenv("PYXPO_WIRE", "2", 1);
     if (self.envJSON) setenv("PYXPO_ENV", self.envJSON.UTF8String, 1);
     setenv("HOME", NSHomeDirectory().UTF8String, 1);
     setenv("TMPDIR", NSTemporaryDirectory().UTF8String, 1);

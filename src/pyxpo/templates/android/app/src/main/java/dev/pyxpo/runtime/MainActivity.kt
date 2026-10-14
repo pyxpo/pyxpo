@@ -51,7 +51,6 @@ class MainActivity : Activity() {
         runtime = rt
         // Hot-reload endpoint is honoured in debuggable builds only.
         val dev = HashMap<String, String>()
-        dev["PYXPO_WIRE"] = "2"
         val dm = resources.displayMetrics
         dev["PYXPO_ENV"] = OpApplier.envJson(this, dm.widthPixels, dm.heightPixels).toString()
         val debuggable = (applicationInfo.flags and android.content.pm.ApplicationInfo.FLAG_DEBUGGABLE) != 0
