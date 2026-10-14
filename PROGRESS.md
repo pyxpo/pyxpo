@@ -25,3 +25,5 @@ Milestones: 1 protocol v2+style+env (py) | 2 C layout core + ctypes tests | 3 An
 Also pending: generic wheels (test Pillow, sdist auto-build, CI+index, iOS wheels), own iOS deps, verify gaps.
 
 - UI M1 DONE (py): style.py (StyleSheet, flatten/expand/normalize, parse_color->ARGB), env.py (Env store, Dimensions, PixelRatio, Platform, use_window_dimensions/color_scheme/safe_area_insets/keyboard/orientation/breakpoint/responsive), App handles `env` event (id 0). Wire still legacy (style dict w/ string colors, no hello op): switch to normalize()+hello v2 together with M3 (Android on C layout core). 42 tests pass.
+
+- UI M2 DONE: native/common/pyxpo_layout.{c,h} own C flexbox (px_tree_* API: nodes, string/num props via px_prop_id, measure callback, wrap/grow/shrink/min-max/percent/absolute/aspect/gap/reverse, changed-frames list). tests/test_layout.py builds it with host cc + ctypes; 62 tests pass. Not supported v1: auto margins, RTL, baseline align. Next: M3 Android on core (JNI wrapper, hello v2 + normalize() wire switch, OpApplier uses frames).
