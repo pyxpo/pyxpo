@@ -851,6 +851,9 @@ class OpApplier(
     private fun host(id: Int, parent: Int) = if (types[id] == "Modal") 1 else parent
 
     /** Dev builds: ask Python to re-execute the app and remount (double-R). */
+    /** Deep link: reaches `Linking.addEventListener("url")` and the router. */
+    fun openURL(url: String) = event("url", 0, JSONObject().put("url", url))
+
     fun devReload() = event("dev_reload", 0)
 
     /** Android back: the topmost Modal consumes it and gets `request_close` if it listens (as in RN). */

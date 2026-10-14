@@ -59,7 +59,9 @@ class MainActivity : Activity() {
         // Hot-reload endpoint is honoured in debuggable builds only.
         val dev = HashMap<String, String>()
         val dm = resources.displayMetrics
-        dev["PYXPO_ENV"] = OpApplier.envJson(this, dm.widthPixels, dm.heightPixels).toString()
+        val envObj = OpApplier.envJson(this, dm.widthPixels, dm.heightPixels)
+        intent?.data?.let { envObj.put("initial_url", it.toString()) }
+        dev["PYXPO_ENV"] = envObj.toString()
         debuggable = (applicationInfo.flags and android.content.pm.ApplicationInfo.FLAG_DEBUGGABLE) != 0
         val url = intent?.getStringExtra("pyxpo_dev_url")
         if (debuggable && url != null) {
@@ -67,6 +69,11 @@ class MainActivity : Activity() {
             dev["PYXPO_DEV_TOKEN"] = intent?.getStringExtra("pyxpo_dev_token") ?: ""
         }
         rt.start(devEnv = dev)
+    }
+
+    override fun onNewIntent(intent: android.content.Intent) {
+        super.onNewIntent(intent)
+        intent.data?.let { applier?.openURL(it.toString()) }
     }
 
     private var lastR = 0L

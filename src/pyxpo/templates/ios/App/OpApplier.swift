@@ -119,6 +119,9 @@ final class OpApplier {
     }
 
     /// Dev builds: ask Python to re-execute the app and remount (double-R / Cmd+R).
+    /// Deep link: Python's `Linking.addEventListener("url")` and the router receive it.
+    func openURL(_ url: String) { event("url", 0, ["url": url]) }
+
     func devReload() { event("dev_reload", 0) }
 
     private func event(_ name: String, _ id: Int, _ payload: [String: Any] = [:]) {

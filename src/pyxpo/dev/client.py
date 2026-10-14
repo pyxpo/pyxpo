@@ -22,6 +22,7 @@ class DevClient:
         self.token = token
         self.session = ""
         self.version = 0
+        self.reload_seen = 0
         self._stop = threading.Event()
 
     def _req(self, path: str, data: Optional[bytes] = None, timeout: float = 35.0) -> Any:
@@ -33,9 +34,14 @@ class DevClient:
     def poll_once(self) -> None:
         upd = self._req("/poll?since=%d&session=%s" % (self.version, self.session))
         if upd["session"] != self.session or upd["version"] != self.version:
+            fresh = upd["session"] != self.session
             self.session, self.version = upd["session"], upd["version"]
+            reload_at = upd.get("reload", 0)
             if upd["files"] or upd["deleted"]:
                 self.loop.call_soon_threadsafe(self.reloader.apply, upd)
+            if not fresh and reload_at != self.reload_seen:
+                self.loop.call_soon_threadsafe(self.reloader.reload_all)
+            self.reload_seen = reload_at
 
     def run(self) -> None:
         delay = 1.0

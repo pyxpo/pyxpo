@@ -1,5 +1,5 @@
 # Pyxpo progress
-- Goal: from-scratch Python mobile framework (no Kivy/BeeWare/Chaquopy). See DESIGN.md, PLAN.md. Tests: `.venv/bin/pytest -q` (224 pass).
+- Goal: from-scratch Python mobile framework (no Kivy/BeeWare/Chaquopy). See DESIGN.md, PLAN.md. Tests: `.venv/bin/pytest -q` (231 pass).
 - Env quirks: host py3.9 (core py3.9-compatible); no `timeout`; `sed -i ''`; iOS build ~10 min; no foreground sleep.
 - Infra done+committed: CPython 3.13, C bridge/flexbox, Kotlin+Swift shells, CLI, hot reload, perf pass. Android verified, iOS renders only.
 - Rules: no Co-Authored-By/Claude attribution in commits/PRs.
@@ -16,4 +16,6 @@
 - Safe-area/gesture pass DONE: hooks Context.Consumer, SafeAreaInsets/FrameContext, use_safe_area_frame; pyxpo.safe_area (SafeAreaProvider); pyxpo.gesture_handler (Gesture.Pan/Tap/LongPress/Fling, Race/Simultaneous/Exclusive, GestureDetector); Drawer items use insets; iOS StatusBar.set_hidden. 228 tests pass. iOS tb app renders, no bottom strip seen; drawer open not tapped on iOS (no tap tool).
 - Dev reload DONE: double-R (Android debuggable, 800ms window) / Cmd+R or double-R (iOS DEBUG) -> native event dev_reload -> App.reload (re-exec modules + remount, state resets). Android emu verified (count 2 -> 0). iOS Swift written, NOT built/run. launch() uses am start -S. 229 tests pass.
 - Router auto status bar style (RouterRoot + Header set_bar_style from theme/scheme). Android emu verified: light/dark icons, Drawer open+item tap -> nested Tabs, tab switch, RR reload (resets to Home).
-- TODO next: Animated audit vs RN, fps measure, Drawer/Tabs device taps, router tests, D3 review.
+- Deep links DONE: scheme <app_id>:// (Android intent-filter+onNewIntent, iOS CFBundleURLTypes+openURLContexts, DEBUG PYXPO_INITIAL_URL), router `url` event + env initial_url. iOS cold-start verified (Tabs->Two); Android/warm path not device-tested.
+- Dev server POST /reload (token header) -> client reload_all. iOS full reload VERIFIED (timestamp changed). iOS launch manual: SIMCTL_CHILD_PYXPO_DEV_URL + _TOKEN; `pyxpo run ios` prints 'Unable to find application Simulator' after build OK.
+- TODO next: Android deep link device test, release/live, real-world project, Animated audit vs RN, fps measure, Drawer/Tabs device taps, router tests, D3 review.

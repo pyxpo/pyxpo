@@ -43,6 +43,7 @@ class DevServer:
         self.token = token
         self.session = "%x" % int(time.time() * 1000)
         self.version = 1
+        self.reload_at = 0
         self.files: Dict[str, Dict[str, str]] = {}
         self.changed_at: Dict[str, int] = {}
         self.deleted: Dict[str, int] = {}
@@ -95,7 +96,13 @@ class DevServer:
             def do_POST(self) -> None:
                 if not self._auth():
                     return
-                if urlparse(self.path).path != "/log":
+                path = urlparse(self.path).path
+                if path == "/reload":
+                    server.request_reload()
+                    self.send_response(204)
+                    self.end_headers()
+                    return
+                if path != "/log":
                     self.send_response(404)
                     self.end_headers()
                     return
@@ -130,6 +137,13 @@ class DevServer:
     def _store(self, rel: str, data: bytes) -> None:
         self.files[rel] = {"sha1": hashlib.sha1(data).hexdigest(), "data": base64.b64encode(data).decode()}
 
+    def request_reload(self) -> None:
+        """Ask connected devices to do a full reload (same as pressing R twice on the device)."""
+        with self.cond:
+            self.version += 1
+            self.reload_at = self.version
+            self.cond.notify_all()
+
     def poll(self, since: int, session: str) -> Dict[str, Any]:
         deadline = time.monotonic() + POLL_TIMEOUT
         with self.cond:
@@ -146,7 +160,8 @@ class DevServer:
             else:
                 files = {r: m for r, m in self.files.items() if self.changed_at.get(r, 0) > since}
                 deleted = [r for r, v in self.deleted.items() if v > since]
-            return {"session": self.session, "version": self.version, "files": files, "deleted": deleted}
+            return {"session": self.session, "version": self.version, "files": files, "deleted": deleted,
+                    "reload": self.reload_at}
 
     def _tick(self) -> None:
         cur = scan(self.app_dir)

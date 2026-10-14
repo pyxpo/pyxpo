@@ -3,7 +3,8 @@ from __future__ import annotations
 
 from typing import Any, Optional
 
-from ..apis import _bridge
+from ..apis import _bridge, _events
+from ..apis.linking import Linking
 from ..apis.back_handler import BackHandler
 from ..component import ErrorBoundary, component
 from ..components.button import Button
@@ -35,6 +36,16 @@ def _crash(error: Any, reset: Any):
                 style={"flex": 1, "alignItems": "center", "justifyContent": "center", "padding": 24})
 
 
+def href_from_url(url: str) -> Optional[str]:
+    """`myapp://about?x=1`, `myapp:///about` and `https://host/about` -> `/about?x=1`; None if not a URL."""
+    if "://" not in url:
+        return None
+    scheme, rest = url.split("://", 1)
+    if scheme in ("http", "https"):
+        rest = rest.partition("/")[2]
+    return "/" + rest.lstrip("/")
+
+
 def _on_hot_refresh(fn):
     """Re-discover routes before every hot re-render, so added/removed route files take effect."""
     hooks = _bridge.get_app().hot_hooks
@@ -47,7 +58,10 @@ def RouterRoot(tree: Optional[RouteTree] = None, root_dir: str = "", initial_hre
     _, tick = use_state(0)
     holder = use_ref(None)
     if holder.current is None:
-        store = Store(tree, initial_href, _initial_names(root_dir))
+        first = _bridge.get_app().env.get().get("initial_url")
+        if first:
+            Linking.initial_url = first
+        store = Store(tree, href_from_url(first or "") or initial_href, _initial_names(root_dir))
         rt = Runtime(store, root_dir)
         bump = lambda: tick(lambda v: v + 1)  # noqa: E731
         store.subscribe(bump)
@@ -56,6 +70,13 @@ def RouterRoot(tree: Optional[RouteTree] = None, root_dir: str = "", initial_hre
     rt = holder.current
     router._bind(rt.store)
     use_effect(lambda: BackHandler.addEventListener("hardwareBackPress", rt.store.back).remove, [])
+
+    def on_url(payload: Any) -> None:
+        href = href_from_url(str((payload or {}).get("url", "")))
+        if href is not None:
+            rt.store.navigate(href)
+
+    use_effect(lambda: _events.on("url", on_url), [])
     use_effect(lambda: _on_hot_refresh(lambda: rt.store.set_tree(discover(root_dir))), [])
     scheme = use_color_scheme()
     use_effect(lambda: StatusBar.set_bar_style("light-content" if scheme == "dark" else "dark-content"), [scheme])

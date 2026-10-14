@@ -31,9 +31,13 @@ class SceneDelegate: UIResponder, UIWindowSceneDelegate {
         let rt = PyxpoRuntime.shared()
         vc.view.layoutIfNeeded()
         let size = vc.view.bounds.size
-        let env = OpApplier.envJson(window: size, screen: UIScreen.main.bounds.size,
+        var env = OpApplier.envJson(window: size, screen: UIScreen.main.bounds.size,
                                     dark: vc.traitCollection.userInterfaceStyle == .dark,
                                     insets: vc.view.safeAreaInsets)
+        if let u = options.urlContexts.first?.url { env["initial_url"] = u.absoluteString }
+        #if DEBUG
+        if let u = ProcessInfo.processInfo.environment["PYXPO_INITIAL_URL"], !u.isEmpty { env["initial_url"] = u }  // simctl has no openurl without a prompt
+        #endif
         if let d = try? JSONSerialization.data(withJSONObject: env) { rt.envJSON = String(data: d, encoding: .utf8) }
         let ap = OpApplier(container: vc.view) { rt.dispatchEvent($0) }
         applier = ap
@@ -50,6 +54,11 @@ class SceneDelegate: UIResponder, UIWindowSceneDelegate {
         }
         #endif
         rt.start(withHome: bundle + "/python", paths: [appRoot, bundle + "/app_packages"], module: "pyxpo.router.entry")
+    }
+
+    /// Deep link while running (cold-start links are replayed once Python is up).
+    func scene(_ scene: UIScene, openURLContexts contexts: Set<UIOpenURLContext>) {
+        for c in contexts { applier?.openURL(c.url.absoluteString) }
     }
 
     /// The bundle is read-only on device; hot reload needs a writable copy of the app tree.

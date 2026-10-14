@@ -70,3 +70,25 @@ def test_client_hands_update_to_loop(server):
     c = DevClient(type("R", (), {"apply": lambda self, u: None})(), loop, s.url, "tok")
     c.poll_once()
     assert loop.got and "app/main.py" in loop.got[0]["files"]
+
+
+def test_post_reload_triggers_full_reload(server):
+    s, _ = server
+    calls = []
+
+    class Loop:
+        def call_soon_threadsafe(self, fn, *a):
+            fn(*a)
+
+    class Reloader:
+        apply = staticmethod(lambda upd: calls.append("apply"))
+        reload_all = staticmethod(lambda: calls.append("reload"))
+
+    c = DevClient(Reloader, Loop(), s.url, "tok")
+    c.poll_once()
+    assert calls == ["apply"]
+    del calls[:]
+    req = urllib.request.Request(s.url + "/reload", data=b"", method="POST", headers={"X-Pyxpo-Token": "tok"})
+    assert urllib.request.urlopen(req, timeout=5).status == 204
+    c.poll_once()
+    assert calls == ["reload"]

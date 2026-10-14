@@ -90,3 +90,19 @@ def test_header_back_icon_is_vector_path_not_placeholder(tmp_app):
     r.press(r.find_text("Open"))
     assert "?" not in r.texts()
     assert r.find_all("Path")
+
+
+def test_deep_link_url_event_and_initial_url(tmp_app, monkeypatch):
+    from pyxpo.router.root import href_from_url
+    assert href_from_url("myapp://details/7?x=1") == "/details/7?x=1"
+    assert href_from_url("myapp:///details/7") == "/details/7"
+    assert href_from_url("https://h.io/details/7") == "/details/7"
+    assert href_from_url("nope") is None
+    d = tmp_app({"_layout.py": LAYOUT, "index.py": INDEX, "details/[id].py": DETAILS})
+    app, r = mount(d)
+    app._handle_event('{"id": 0, "event": "url", "payload": {"url": "myapp://details/9"}}')
+    assert "id=9" in r.texts()
+    import json
+    monkeypatch.setenv("PYXPO_ENV", json.dumps({"initial_url": "myapp://details/3"}))
+    app2, r2 = mount(d)
+    assert "id=3" in r2.texts()
