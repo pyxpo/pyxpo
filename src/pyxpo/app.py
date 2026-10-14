@@ -17,9 +17,11 @@ from .element import Element
 from .hooks import reset_deps
 from .ops import Create, Delete, Insert, Remove, to_json
 from .reconciler import Fiber, Reconciler
+from .style import normalize
 
 
-_ERROR_ID = 2 ** 31 - 1  # reserved native id for the dev error overlay
+_ERROR_ID = 2 ** 30 - 1  # reserved native ids for the dev error overlay (box + text); below the native CONTENT bit 2**30
+_ERROR_TEXT_ID = 2 ** 30 - 2
 
 
 class _HotState:
@@ -294,13 +296,15 @@ class App:
 
     def show_error(self, text: str) -> None:
         self.clear_error()
-        props = {"text": text, "style": {"color": "#ffffff", "background_color": "#c62828", "padding": 12}}
-        self._send([Create(_ERROR_ID, "Text", props), Insert(1, _ERROR_ID, len(self.rec.root.native))])
+        box = {"style": normalize({"position": "absolute", "left": 0, "right": 0, "bottom": 0, "backgroundColor": "#c62828", "padding": 12})}
+        label = {"text": text, "style": normalize({"color": "#ffffff", "fontSize": 13})}
+        self._send([Create(_ERROR_ID, "View", box), Create(_ERROR_TEXT_ID, "Text", label), Insert(_ERROR_ID, _ERROR_TEXT_ID, 0),
+                    Insert(1, _ERROR_ID, len(self.rec.root.native))])
         self._error_shown = True
 
     def clear_error(self) -> None:
         if self._error_shown:
-            self._send([Remove(1, _ERROR_ID), Delete(_ERROR_ID)])
+            self._send([Remove(1, _ERROR_ID), Delete(_ERROR_ID), Delete(_ERROR_TEXT_ID)])
             self._error_shown = False
 
 

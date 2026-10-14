@@ -195,3 +195,13 @@ def test_handler_with_value_and_zero_args():
     r.press(r.find_text("go"))
     r.type_text([n for n in r.find_all("View") if n.props.get("on_change_text")][0], "hi")
     assert got == ["p", "hi"]
+
+
+def test_error_overlay_colors_are_native_ints_and_clear():
+    app, r = mount(lambda: View(Text("x")))
+    app.show_error("boom")
+    label = [n for n in r.find_all("Text") if n.props.get("text") == "boom"][0]
+    box = [n for n in r.find_all("View") if isinstance(n.props.get("style", {}).get("background_color"), int)][0]
+    assert isinstance(label.props["style"]["color"], int) and isinstance(box.props["style"]["background_color"], int)
+    app.clear_error()
+    assert r.texts() == ["x"]
