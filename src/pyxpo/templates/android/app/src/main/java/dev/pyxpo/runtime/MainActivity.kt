@@ -24,6 +24,14 @@ class MainActivity : Activity() {
         val applier = OpApplier(this, root) { json -> rt.sendEvent(json) }
         rt = PyxpoRuntime(this, applier)
         runtime = rt
-        rt.start()
+        // Hot-reload endpoint is honoured in debuggable builds only.
+        val dev = HashMap<String, String>()
+        val debuggable = (applicationInfo.flags and android.content.pm.ApplicationInfo.FLAG_DEBUGGABLE) != 0
+        val url = intent?.getStringExtra("pyxpo_dev_url")
+        if (debuggable && url != null) {
+            dev["PYXPO_DEV_URL"] = url
+            dev["PYXPO_DEV_TOKEN"] = intent?.getStringExtra("pyxpo_dev_token") ?: ""
+        }
+        rt.start(devEnv = dev)
     }
 }

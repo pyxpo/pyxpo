@@ -1,6 +1,7 @@
 from __future__ import annotations
 
-from typing import Any, Callable
+import os
+from typing import Any, Callable, Dict, List, Optional, Tuple
 
 from .element import Element, flatten
 
@@ -19,5 +20,66 @@ class Component:
         return "<Component %s>" % self.name
 
 
+# Hot reload keeps Component identity across module re-execution: a re-run @component returns the
+# existing object (keyed by source file + qualname) so the reconciler keeps matching fibers.
+_Key = Tuple[str, str]
+_registry: Dict[_Key, Component] = {}
+_on = False
+_pending: Optional[Dict[_Key, Callable[..., Any]]] = None
+_added: List[_Key] = []
+
+
+def enable_registry(on: bool = True) -> None:
+    global _on
+    _on = on
+    if not on:
+        _registry.clear()
+
+
+def _key(fn: Callable[..., Any]) -> Optional[_Key]:
+    code = getattr(fn, "__code__", None)
+    qual = getattr(fn, "__qualname__", "")
+    if code is None or not qual or "<locals>" in qual:
+        return None
+    return os.path.realpath(code.co_filename), qual
+
+
+def begin_swap() -> None:
+    global _pending
+    _pending = {}
+    del _added[:]
+
+
+def commit_swap() -> int:
+    global _pending
+    pending, _pending = _pending or {}, None
+    for k, fn in pending.items():
+        c = _registry[k]
+        c.fn = fn
+    del _added[:]
+    return len(pending)
+
+
+def abort_swap() -> None:
+    global _pending
+    _pending = None
+    for k in _added:
+        _registry.pop(k, None)
+    del _added[:]
+
+
 def component(fn: Callable[..., Any]) -> Component:
-    return Component(fn)
+    k = _key(fn) if _on else None
+    if k is None:
+        return Component(fn)
+    existing = _registry.get(k)
+    if existing is None:
+        _registry[k] = c = Component(fn)
+        if _pending is not None:
+            _added.append(k)
+        return c
+    if _pending is not None:
+        _pending[k] = fn
+    else:
+        existing.fn = fn
+    return existing

@@ -36,7 +36,7 @@ class PyxpoRuntime(private val ctx: Context, private val applier: OpApplier) {
         }
     }
 
-    fun start(module: String = "app.main") {
+    fun start(module: String = "app.main", devEnv: Map<String, String> = emptyMap()) {
         if (started) return
         started = true
         val abi = Build.SUPPORTED_ABIS.first { it == "arm64-v8a" || it == "x86_64" }
@@ -51,6 +51,7 @@ class PyxpoRuntime(private val ctx: Context, private val applier: OpApplier) {
             nativeSetEnv("HOME", ctx.filesDir.absolutePath)
             nativeSetEnv("TMPDIR", ctx.cacheDir.absolutePath)
             nativeSetEnv("PYXPO_NATIVE_LIB_DIR", ctx.applicationInfo.nativeLibraryDir)
+            for ((k, v) in devEnv) nativeSetEnv(k, v)
             val rc = nativeStart(home, "$app:$site", module)
             Log.i("pyxpo", "python exited rc=$rc")
         }, "PyxpoPython", 8L * 1024 * 1024).start()

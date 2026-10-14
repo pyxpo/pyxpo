@@ -189,3 +189,10 @@ def use_async(fn: Callable[[], Any], deps: Optional[Sequence[Any]] = None) -> As
 
     use_effect(run, [] if deps is None else deps)
     return state
+
+
+def reset_deps(fiber: Any) -> None:
+    """Hot reload: force memos to recompute and effects to clean up and re-run on the next render."""
+    for kind, data in fiber.hooks:
+        if kind in ("memo", "effect"):
+            data.deps = None

@@ -7,4 +7,5 @@
 - Env quirks: Gradle needs `-Djava.net.preferIPv6Addresses=true` (in template gradle.properties); host py3.9 too old for android.py (uses 3.12); no `timeout` on macOS.
 - VERIFIED numpy 1.26.2 (Chaquopy index wheels, PIP_EXTRA_INDEX_URL=https://chaquo.com/pypi-13.1) on API 35 arm64 4 KB-page emulator (pyxpo35): sum/mean render, Grow tap works. Shared libs hoisted to jniLibs as lib*_wheel.so + preloaded. FAILS on 16 KB-page devices (Pixel_10): Chaquopy libs are 4 KB-aligned -> need own wheels (pyxpo-wheels, step 21).
 - Open: rebuild CPython libs with 16 KB ELF alignment (LDFLAGS added to build_cpython.py, not yet rebuilt); config option for extra wheel index URLs; test API 24 / x86_64 dlopen; build APK with both ABIs; test for build/android helpers; final opus-engineer diff review (JNI/GIL/threading).
-- Next: M3 iOS (steps 18-20), M4 wheels index + hot reload.
+- Done hot reload (VERIFIED on emulator: edit main.py -> text changes, state kept). src/pyxpo/dev/{reloader,server,client}.py; HTTP long-poll, debug-only (dev/ left out of release zip, Kotlin reads extras only if debuggable); `pyxpo run [--no-reload] [--port]`, config dev_port. Component registry keeps identity across re-exec. 27 tests pass.
+- Next: M3 iOS (steps 18-20), then M4 wheels index (16 KB) + more components. Opus final diff review still pending.

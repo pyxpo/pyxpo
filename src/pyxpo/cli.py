@@ -4,6 +4,7 @@ import argparse
 import os
 import re
 import runpy
+import secrets
 import shutil
 import sys
 from pathlib import Path
@@ -50,19 +51,62 @@ def cmd_run(args: argparse.Namespace) -> int:
         return 2
     os.environ["PYXPO_TARGET"] = "desktop"
     sys.path.insert(0, str(project))
+    if not getattr(args, "no_reload", False):
+        from .component import enable_registry
+        from .dev.server import DevServer
+
+        token = secrets.token_hex(16)
+        try:
+            dev = DevServer(str(project), _dev_port(args, project), token)
+        except OSError as e:
+            print("hot reload off: %s" % e, file=sys.stderr)
+        else:
+            dev.start()
+            os.environ["PYXPO_DEV_URL"], os.environ["PYXPO_DEV_TOKEN"] = dev.url, token
+            enable_registry(True)
     runpy.run_module("app.main", run_name="__main__")
     return 0
 
 
-def _android(args: argparse.Namespace, run: bool) -> int:
-    from .build.android import BuildError, build
+def _dev_port(args: argparse.Namespace, project: Path) -> int:
+    if getattr(args, "port", None):
+        return int(args.port)
+    return int(load_config(project).get("dev_port", 8765))
 
+
+def _android(args: argparse.Namespace, run: bool) -> int:
+    from .build import android as droid
+
+    BuildError, build = droid.BuildError, droid.build
+    project = Path(args.dir or ".").resolve()
+    reload_on = run and not getattr(args, "no_reload", False)
     try:
-        build(Path(args.dir or "."), release=getattr(args, "release", False), install=run, run=run)
+        build(project, release=getattr(args, "release", False), install=run, run=run and not reload_on)
+        if reload_on:
+            _android_dev(droid, project, args)
     except (BuildError, FileNotFoundError, ValueError) as e:
         print("error: %s" % e, file=sys.stderr)
         return 1
     return 0
+
+
+def _android_dev(droid, project: Path, args: argparse.Namespace) -> None:
+    """Start the dev server, reverse the port to the device, launch with dev extras, serve until Ctrl-C."""
+    from .dev.server import DevServer
+
+    cfg = load_config(project)
+    token = secrets.token_hex(16)
+    dev = DevServer(str(project), _dev_port(args, project), token)
+    adb = droid.adb_path()
+    port = str(dev.port)
+    droid._run([adb, "reverse", "tcp:" + port, "tcp:" + port])
+    try:
+        droid.launch(cfg.get("bundle_id", "com.example.app"),
+                     {"pyxpo_dev_url": dev.url, "pyxpo_dev_token": token})
+        print("hot reload on %s; edit app/ files, Ctrl-C to stop" % dev.url)
+        dev.serve_forever()
+    finally:
+        droid._run([adb, "reverse", "--remove", "tcp:" + port])
 
 
 def cmd_build(args: argparse.Namespace) -> int:
@@ -123,6 +167,8 @@ def build_parser() -> argparse.ArgumentParser:
     r = sub.add_parser("run", help="run the app")
     r.add_argument("target", nargs="?", default="desktop", choices=["desktop", "android", "ios"])
     r.add_argument("--dir")
+    r.add_argument("--no-reload", action="store_true", help="disable hot reload")
+    r.add_argument("--port", type=int, help="hot reload server port (default: dev_port or 8765)")
     r.set_defaults(fn=cmd_run)
     b = sub.add_parser("build", help="build a mobile package")
     b.add_argument("target", choices=["android", "ios"])

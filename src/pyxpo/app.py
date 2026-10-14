@@ -5,13 +5,33 @@ import json
 import os
 import sys
 import traceback
-from typing import Any, Callable, List, Optional
+from typing import Any, Callable, Dict, List, Optional
 
 from .channel import Channel, LocalChannel
-from .component import Component
+from .component import Component, component
 from .element import Element
-from .ops import to_json
+from .hooks import reset_deps
+from .ops import Create, Delete, Insert, Remove, to_json
 from .reconciler import Fiber, Reconciler
+
+
+_ERROR_ID = 2 ** 31 - 1  # reserved native id for the dev error overlay
+
+
+class _HotState:
+    """Set by the dev reloader while it re-executes app modules."""
+    reloading = False
+    captured: Optional[tuple] = None
+    entry: Optional[str] = None
+
+
+_hot = _HotState()
+
+
+def _walk(fiber: Fiber):
+    yield fiber
+    for c in fiber.children:
+        yield from _walk(c)
 
 
 class App:
@@ -28,13 +48,19 @@ class App:
             type(e), e, e.__traceback__, file=sys.stderr)
         self.rec = Reconciler(self._schedule)
         self.rec.loop = loop
+        self.broken = False
+        self._committed: Dict[int, int] = {}  # native node id -> parent id (0 = detached)
+        self._error_shown = False
+        self.set_root(root, **props)
+        channel.set_event_handler(self.dispatch_event)
+
+    def set_root(self, root: Any, **props: Any) -> None:
         if isinstance(root, Element):
             self._root_element = root
         elif isinstance(root, Component):
             self._root_element = root(**props)
         else:
-            self._root_element = Component(root)(**props)
-        channel.set_event_handler(self.dispatch_event)
+            self._root_element = component(root)(**props)
 
     def start(self) -> None:
         self.flushing = True
@@ -73,6 +99,8 @@ class App:
 
     # -- internals -----------------------------------------------------
     def _handle_event(self, payload: str) -> None:
+        if self.broken:
+            return
         msg = json.loads(payload)
         try:
             self.rec.dispatch(msg["id"], msg["event"], msg.get("payload"))
@@ -107,7 +135,77 @@ class App:
 
     def _send(self, ops: list) -> None:
         if ops:
+            for op in ops:
+                if isinstance(op, Create):
+                    self._committed[op.id] = 0
+                elif isinstance(op, Insert):
+                    self._committed[op.id] = op.parent
+                elif isinstance(op, Remove):
+                    self._committed[op.id] = 0
+                elif isinstance(op, Delete):
+                    self._committed.pop(op.id, None)
             self.channel.post(to_json(ops))
+
+    # -- hot reload ----------------------------------------------------
+    def hot_refresh(self, root: Any = None) -> Optional[BaseException]:
+        """Re-render after code changed. Keeps state when possible, else remounts. Returns the error or None."""
+        if root is not None:
+            self.set_root(root[0], **root[1])
+        self.flushing = True
+        try:
+            self.clear_error()
+            for f in _walk(self.rec.root):
+                reset_deps(f)
+            self.dirty = []
+            try:
+                self.rec.render(self._root_element)
+                self._send(self.rec.take_ops())
+                self.rec.run_effects()
+                self.broken = False
+                return None
+            except Exception:  # noqa: BLE001
+                self.rec.ops, self.rec._deletes, self.rec.pending_effects = [], [], []
+            try:
+                self._remount()
+                self.broken = False
+                return None
+            except Exception as e:  # noqa: BLE001
+                self.broken = True
+                return e
+        finally:
+            self.flushing = False
+
+    def _remount(self) -> None:
+        """Rebuild the whole tree in a fresh reconciler. Old tree is replaced only if the new render succeeds."""
+        old = self.rec
+        new = Reconciler(self._schedule)
+        new.loop = self.loop
+        new._next_id = old._next_id
+        new.render(self._root_element)  # may raise: old tree stays untouched
+        ops: list = [Remove(p, n) for n, p in self._committed.items() if p]
+        ops += [Delete(n) for n in self._committed]
+        self._send(ops)
+        self.dirty = []
+        for c in old.root.children:
+            try:
+                old._unmount(c)  # runs effect cleanups; its ops are discarded
+            except Exception as e:  # noqa: BLE001
+                self.on_error(e)
+        old.ops, old._deletes = [], []
+        self.rec = new
+        self._send(new.take_ops())
+        new.run_effects()
+
+    def show_error(self, text: str) -> None:
+        self.clear_error()
+        props = {"text": text, "style": {"color": "#ffffff", "background_color": "#c62828", "padding": 12}}
+        self._send([Create(_ERROR_ID, "Text", props), Insert(1, _ERROR_ID, len(self.rec.root.native))])
+        self._error_shown = True
+
+    def clear_error(self) -> None:
+        if self._error_shown:
+            self._send([Remove(1, _ERROR_ID), Delete(_ERROR_ID)])
+            self._error_shown = False
 
 
 def create_app(root: Any, channel: Channel, **props: Any) -> App:
@@ -119,6 +217,10 @@ def create_app(root: Any, channel: Channel, **props: Any) -> App:
 
 def run_app(root: Any, channel: Optional[Channel] = None, **props: Any) -> None:
     """Run the app on the current platform. Desktop target uses the console renderer."""
+    if _hot.reloading:  # app module re-executed by the reloader: do not start a second app
+        _hot.captured = (root, props)
+        return
+    _hot.entry = os.path.realpath(sys._getframe(1).f_code.co_filename)
     target = os.environ.get("PYXPO_TARGET", "desktop")
     if channel is None and target != "desktop":
         from .channel_native import NativeChannel
@@ -134,6 +236,12 @@ def run_app(root: Any, channel: Optional[Channel] = None, **props: Any) -> None:
             renderer = ConsoleRenderer(ch)
         app = App(root, ch, loop, **props)
         app.start()
+        if os.environ.get("PYXPO_DEV_URL"):
+            try:
+                from .dev import client
+                client.start(app, loop, _hot.entry)
+            except ImportError:
+                pass
         if renderer is not None:
             await renderer.run()
         else:
