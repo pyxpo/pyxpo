@@ -76,11 +76,19 @@ class Images(private val ctx: Context) {
             c.connectTimeout = 15000; c.readTimeout = 20000; c.instanceFollowRedirects = true
             try {
                 val code = c.responseCode
-                if (code in 300..399) { u = c.getHeaderField("Location") ?: throw RuntimeException("bad redirect"); continue }
+                if (code in 300..399) {
+                    val loc = c.getHeaderField("Location") ?: throw RuntimeException("bad redirect")
+                    val next = URL(URL(u), loc)  // Location may be relative
+                    if (u.startsWith("https:") && next.protocol != "https") throw RuntimeException("insecure redirect")
+                    u = next.toString(); continue
+                }
                 if (code !in 200..299) throw RuntimeException("HTTP $code")
-                val tmp = File(to.path + ".part")
-                c.inputStream.use { i -> tmp.outputStream().use { o -> i.copyTo(o) } }
-                tmp.renameTo(to)
+                // Unique temp file: two loads of the same URL must not write into one .part file.
+                val tmp = File.createTempFile("dl", ".part", to.parentFile)
+                try {
+                    c.inputStream.use { i -> tmp.outputStream().use { o -> i.copyTo(o) } }
+                    if (!tmp.renameTo(to) && !to.exists()) throw RuntimeException("cache write failed")
+                } finally { tmp.delete() }
                 return
             } finally { c.disconnect() }
         }

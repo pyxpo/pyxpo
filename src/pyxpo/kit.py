@@ -27,7 +27,8 @@ def Screen(*children: Any, scroll: bool = False, padding: Optional[float] = None
     body = [{"flex": 1, "background_color": t["colors"]["background"], "padding": pad}, style]
     if scroll:
         from .element import ScrollView
-        return SafeArea(ScrollView(*children, content_container_style={"padding": pad}, style={"flex": 1}, **props),
+        return SafeArea(ScrollView(*children, content_container_style=[{"padding": pad}, style],
+                                   style={"flex": 1}, **props),
                         style={"flex": 1, "background_color": t["colors"]["background"]})
     return SafeArea(View(*children, style=body, **props), style={"flex": 1, "background_color": t["colors"]["background"]})
 

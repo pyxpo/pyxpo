@@ -19,7 +19,7 @@ class PxGroup: UIView {
 
     override func touchesBegan(_ touches: Set<UITouch>, with event: UIEvent?) {
         raw("touch_start", touches)
-        guard let cb = onTouch, let t = touches.first else { return super.touchesBegan(touches, with: event) }
+        guard let cb = onTouch, let t = touches.first else { return onRaw != nil ? () : super.touchesBegan(touches, with: event) }
         down = true; long = false
         timer?.invalidate()
         timer = Timer.scheduledTimer(withTimeInterval: 0.5, repeats: false) { [weak self] _ in
@@ -31,20 +31,20 @@ class PxGroup: UIView {
 
     override func touchesMoved(_ touches: Set<UITouch>, with event: UIEvent?) {
         raw("touch_move", touches)
-        guard let cb = onTouch, let t = touches.first else { return super.touchesMoved(touches, with: event) }
+        guard let cb = onTouch, let t = touches.first else { return onRaw != nil ? () : super.touchesMoved(touches, with: event) }
         if down && !inside(t) { down = false; timer?.invalidate(); cb("press_out", nil) }
     }
 
     override func touchesEnded(_ touches: Set<UITouch>, with event: UIEvent?) {
         raw("touch_end", touches)
-        guard let cb = onTouch else { return super.touchesEnded(touches, with: event) }
+        guard let cb = onTouch else { return onRaw != nil ? () : super.touchesEnded(touches, with: event) }
         timer?.invalidate()
         if down { down = false; cb("press_out", nil); if !long { cb("press", nil) } }
     }
 
     override func touchesCancelled(_ touches: Set<UITouch>, with event: UIEvent?) {
         raw("touch_end", touches)
-        guard let cb = onTouch else { return super.touchesCancelled(touches, with: event) }
+        guard let cb = onTouch else { return onRaw != nil ? () : super.touchesCancelled(touches, with: event) }
         timer?.invalidate()
         if down { down = false; cb("press_out", nil) }
     }
@@ -75,6 +75,7 @@ final class PxRoot: UIView {
 final class ScrollHost: UIScrollView, UIScrollViewDelegate {
     let content = PxGroup()
     var emit = false, onBegin = false, onEnd = false, onMomentum = false
+    var horizontal = false  // set from the `horizontal` prop at create; used by scroll_to_end
     var throttle: TimeInterval = 0.016
     var ae: [String: Int]?
     var onAE: (([Int: Double]) -> Void)?

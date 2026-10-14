@@ -1,6 +1,7 @@
 from __future__ import annotations
 
-from pyxpo import Animated, FlatList, Image, ScrollView, Text, View, component, use_animated_value, use_scroll_ref
+from pyxpo import (Animated, FlatList, Image, ScrollView, Text, View, component, use_animated_value, use_scroll_ref,
+                   use_state)
 from pyxpo.scroll import window_range
 
 from .test_core import mount
@@ -139,3 +140,42 @@ def test_image_source_normalized():
     assert el.props["source"] == {"uri": "https://x/y.png"}
     assert Image(source={"uri": "asset:logo"}).props["source"]["uri"] == "asset:logo"
     assert Image(source="pic.png").props["source"]["uri"].endswith("/pic.png")
+
+
+def test_flatlist_header_and_scroll_in_one_batch():
+    data = list(range(1000))
+
+    @component
+    def App():
+        return FlatList(data=data, render_item=lambda it, i: Text("n%d" % it), item_size=100, window_size=1,
+                        list_header_component=Text("head"))
+
+    app, r = mount(App)
+    sv = r.find_all("ScrollView")[0]
+    head = r.find_text("head").parent
+    app.flushing = True  # deliver both events before any re-render, like one native batch
+    r.emit("layout", head, {"value": {"x": 0, "y": 0, "width": 360, "height": 5000}})
+    r.scroll(sv, y=5000, height=600, content_height=105000)
+    app.flushing = False
+    app.flush()
+    # The header fills the first 5000 dp, so the list window starts at row 0; a lost head update
+    # would place the window around row 50.
+    assert "n0" in r.texts() and "n50" not in r.texts()
+
+
+def test_scroll_ref_swap_unbinds_old_ref():
+    from pyxpo.scroll import ScrollRef
+    a, b = ScrollRef(), ScrollRef()
+    box = {}
+
+    @component
+    def App():
+        which, set_which = use_state(0)
+        box["set"] = set_which
+        return ScrollView(Text("a"), ref=a if which == 0 else b)
+
+    app, r = mount(App)
+    sv = r.find_all("ScrollView")[0]
+    assert a.id == sv.id
+    box["set"](1)
+    assert a.id is None and b.id == sv.id

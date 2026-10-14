@@ -186,8 +186,10 @@ class OpApplier(
                     }
                 }
                 "placeholder" -> (v as? EditText)?.hint = props.optString(k)
-                "on_press", "on_press_in", "on_press_out", "on_long_press" -> if (v !is Button) { pressy.add(id); attachTouch(id, v) }
-                "on_touch_start", "on_touch_move", "on_touch_end" -> { rawTouch.add(id); attachTouch(id, v) }
+                "on_press", "on_press_in", "on_press_out", "on_long_press" -> if (v !is Button) {
+                    pressy.add(id); touchKeys.getOrPut(id) { HashSet() }.add(k); attachTouch(id, v) }
+                "on_touch_start", "on_touch_move", "on_touch_end" -> {
+                    rawTouch.add(id); touchKeys.getOrPut(id) { HashSet() }.add(k); attachTouch(id, v) }
                 "on_request_close" -> closeListeners.add(id)
                 "accessibility_label", "accessibility_hint", "accessibility_role", "accessibility_state",
                 "accessibility_value", "accessible" -> a11yDirty = true
@@ -200,6 +202,11 @@ class OpApplier(
         for (k in r) {
             if (k == "on_layout") layoutListeners.remove(id)
             if (k == "on_request_close") closeListeners.remove(id)
+            if (k.startsWith("on_touch_") || k.startsWith("on_press") || k == "on_long_press") {
+                val left = touchKeys[id]?.also { it.remove(k) }
+                if (left == null || left.none { it.startsWith("on_touch_") }) rawTouch.remove(id)
+                if (left == null || left.none { it.startsWith("on_press") || it == "on_long_press" }) pressy.remove(id)
+            }
             if (v is PxScrollable) scrollProp(id, v as FrameLayout, k, null)
             if (v is ImageView && !props.has(k) && (k == "source" || k == "resize_mode" || k == "tint_color")) applyImage(id, v, JSONObject(), r)
         }
@@ -504,6 +511,7 @@ class OpApplier(
     private val touching = HashSet<Int>()
     private val pressy = HashSet<Int>()
     private val rawTouch = HashSet<Int>()
+    private val touchKeys = HashMap<Int, HashSet<String>>()  // live on_press*/on_touch_* props per view
     private val closeListeners = HashSet<Int>()
 
     private fun merge(dst: JSONObject, props: JSONObject, removed: Set<String>) {
@@ -561,6 +569,8 @@ class OpApplier(
                 .put("page_x", e.rawX / dens).put("page_y", e.rawY / dens)))
         }
         v.setOnTouchListener { view, e ->
+            // Handlers were removed later (e.g. a disabled Slider): stop consuming touches.
+            if (!pressy.contains(id) && !rawTouch.contains(id)) { down = false; handler.removeCallbacks(longRun); return@setOnTouchListener false }
             val inside = e.x >= -24 && e.y >= -24 && e.x <= view.width + 24 && e.y <= view.height + 24
             when (e.actionMasked) {
                 android.view.MotionEvent.ACTION_DOWN -> {
@@ -651,12 +661,12 @@ class OpApplier(
     /** Modals live on the root so they cover the whole screen whatever their Python parent is. */
     private fun host(id: Int, parent: Int) = if (types[id] == "Modal") 1 else parent
 
-    /** Android back: closest-to-top Modal with `on_request_close` gets the event. */
+    /** Android back: the topmost Modal consumes it and gets `request_close` if it listens (as in RN). */
     fun handleBack(): Boolean {
         val root = groupOf(1) ?: return false
         for (i in root.childCount - 1 downTo 0) {
             val id = views.entries.firstOrNull { it.value === root.getChildAt(i) }?.key ?: continue
-            if (types[id] == "Modal" && closeListeners.contains(id)) { event("request_close", id); return true }
+            if (types[id] == "Modal") { if (closeListeners.contains(id)) event("request_close", id); return true }
         }
         return false
     }
@@ -683,7 +693,7 @@ class OpApplier(
     private fun delete(id: Int) {
         val v = views.remove(id)
         binds.remove(id)
-        touching.remove(id); pressy.remove(id); rawTouch.remove(id); closeListeners.remove(id); a11y.remove(id); inputCfg.remove(id); wired.remove(id)
+        touching.remove(id); pressy.remove(id); rawTouch.remove(id); touchKeys.remove(id); closeListeners.remove(id); a11y.remove(id); inputCfg.remove(id); wired.remove(id)
         texts.remove(id); spans.remove(id)
         (v?.parent as? ViewGroup)?.removeView(v)
         scrolls.remove(id); layoutListeners.remove(id); imgReq.remove(id)

@@ -165,8 +165,11 @@ class Reconciler:
         return f
 
     def _update(self, f: Fiber, e: Element) -> None:
+        old_ref = f.element.props.get("ref") if f.element is not None else None
         f.element = e
         if f.kind == "host":
+            if old_ref is not None and old_ref is not e.props.get("ref") and hasattr(old_ref, "_unbind"):
+                old_ref._unbind(f.id)  # ref prop swapped or removed: the old ref must not keep this view
             wire, events = self._wire(e.props)
             self._bind_ref(f, e)
             changed = {k: v for k, v in wire.items() if k not in f.sent or not _same(f.sent[k], v)}

@@ -166,6 +166,7 @@ final class OpApplier {
                 px_node_set_str(tree, c, prop("flex_direction"), "row")
             }
             if let sh = v as? ScrollHost {
+                sh.horizontal = props["horizontal"] as? Bool == true
                 sh.onEvent = { [weak self] n, p in self?.event(n, id, p) }
                 sh.onAE = { [weak self] vals in
                     var j: [String: Any] = [:]
@@ -213,6 +214,7 @@ final class OpApplier {
                 if let t = v as? PxTextField { applyInput(t, k, val) }
             case "style": applyStyle(id, v, val as? [String: Any] ?? [:])
             case "on_press", "on_press_in", "on_press_out", "on_long_press":
+                touchKeys[id, default: []].insert(k)
                 if let g = v as? PxGroup, g.onTouch == nil {
                     g.isUserInteractionEnabled = true
                     g.onTouch = { [weak self] name, p in
@@ -222,6 +224,7 @@ final class OpApplier {
                     }
                 }
             case "on_touch_start", "on_touch_move", "on_touch_end":
+                touchKeys[id, default: []].insert(k)
                 if let g = v as? PxGroup, g.onRaw == nil {
                     g.onRaw = { [weak self] name, p, w in
                         self?.event(name, id, ["value": ["x": p.x, "y": p.y, "page_x": w.x, "page_y": w.y]])
@@ -235,6 +238,15 @@ final class OpApplier {
         }
         for k in removed {
             if k == "on_layout" { layoutListeners.remove(id) }
+            if k.hasPrefix("on_touch_") || k.hasPrefix("on_press") || k == "on_long_press" {
+                // Handlers removed (e.g. a disabled Slider): stop swallowing touches.
+                touchKeys[id]?.remove(k)
+                let left = touchKeys[id] ?? []
+                if let g = v as? PxGroup {
+                    if !left.contains(where: { $0.hasPrefix("on_touch_") }) { g.onRaw = nil }
+                    if !left.contains(where: { $0.hasPrefix("on_press") || $0 == "on_long_press" }) { g.onTouch = nil }
+                }
+            }
             if let sh = v as? ScrollHost { scrollProp(sh, k, nil) }
             if let i = v as? UIImageView, ["source", "resize_mode", "tint_color"].contains(k), props[k] == nil {
                 applyImage(id, i, [:], removed)
@@ -252,6 +264,7 @@ final class OpApplier {
 
     private var a11y: [Int: [String: Any]] = [:]
     private var layoutListeners = Set<Int>()
+    private var touchKeys: [Int: Set<String>] = [:]  // live on_press*/on_touch_* props per view
     private var imgReq: [Int: String] = [:]
     private let images = Images()
 
@@ -312,7 +325,7 @@ final class OpApplier {
     private func scrollTo(_ id: Int, _ x: Double?, _ y: Double?, _ animated: Bool) {
         guard let s = views[id] as? ScrollHost else { return }
         let maxX = max(0, s.contentSize.width - s.bounds.width), maxY = max(0, s.contentSize.height - s.bounds.height)
-        let horiz = s.contentSize.width > s.contentSize.height && s.contentSize.height <= s.bounds.height
+        let horiz = s.horizontal
         let tx = x.map { CGFloat($0) } ?? (horiz ? maxX : s.contentOffset.x)
         let ty = y.map { CGFloat($0) } ?? (horiz ? s.contentOffset.y : maxY)
         s.setContentOffset(CGPoint(x: min(max(0, tx), maxX), y: min(max(0, ty), maxY)), animated: animated)
@@ -375,7 +388,7 @@ final class OpApplier {
     private func delete(_ id: Int) {
         views.removeValue(forKey: id)?.removeFromSuperview()
         binds.removeValue(forKey: id)
-        layoutListeners.remove(id); imgReq.removeValue(forKey: id)
+        layoutListeners.remove(id); imgReq.removeValue(forKey: id); touchKeys.removeValue(forKey: id)
         if types.removeValue(forKey: id) == "ScrollView" { px_node_delete(tree, Int32(id | Self.content)) }
         px_node_delete(tree, Int32(id))
         styles.removeValue(forKey: id)

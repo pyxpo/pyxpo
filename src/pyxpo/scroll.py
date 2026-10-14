@@ -95,18 +95,23 @@ def FlatList(data: Optional[List[Any]] = None, render_item: Optional[Callable[[A
         off = e["x"] if horizontal else e["y"]
         vp = e["width"] if horizontal else e["height"]
         ct = e["content_width"] if horizontal else e["content_height"]
-        # re-render only when the rendered window changes, not on every scroll tick
-        moved = (span(off, vp, st["head"]) != span(st["offset"], st["viewport"], st["head"])
-                 if item_size is not None else False)
-        if moved or vp != st["viewport"] or ct != st["content"]:
-            set_st({**st, "offset": float(off), "viewport": float(vp), "content": float(ct)})
+        # re-render only when the rendered window changes, not on every scroll tick. Functional update:
+        # several events can land before the next render, so `st` from this closure may be stale.
+        def upd(s: Dict[str, Any]) -> Dict[str, Any]:
+            moved = (span(off, vp, s["head"]) != span(s["offset"], s["viewport"], s["head"])
+                     if item_size is not None else False)
+            if moved or vp != s["viewport"] or ct != s["content"]:
+                return {**s, "offset": float(off), "viewport": float(vp), "content": float(ct)}
+            return s
+
+        set_st(upd)
         if on_end_reached is not None and ct > 0:
             key = (n, ct)
             if off + vp >= ct - vp * on_end_reached_threshold and fired.current != key:
                 fired.current = key
                 on_end_reached()
         if item_size is None and off + vp >= ct - vp * 1.5 and shown < rows:
-            set_shown(shown + batch_size)
+            set_shown(lambda s: s + batch_size if s == shown else s)  # one batch per rendered state
         if ae is not None:
             if not ae.native:
                 ae(e)
@@ -117,8 +122,7 @@ def FlatList(data: Optional[List[Any]] = None, render_item: Optional[Callable[[A
 
     def on_head_layout(e: Dict[str, Any]) -> None:
         h = float(e[prop])
-        if h != st["head"]:
-            set_st({**st, "head": h})
+        set_st(lambda s: s if s["head"] == h else {**s, "head": h})
 
     out: List[Any] = []
     if list_header_component is not None:

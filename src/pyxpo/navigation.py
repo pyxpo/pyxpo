@@ -113,6 +113,19 @@ class _Nav:
         return len(self.stack) > 1
 
 
+class _TabNav(_Nav):
+    """Tabs: navigate/replace/reset switch the selected tab (name is validated)."""
+
+    select: Callable[[str], None] = staticmethod(lambda name: None)  # type: ignore[assignment]
+
+    def navigate(self, name: str, params: Dict[str, Any]) -> None:
+        self._route(name, params)  # raises KeyError for an unknown tab
+        self.select(name)
+
+    replace = navigate
+    reset = navigate
+
+
 _NavContext = create_context(None)
 
 
@@ -163,14 +176,20 @@ def Stack(screens: Optional[Dict[str, Any]] = None, initial: Optional[str] = Non
     opts = screen_options or {}
     names = list(screens)
     bg = use_theme()["colors"]["background"]
+    _, tick = use_state(0)  # hooks before any early return: `screens` may toggle between empty and not
+    holder = use_ref(None)
     if not names:
         return View(style=style)
-    _, tick = use_state(0)
-    holder = use_ref(None)
     if holder.current is None:
-        holder.current = _Nav(names, initial or names[0], tick)
+        holder.current = _Nav(names, initial if initial in screens else names[0], tick)
     nav: _Nav = holder.current
     nav.names = names
+    # Drop routes whose screen was removed from `screens` (avoids KeyError on render).
+    live = [r for r in nav.stack if r.name in screens]
+    if not live:
+        live = [nav._route(initial if initial in screens else names[0], {})]
+    if len(live) != len(nav.stack):
+        nav.stack[:] = live
     top = nav.stack[-1]
     kids = []
     for r in nav.stack:
@@ -178,13 +197,14 @@ def Stack(screens: Optional[Dict[str, Any]] = None, initial: Optional[str] = Non
         handle = Navigation(nav, r)
         on_top = r is top
         show_header = header and o.get("header", True)
-        kids.append(View(
+        # Each screen gets its own context value so use_navigation() sees its own route and params.
+        kids.append(_NavContext.Provider(View(
             _Header(title=_title(r.name, o), can_back=nav.can_go_back() and r is not nav.stack[0],
                     on_back=nav.go_back, header_style=header_style, title_style=title_style,
                     right=o.get("header_right")) if show_header else None,
             View(_Screen(screen=screens[r.name], navigation=handle, params=r.params), style={"flex": 1}),
-            style=[_FILL, {"background_color": bg}, None if on_top else {"display": "none"}],
-            key="r%d" % r.key))
+            style=[_FILL, {"background_color": bg}, None if on_top else {"display": "none"}]),
+            value=handle, key="r%d" % r.key))
     return _NavContext.Provider(View(*kids, style=[{"flex": 1}, style]), value=Navigation(nav, top))
 
 
@@ -201,25 +221,30 @@ def Tabs(screens: Optional[Dict[str, Any]] = None, initial: Optional[str] = None
     screens = screens or {}
     opts = screen_options or {}
     names = list(screens)
-    if not names:
-        return View(style=style)
-    cur, set_cur = use_state(initial or names[0])
+    # Hooks before any early return: `screens` may toggle between empty and not.
+    cur, set_cur = use_state(initial)
     seen = use_ref(set())
-    seen.current.add(cur)
     holder = use_ref(None)
     _, tick = use_state(0)
+    if not names:
+        return View(style=style)
+    if cur not in screens:  # first render, or the current tab was removed
+        cur = initial if initial in screens else names[0]
+    seen.current.add(cur)
     if holder.current is None:
-        holder.current = _Nav(names, cur, tick)
-    nav: _Nav = holder.current
+        holder.current = _TabNav(names, cur, tick)
+    nav: _TabNav = holder.current
     nav.names = names
-    nav.navigate = lambda name, params: set_cur(name)  # type: ignore[assignment]
+    nav.select = set_cur
     pages = []
     for name in names:
         if name not in seen.current:
             continue
-        route = Route(0, name, {})
-        pages.append(View(_Screen(screen=screens[name], navigation=Navigation(nav, route), params={}),
-                          style=[_FILL, {"background_color": c["background"]}, None if name == cur else {"display": "none"}], key=name))
+        handle = Navigation(nav, Route(0, name, {}))
+        pages.append(_NavContext.Provider(
+            View(_Screen(screen=screens[name], navigation=handle, params={}),
+                 style=[_FILL, {"background_color": c["background"]}, None if name == cur else {"display": "none"}]),
+            value=handle, key=name))
     items = []
     for name in names:
         o = opts.get(name, {})

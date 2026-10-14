@@ -10,7 +10,7 @@ from typing import Any, Callable, Dict, List, Optional
 
 from .component import component
 from .element import Text, View, _Modal
-from .hooks import use_ref, use_state
+from .hooks import use_memo, use_ref, use_state
 from .style import flatten
 
 _A11Y = ("accessible", "accessibility_label", "accessibility_hint", "accessibility_role", "accessibility_state",
@@ -168,6 +168,11 @@ def Slider(value: float = 0.0, minimum: float = 0.0, maximum: float = 1.0, step:
                 **touch)
 
 
+def _pt(e: Dict[str, Any], axis: str) -> float:
+    v = e.get("page_" + axis)
+    return float(e.get(axis, 0.0) if v is None else v)
+
+
 class Gesture:
     """PanResponder state: dx/dy since touch start (dp), vx/vy velocity (dp/s), x0/y0 start, x/y current."""
 
@@ -177,14 +182,16 @@ class Gesture:
         self._t = 0.0
 
     def _start(self, e: Dict[str, Any]) -> None:
-        self.x0 = self.x = float(e.get("page_x", e["x"]))
-        self.y0 = self.y = float(e.get("page_y", e["y"]))
+        self.x0 = self.x = _pt(e, "x")
+        self.y0 = self.y = _pt(e, "y")
         self.dx = self.dy = self.vx = self.vy = 0.0
         self._t = time.monotonic()
 
-    def _move(self, e: Dict[str, Any]) -> None:
-        x, y, now = float(e.get("page_x", e["x"])), float(e.get("page_y", e["y"])), time.monotonic()
+    def _move(self, e: Dict[str, Any], final: bool = False) -> None:
+        x, y, now = _pt(e, "x"), _pt(e, "y"), time.monotonic()
         dt = now - self._t
+        if final and x == self.x and y == self.y:
+            return  # release at the last move point: keep the fling velocity instead of zeroing it
         if dt > 0:
             self.vx, self.vy = (x - self.x) / dt, (y - self.y) / dt
         self.x, self.y, self._t = x, y, now
@@ -212,7 +219,7 @@ def use_pan_responder(on_start: Optional[Callable[[Gesture], Any]] = None,
             fns.current[1](g.current)
 
     def end(e: Dict[str, Any]) -> None:
-        g.current._move(e)
+        g.current._move(e, final=True)
         if fns.current[2]:
             fns.current[2](g.current)
 
@@ -239,15 +246,20 @@ def Modal(*children: Any, visible: bool = True, animation_type: str = "none", tr
         if first.current:
             first.current = False
             return
-        if not animated:
+        if not animated:  # keep state in sync so a later switch to fade/slide does not flash a stale layer
+            set_mounted(bool(visible))
+            p.set_value(1.0 if visible else 0.0)
             return
         if visible:
             set_mounted(True)
             Animated.timing(p, 1.0, duration=duration).start()
         else:
-            Animated.timing(p, 0.0, duration=duration).start(lambda r: set_mounted(False))
+            # Unmount only when the fade-out ran to the end; an interrupted one means visible came back.
+            Animated.timing(p, 0.0, duration=duration).start(
+                lambda r: set_mounted(False) if r.get("finished") else None)
 
     use_effect(run, [bool(visible), animated])
+    slide_y = use_memo(lambda: p.interpolate([0, 1], [h, 0]), [h])  # one node per height, not per render
     show = (mounted or visible) if animated else bool(visible)
     if not show:
         return None
@@ -256,7 +268,7 @@ def Modal(*children: Any, visible: bool = True, animation_type: str = "none", tr
         fill["opacity"] = p
     box: Dict[str, Any] = {"flex": 1}
     if animation_type == "slide":
-        box["transform"] = [{"translate_y": p.interpolate([0, 1], [h, 0])}]
+        box["transform"] = [{"translate_y": slide_y}]
         fill = {"flex": 1, "background_color": "transparent" if transparent else backdrop_color}
     inner = View(*children, style=[box, style], **props)
     return _Modal(View(inner, style=fill), on_request_close=on_request_close,

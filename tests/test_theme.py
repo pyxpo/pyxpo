@@ -74,3 +74,10 @@ def test_navigation_header_follows_theme():
     app, r = mount(lambda: ThemeProvider(Stack(screens={"Home": lambda navigation, params: Text("h")}), mode="dark"))
     title = r.find_text("Home")
     assert _style(title)["color"] == dark_theme["colors"]["text"]
+
+
+def test_screen_scroll_applies_style_to_content():
+    from pyxpo.kit import Screen
+    app, r = mount(lambda: Screen(Text("x"), scroll=True, style={"background_color": "#123456"}))
+    content = r.find_text("x").parent
+    assert content.props["style"]["background_color"] == "#123456"
