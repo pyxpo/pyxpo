@@ -33,7 +33,7 @@ def cmd_create(args: argparse.Namespace) -> int:
         out.parent.mkdir(parents=True, exist_ok=True)
         out.write_text(src.read_text().replace("{{name}}", name).replace("{{ident}}", ident))
     (dest / "assets").mkdir(exist_ok=True)
-    print("created %s\n  cd %s && pyxpo run desktop" % (dest, name))
+    print("created %s\n  cd %s && pyxpo run desktop\n  native changes: pyxpo prebuild  (creates editable android/ and ios/)" % (dest, name))
     return 0
 
 
@@ -153,6 +153,30 @@ def cmd_build(args: argparse.Namespace) -> int:
     return 2
 
 
+def cmd_prebuild(args: argparse.Namespace) -> int:
+    """Eject editable android/ and ios/ projects into the project root (like `expo prebuild`)."""
+    from .build import android as droid, ios
+
+    project = Path(args.dir or ".").resolve()
+    targets = ["android", "ios"] if args.target == "all" else [args.target]
+    if args.clean and not args.yes:
+        print("--clean deletes %s and loses your native edits." % ", ".join(t + "/" for t in targets))
+        if sys.stdin.isatty() and input("continue? [y/N] ").strip().lower() != "y":
+            return 1
+        if not sys.stdin.isatty():
+            print("error: pass --yes to confirm in a non-interactive shell", file=sys.stderr)
+            return 2
+    try:
+        for t in targets:
+            dest = (droid if t == "android" else ios).prebuild(project, clean=args.clean)
+            print("ejected %s" % dest)
+    except (ios.BuildError, FileNotFoundError, ValueError) as e:
+        print("error: %s" % e, file=sys.stderr)
+        return 1
+    print("edit the native files, commit them, then `pyxpo run <android|ios>` builds from them")
+    return 0
+
+
 def cmd_doctor(args: argparse.Namespace) -> int:
     def row(label: str, found: Optional[str]) -> None:
         print("  %-14s %s" % (label, found or "not found"))
@@ -212,6 +236,12 @@ def build_parser() -> argparse.ArgumentParser:
     b.add_argument("--release", action="store_true")
     b.add_argument("--dir")
     b.set_defaults(fn=cmd_build)
+    pb = sub.add_parser("prebuild", help="generate editable android/ and ios/ native projects")
+    pb.add_argument("target", nargs="?", default="all", choices=["all", "android", "ios"])
+    pb.add_argument("--clean", action="store_true", help="delete the native folders first (loses your edits)")
+    pb.add_argument("--yes", action="store_true", help="skip the --clean confirmation")
+    pb.add_argument("--dir")
+    pb.set_defaults(fn=cmd_prebuild)
     d = sub.add_parser("doctor", help="check installed toolchains")
     d.set_defaults(fn=cmd_doctor)
     a = sub.add_parser("add-lib", help="check mobile wheel availability and add a dependency")

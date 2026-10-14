@@ -47,12 +47,89 @@ def test_launch_env_prefix():
     assert env["SIMCTL_CHILD_PYXPO_DEV_URL"] == "http://127.0.0.1:1"
 
 
-def test_render_shell_no_placeholders(tmp_path, monkeypatch):
-    monkeypatch.setattr(ios, "DIST", tmp_path / "dist")
-    (tmp_path / "dist" / "Python.xcframework").mkdir(parents=True)
-    dest = tmp_path / "shell"
-    ios.render_shell(dest, {"app_id": "dev.x.app", "product_name": "x", "app_name": "X"})
-    assert (dest / "native" / "pyxpo_bridge.c").is_file()
+def _fake_dist(tmp_path, monkeypatch):
+    dist = tmp_path / "dist"
+    sl = dist / "Python.xcframework" / "ios-arm64-simulator"
+    (sl / "lib" / "python3.13").mkdir(parents=True)
+    (sl / "lib" / "python3.13" / "os.py").write_text("")
+    common = tmp_path / "common"
+    common.mkdir()
+    for f in ios.NATIVE_FILES:
+        (common / f).write_text("/* x */")
+    monkeypatch.setattr(ios, "DIST", dist)
+    monkeypatch.setattr(ios, "COMMON", common)
+    return dist
+
+
+def _project(tmp_path, extra=""):
+    proj = tmp_path / "proj"
+    (proj / "app").mkdir(parents=True)
+    (proj / "app" / "index.py").write_text("x = 1\n")
+    (proj / "pyproject.toml").write_text(
+        '[project]\nname = "demo"\nversion = "2.3.4"\n[tool.pyxpo]\nname = "Demo App"\nbundle_id = "dev.x.demo"\n' + extra)
+    return proj
+
+
+def test_prebuild_ejects_and_preserves_user_edits(tmp_path, monkeypatch):
+    _fake_dist(tmp_path, monkeypatch)
+    proj = _project(tmp_path, '[tool.pyxpo.ios]\nteam_id = "ABCDE12345"\n')
+    dest = ios.prebuild(proj)
+    assert dest == proj / "ios"
+    assert (dest / "project.yml").is_file() and (dest / "App" / "AppDelegate.swift").is_file()
+    assert (dest / "pyxpo-gen" / "native" / "pyxpo_bridge.c").is_file()
+    xc = (dest / "pyxpo-gen" / "Pyxpo.xcconfig").read_text()
+    for line in ("PRODUCT_BUNDLE_IDENTIFIER = dev.x.demo", "PYXPO_DISPLAY_NAME = Demo App", "MARKETING_VERSION = 2.3.4",
+                 "DEVELOPMENT_TEAM = ABCDE12345", "PYXPO_SCHEME = dev.x.demo"):
+        assert line in xc
+    assert "pyxpo-gen/" in (dest / ".gitignore").read_text()
+    (dest / "App" / "AppDelegate.swift").write_text("// mine\n")
+    ios.prebuild(proj)
+    assert (dest / "App" / "AppDelegate.swift").read_text() == "// mine\n"
+    assert (dest / "App" / "AppDelegate.swift.pyxpo-new").is_file()
+    ios.prebuild(proj, clean=True)
+    assert "mine" not in (dest / "App" / "AppDelegate.swift").read_text()
+
+
+def test_stage_keeps_user_files_and_leaves_no_placeholders(tmp_path, monkeypatch):
+    _fake_dist(tmp_path, monkeypatch)
+    monkeypatch.setattr(ios, "_run", lambda *a, **k: None)
+    proj = _project(tmp_path)
+    native = ios.prebuild(proj)
+    (native / "project.yml").write_text("# edited\n")
+    ios.stage(native, proj, ios.load_config(proj), False, "simulator")
+    assert (native / "project.yml").read_text() == "# edited\n"
+    assert (native / "pyxpo-gen" / "stage" / "app_root" / "app" / "index.py").is_file()
+    for p in native.rglob("*"):
+        if p.is_file() and not p.is_symlink() and p.suffix in (".yml", ".plist", ".swift", ".sh", ".h", ".m", ".xcconfig"):
+            text = p.read_text()
+            assert not re.search(r"\{\{\w+\}\}", text), p
+            if "pyxpo-gen" not in p.parts:
+                assert str(tmp_path) not in text, p
+
+
+def test_android_prebuild_and_stage(tmp_path, monkeypatch):
+    droid = importlib.import_module("pyxpo.build.android")
+    dist = tmp_path / "adist"
+    (dist / "arm64-v8a" / "prefix" / "lib" / "python3.13").mkdir(parents=True)
+    for so in droid.SO_FOR_JNILIBS + ["libpython3.13.so"]:
+        (dist / "arm64-v8a" / "prefix" / "lib" / so).write_bytes(b"\x7fELF")
+    monkeypatch.setattr(droid, "DIST", dist)
+    monkeypatch.setattr(droid, "_run", lambda *a, **k: None)
+    monkeypatch.setattr(droid, "_check_16kb", lambda *a, **k: None)
+    monkeypatch.setenv("ANDROID_HOME", str(tmp_path))
+    proj = _project(tmp_path, 'scheme = "demo"\n[tool.pyxpo.android]\nkeystore = "release.jks"\nkey_alias = "k"\n')
+    dest = droid.prebuild(proj)
+    props = (dest / "pyxpo-gen" / "pyxpo.properties").read_text()
+    assert "applicationId=dev.x.demo" in props and "scheme=demo" in props and "versionName=2.3.4" in props
+    assert "release.jks" in props and "assword" not in props
+    gradle = dest / "app" / "build.gradle.kts"
+    gradle.write_text("// mine\n")
+    droid.stage(dest, proj, droid.load_config(proj), False, ["arm64-v8a"])
+    assert gradle.read_text() == "// mine\n"
+    assert (dest / "pyxpo-gen" / "assets" / "pyxpo" / "app.zip").is_file()
+    assert (dest / "pyxpo-gen" / "jniLibs" / "arm64-v8a" / "libpython3.13.so").is_file()
     for p in dest.rglob("*"):
-        if p.is_file() and not p.is_symlink() and p.suffix in ios.TEXT_SUFFIXES:
+        if p.is_file() and p.suffix in (".kts", ".xml", ".kt"):
             assert not re.search(r"\{\{\w+\}\}", p.read_text()), p
+            if "pyxpo-gen" not in p.parts:
+                assert str(tmp_path) not in p.read_text(), p

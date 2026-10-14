@@ -41,3 +41,17 @@ def test_add_lib(tmp_path, monkeypatch):
     assert load_config(proj)["requires"] == ["numpy"]
     assert cli.main(["add-lib", "tensorflow", "--dir", str(proj)]) == 1
     assert load_config(proj)["requires"] == ["numpy"]
+
+
+def test_prebuild_cli(tmp_path, monkeypatch):
+    import importlib
+
+    ios = importlib.import_module("pyxpo.build.ios")
+    droid = importlib.import_module("pyxpo.build.android")
+    seen = []
+    monkeypatch.setattr(ios, "prebuild", lambda p, clean=False: seen.append(("ios", clean)) or p / "ios")
+    monkeypatch.setattr(droid, "prebuild", lambda p, clean=False: seen.append(("android", clean)) or p / "android")
+    assert cli.main(["prebuild", "ios", "--dir", str(tmp_path)]) == 0
+    assert cli.main(["prebuild", "--clean", "--yes", "--dir", str(tmp_path)]) == 0
+    assert seen == [("ios", False), ("android", True), ("ios", True)]
+    assert cli.main(["prebuild", "ios", "--clean", "--dir", str(tmp_path)]) == 2  # needs --yes when not a tty

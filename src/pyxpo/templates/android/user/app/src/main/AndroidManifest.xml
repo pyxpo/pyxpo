@@ -21,7 +21,7 @@
         </intent>
     </queries>
     <application
-        android:label="{{app_name}}"
+        android:label="${pyxpoName}"
         android:extractNativeLibs="true"
         android:allowBackup="false"
         android:theme="@android:style/Theme.DeviceDefault.Light.NoActionBar"
@@ -40,7 +40,7 @@
                 <action android:name="android.intent.action.VIEW" />
                 <category android:name="android.intent.category.DEFAULT" />
                 <category android:name="android.intent.category.BROWSABLE" />
-                <data android:scheme="{{app_id}}" />
+                <data android:scheme="${pyxpoScheme}" />
             </intent-filter>
         </activity>
     </application>

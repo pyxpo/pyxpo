@@ -9,7 +9,9 @@ import zipfile
 from pathlib import Path
 from typing import Dict, List, Optional
 
+from .. import native_config
 from ..config import load_config, pip_index_args
+from . import prebuild as prebuild_mod
 from . import elfcheck
 
 REPO = Path(__file__).resolve().parents[3]
@@ -62,21 +64,64 @@ def find_gradle() -> str:
     raise BuildError("gradle not found; install it or put it on PATH")
 
 
-def render_shell(dest: Path, values: Dict[str, str]) -> None:
-    if dest.exists():
-        shutil.rmtree(str(dest))
-    for src in TEMPLATE.rglob("*"):
-        if src.is_dir():
-            continue
-        out = dest / src.relative_to(TEMPLATE)
+GEN = "pyxpo-gen"
+
+
+def native_dir(project: Path) -> Path:
+    """The ejected `android/` folder when `pyxpo prebuild` made one, else a throwaway one under build/."""
+    ejected = Path(project) / "android"
+    return ejected if prebuild_mod.is_ejected(ejected) else Path(project) / "build" / "android" / "shell"
+
+
+def properties_text(nc: Dict[str, object], project: Path, abis: List[str]) -> str:
+    """Values the user-owned Gradle files read from pyxpo-gen/pyxpo.properties (rewritten on every build)."""
+    props = {
+        "applicationId": nc["bundle_id"], "name": nc["name"], "scheme": nc["scheme"], "versionName": nc["version"],
+        "versionCode": nc["build_number"], "abis": ",".join(abis), "dist": DIST, "common": COMMON,
+    }
+    if nc["keystore"]:
+        ks = Path(str(nc["keystore"]))
+        props["keystore"] = ks if ks.is_absolute() else Path(project) / ks
+        props["keyAlias"] = nc["key_alias"]
+    return "".join("%s=%s\n" % (k, str(v).replace("\\", "\\\\")) for k, v in props.items())
+
+
+def render_gen(native: Path, nc: Dict[str, object], project: Path, abis: List[str]) -> Path:
+    """Recreates the framework-owned `pyxpo-gen/` folder. Never touches anything outside it."""
+    gen = native / GEN
+    if gen.exists():
+        shutil.rmtree(str(gen))
+    for rel, data in prebuild_mod.render(TEMPLATE / "gen", {}).items():
+        out = gen / rel
         out.parent.mkdir(parents=True, exist_ok=True)
-        if src.suffix in (".kts", ".xml", ".properties", ".c", ".kt", ".txt"):
-            text = src.read_text()
-            for k, v in values.items():
-                text = text.replace("{{%s}}" % k, v)
-            out.write_text(text)
-        else:
-            shutil.copy2(str(src), str(out))
+        out.write_bytes(data)
+    (gen / "pyxpo.properties").write_text(properties_text(nc, project, abis))
+    try:
+        (native / "local.properties").write_text("sdk.dir=%s\n" % find_sdk())
+    except BuildError:
+        pass  # the real build reports the missing SDK
+    return gen
+
+
+def available_abis() -> List[str]:
+    return [a for a in ABI_TAGS if (DIST / a / "prefix" / "lib" / "libpython3.13.so").is_file()]
+
+
+def prebuild(project: Path, clean: bool = False) -> Path:
+    """Ejects `<project>/android`: user-owned files are written once (edited ones are kept), `pyxpo-gen/` is refreshed."""
+    project = Path(project).resolve()
+    nc = native_config.resolve(load_config(project), project)
+    dest = project / "android"
+    if clean and dest.exists():
+        shutil.rmtree(str(dest))
+    rendered = prebuild_mod.render(TEMPLATE / "user", {})
+    rendered[".gitignore"] = ("%s/\n.gradle/\nbuild/\napp/build/\napp/.cxx/\nlocal.properties\n*.pyxpo-new\n" % GEN).encode()
+    from .. import __version__
+    for action, rel in prebuild_mod.apply(rendered, dest, __version__):
+        if action == "conflict":
+            print("kept your edited %s; new version saved as %s.pyxpo-new" % (rel, rel))
+    render_gen(dest, nc, project, available_abis())
+    return dest
 
 
 def _zip_tree(zpath: Path, root: Path, arcprefix: str = "", skip=()) -> None:
@@ -146,37 +191,18 @@ def launch(app_id: str, extras: Optional[Dict[str, str]] = None) -> None:
     _run(cmd)
 
 
-def build(project: Path, release: bool = False, install: bool = False, run: bool = False) -> Path:
-    project = Path(project).resolve()
-    cfg = load_config(project)
-    name = cfg.get("name", project.name)
-    app_id = cfg.get("bundle_id", "com.example.app")
-    abis = [a for a in ABI_TAGS if (DIST / a / "prefix" / "lib" / "libpython3.13.so").is_file()]
-    if not abis:
-        raise BuildError("no CPython build in %s; run native/android/build_cpython.py" % DIST)
-    sdk = find_sdk()
-    if find_ndk(sdk) is None:
-        raise BuildError("NDK 27.3.13750724 missing; sdkmanager 'ndk;27.3.13750724'")
-
-    stage = project / "build" / "android"
-    shell = stage / "shell"
-    jni = stage / "jniLibs"
-    values = {
-        "app_name": name, "app_id": app_id, "common": str(COMMON), "dist": str(DIST),
-        "dist_jnilibs": str(jni), "abis": ", ".join('"%s"' % a for a in abis),
-    }
-    render_shell(shell, values)
-    (shell / "local.properties").write_text("sdk.dir=%s\n" % sdk)
-
-    assets = shell / "app" / "src" / "main" / "assets" / "pyxpo"
+def stage(native: Path, project: Path, cfg: Dict[str, object], release: bool, abis: List[str]) -> None:
+    """Refreshes pyxpo-gen/ (config, runtime, Python, app, site-packages). User-owned files stay untouched."""
+    nc = native_config.resolve(cfg, project)
+    gen = render_gen(native, nc, project, abis)
+    jni = gen / "jniLibs"
+    assets = gen / "assets" / "pyxpo"
     assets.mkdir(parents=True, exist_ok=True)
-    if jni.exists():
-        shutil.rmtree(str(jni))
     for abi in abis:
         prefix = DIST / abi / "prefix"
         _zip_tree(assets / ("stdlib-%s.zip" % abi), prefix / "lib" / "python3.13",
                   arcprefix="lib/python3.13/", skip=STDLIB_SKIP)
-        site = stage / "site" / abi
+        site = gen / "site" / abi
         install_requires(list(cfg.get("requires", [])), abi, site, pip_index_args(cfg, project))
         (jni / abi).mkdir(parents=True)
         _check_16kb(site, jni / abi, abi, bool(cfg.get("allow_4kb_libs", False)))
@@ -203,15 +229,39 @@ def build(project: Path, release: bool = False, install: bool = False, run: bool
         h.update(p.read_bytes())
     (assets / "manifest.txt").write_text(h.hexdigest()[:16])
 
-    _run([find_gradle(), "-p", shell, "--console=plain", "assembleRelease" if release else "assembleDebug"],
+
+def build(project: Path, release: bool = False, install: bool = False, run: bool = False) -> Path:
+    project = Path(project).resolve()
+    cfg = load_config(project)
+    nc = native_config.resolve(cfg, project)
+    abis = available_abis()
+    if not abis:
+        raise BuildError("no CPython build in %s; run native/android/build_cpython.py" % DIST)
+    sdk = find_sdk()
+    if find_ndk(sdk) is None:
+        raise BuildError("NDK 27.3.13750724 missing; sdkmanager 'ndk;27.3.13750724'")
+
+    native = native_dir(project)
+    if not prebuild_mod.is_ejected(native):  # implicit prebuild: a disposable project nobody edits
+        if native.exists():
+            shutil.rmtree(str(native))
+        for rel, data in prebuild_mod.render(TEMPLATE / "user", {}).items():
+            (native / rel).parent.mkdir(parents=True, exist_ok=True)
+            (native / rel).write_bytes(data)
+    stage(native, project, cfg, release, abis)
+
+    _run([find_gradle(), "-p", native, "--console=plain", "assembleRelease" if release else "assembleDebug"],
          env=dict(os.environ, ANDROID_HOME=str(sdk)))
-    apk = shell / "app" / "build" / "outputs" / "apk" / ("release" if release else "debug") / (
-        "app-release-unsigned.apk" if release else "app-debug.apk")
+    outdir = native / "app" / "build" / "outputs" / "apk" / ("release" if release else "debug")
+    if release:
+        apk = outdir / ("app-release.apk" if nc["keystore"] else "app-release-unsigned.apk")
+    else:
+        apk = outdir / "app-debug.apk"
     if not apk.is_file():
         raise BuildError("apk not produced: %s" % apk)
     print("built %s" % apk)
     if install or run:
         _run([adb_path(), "install", "-r", apk])
         if run:
-            launch(app_id)
+            launch(str(nc["bundle_id"]))
     return apk
