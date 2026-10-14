@@ -28,6 +28,14 @@ class PyxpoRuntime(private val ctx: Context, private val applier: OpApplier) {
 
     private val events = java.util.concurrent.Executors.newSingleThreadExecutor()
 
+    /** Wheel libs with versioned sonames (e.g. libgfortran.so.3) ship as lib*_wheel.so in jniLibs. Load
+     *  them first so the linker satisfies NEEDED entries of C extensions by soname. */
+    private fun preloadWheelLibs() {
+        File(ctx.applicationInfo.nativeLibraryDir).listFiles()?.filter { it.name.endsWith("_wheel.so") }?.forEach {
+            try { System.load(it.absolutePath) } catch (e: Throwable) { Log.w("pyxpo", "preload ${it.name}: $e") }
+        }
+    }
+
     fun start(module: String = "app.main") {
         if (started) return
         started = true
@@ -38,6 +46,7 @@ class PyxpoRuntime(private val ctx: Context, private val applier: OpApplier) {
             val home = File(root, "home").absolutePath
             val site = File(root, "site").absolutePath
             val app = File(root, "app").absolutePath
+            preloadWheelLibs()
             nativeSetEnv("PYXPO_TARGET", "android")
             nativeSetEnv("HOME", ctx.filesDir.absolutePath)
             nativeSetEnv("TMPDIR", ctx.cacheDir.absolutePath)
