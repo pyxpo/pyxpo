@@ -187,6 +187,25 @@ def test_flatlist_render_item_arity():
     assert adapt_render_item(lambda item, index: (item, index))("a", 3) == ("a", 3)
     assert adapt_render_item(lambda item, index=0, *r: (item, index))("a", 3) == ("a", 3)
 
+    import functools
+
+    def deco(fn):
+        @functools.wraps(fn)
+        def w(*a, **k):
+            return fn(*a, **k)
+        return w
+
+    # a decorated one-argument renderer keeps the RN `{"item", "index"}` form
+    assert adapt_render_item(deco(lambda p: (p["item"], p["index"])))("a", 3) == ("a", 3)
+    assert adapt_render_item(deco(lambda item, index: (item, index)))("a", 3) == ("a", 3)
+
+
+def test_flatlist_accepts_rn_ref():
+    from pyxpo.scroll import ScrollRef
+    ref = ScrollRef()
+    app, r = mount(lambda: FlatList(data=[1, 2], renderItem=lambda p: Text(str(p["item"])), ref=ref))
+    assert r.texts() == ["1", "2"] and ref.id == r.find_all("ScrollView")[0].id
+
 
 def test_section_list_rows_keys_and_empty_sections():
     from pyxpo import SectionList, Text

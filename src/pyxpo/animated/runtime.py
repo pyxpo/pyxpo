@@ -5,20 +5,22 @@ import weakref
 from typing import Any, Callable, Dict, List, Optional
 
 from . import engine
-from ..ops import ANodeDel, ASet, Op
+from ..ops import AListen, ANode, ANodeDel, ASet, Op
 
 _app: Any = None
 _queue: List[Op] = []
 _node_id = 0
 _anim_id = 0
+_drains = 0  # bumped whenever the queue is emptied: a rollback mark from before that is void
 nodes: "weakref.WeakValueDictionary[int, Any]" = weakref.WeakValueDictionary()
 callbacks: Dict[int, Callable[[Dict[str, Any]], None]] = {}
 NOAPP = object()
 
 
 def set_app(app: Any) -> None:
-    global _app
+    global _app, _drains
     _app = app
+    _drains += 1
     _queue.clear()
     callbacks.clear()
 
@@ -45,9 +47,34 @@ def queue(op: Op) -> None:
 
 def drain() -> List[Op]:
     """Pending node ops. The reconciler sends them ahead of Create/Update so bindings never dangle."""
+    global _drains
     out = list(_queue)
     _queue.clear()
+    _drains += 1
     return out
+
+
+def mark() -> Any:
+    return len(_queue), _drains
+
+
+def rollback(m: Any) -> None:
+    """Drop node registrations queued since `mark()` (a render that an ErrorBoundary rolled back): the views that
+    used them were never sent, and the effects that would free them never run. A dropped node registers again the
+    next time it is wired. Deletes of older nodes (cleanups of really unmounted fibers) are kept."""
+    n, d = m
+    if d != _drains or len(_queue) <= n:
+        return  # nothing queued, or it was already sent
+    tail = _queue[n:]
+    dropped = {op.id for op in tail if op.__class__ is ANode}
+    if not dropped:
+        return
+    del _queue[n:]
+    _queue.extend(op for op in tail if not (op.__class__ in (ANode, AListen, ANodeDel) and op.id in dropped))
+    for i in dropped:
+        node = nodes.get(i)
+        if node is not None:
+            node._token = None
 
 
 def send(*ops: Op) -> None:

@@ -273,3 +273,60 @@ def test_partial_update_with_removals_and_mounts_rolls_back():
     r.press(r.find_text("retry"))
     check(app, r)
     assert r.texts() == ["r2", "r5", "r6", "new", "m2"]
+
+
+def test_rollback_releases_refs_animated_nodes_and_setters_of_unattached_fibers():
+    from pyxpo import ScrollRef, ScrollView, use_animated_value
+
+    sref = ScrollRef()
+    setters = []
+
+    @component
+    def Animated1():
+        v = use_animated_value(1.0)
+        _, set_x = use_state(0)
+        setters.append(set_x)
+        return View(style={"opacity": v})
+
+    @component
+    def Bad():
+        raise ValueError("bad")
+
+    @component
+    def Root():
+        # Animated1 and the ScrollView mount before Bad fails: the partial child list is never attached
+        return View(ErrorBoundary(View(Animated1(), ScrollView(Text("s"), ref=sref), Bad()), fallback=Fallback))
+
+    app, r, errors = mount(Root)
+    assert r.texts() == ["oops: bad"] and errors == []
+    assert sref.id is None  # not bound to a view that native never got
+    assert r.driver.nodes == {}  # the Value's node was never created natively (its freeing effect never runs)
+    dirty = list(app.dirty)
+    setters[0](5)  # the rolled-back fiber is unmounted: no re-render scheduled
+    assert app.dirty == dirty
+    check(app, r)
+
+
+def test_rolled_back_animated_value_registers_again_when_reused():
+    from pyxpo.animated import Value
+
+    shared = Value(0.5)  # outlives the rolled-back render
+
+    @component
+    def Root():
+        fail, set_fail = use_state(True)
+
+        @component
+        def Maybe():
+            if fail:
+                raise ValueError("x")
+            return Text("ok")
+
+        return View(ErrorBoundary(View(View(style={"opacity": shared}), Maybe()), fallback=Fallback),
+                    View(style={"opacity": shared}) if not fail else None,
+                    Button("fix", on_press=lambda: set_fail(False)))
+
+    app, r, _ = mount(Root)
+    assert shared.id not in r.driver.nodes and shared._token is None
+    r.press(r.find_text("fix"))
+    assert shared.id in r.driver.nodes  # wired again by the sibling: registered again

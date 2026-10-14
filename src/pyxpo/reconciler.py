@@ -107,7 +107,7 @@ class Reconciler:
     def update(self, fiber: Fiber) -> None:
         if fiber.unmounted:
             return
-        marks = (len(self.ops), len(self.pending_effects), len(self._deletes), self._next_id)
+        marks = (len(self.ops), len(self.pending_effects), len(self._deletes), self._next_id, _anim.mark())
         try:
             self._render_comp(fiber)
         except Exception as e:  # noqa: BLE001
@@ -248,11 +248,19 @@ class Reconciler:
             self.ops.append(Create(f.id, e.type, wire))  # wire is never mutated after this (f.sent is replaced)
             self._set_handlers(f, events)
             if e.children:
-                self._reconcile_children(f, e.children)
+                try:
+                    self._reconcile_children(f, e.children)
+                except BaseException:
+                    self._unmount(f)  # never attached: release its ref and handlers, stop its setters
+                    raise
                 self._sync(f)
         else:
             f = Fiber("comp", e, parent, self)
-            self._render_comp(f)
+            try:
+                self._render_comp(f)
+            except BaseException:
+                self._unmount(f)
+                raise
         return f
 
     def _update(self, f: Fiber, e: Element) -> None:
@@ -304,7 +312,7 @@ class Reconciler:
     def _render_boundary(self, f: Fiber) -> None:
         """Render an ErrorBoundary. A render error below it rolls its subtree back and shows the fallback. An error
         while the fallback is shown propagates to the next boundary up."""
-        marks = (len(self.ops), len(self.pending_effects), len(self._deletes), self._next_id)
+        marks = (len(self.ops), len(self.pending_effects), len(self._deletes), self._next_id, _anim.mark())
         e = f.element
         try:
             out = render_with_hooks(f, e.type.fn, e.children, e.props)
@@ -318,7 +326,7 @@ class Reconciler:
                 raise
             self._fallback(f, marks, err)
 
-    def _catch(self, node: Optional[Fiber], marks: Tuple[int, int, int, int], err: Exception) -> Fiber:
+    def _catch(self, node: Optional[Fiber], marks: Tuple[Any, ...], err: Exception) -> Fiber:
         """Hand `err` to the innermost boundary at or above `node` that is not showing its fallback. Returns it."""
         while True:
             b = node
@@ -333,12 +341,13 @@ class Reconciler:
             except Exception as e2:  # noqa: BLE001  # the fallback itself failed: next boundary up
                 err, node = e2, b.parent
 
-    def _fallback(self, b: Fiber, marks: Tuple[int, int, int, int], err: Exception) -> None:
+    def _fallback(self, b: Fiber, marks: Tuple[Any, ...], err: Exception) -> None:
         """Roll back everything emitted since `marks` (all of it lies inside b), unmount b's children, render the
         fallback. Fibers created since the marks were never sent: their Delete ops and handlers are dropped."""
-        n_ops, n_eff, n_del, id_mark = marks
+        n_ops, n_eff, n_del, id_mark, anim_mark = marks
         del self.ops[n_ops:]
         del self.pending_effects[n_eff:]
+        _anim.rollback(anim_mark)  # before the unmount below: its cleanups may queue deletes of older nodes
         self._unmount_children(b)
         self._deletes[n_del:] = [i for i in self._deletes[n_del:] if i < id_mark]
         if self._next_id > id_mark:
@@ -366,7 +375,15 @@ class Reconciler:
         old = parent.children
         mount = self._mount
         if not old:
-            parent.children = [mount(e, parent) for e in elements]
+            new: List[Fiber] = []
+            try:
+                for e in elements:
+                    new.append(mount(e, parent))
+            except BaseException:
+                for c in new:  # mounted but never attached to parent: nothing else will unmount them
+                    self._unmount(c)
+                raise
+            parent.children = new
             return
         n_old = len(old)
         if n_old == 1 and len(elements) == 1:  # single child (most component renders): no key map needed
@@ -376,26 +393,32 @@ class Reconciler:
                 return
         old_keyed = {o.key: o for o in old if o.key is not None}
         used: Set[Fiber] = set()  # Fiber hashes by identity
-        new: List[Fiber] = []
+        new = []
         update = self._update
-        for i, e in enumerate(elements):
-            k = e.key
-            if k is not None:
-                cand = old_keyed.get(k)
-                if cand is not None and cand.element.type != e.type:
+        try:
+            for i, e in enumerate(elements):
+                k = e.key
+                if k is not None:
+                    cand = old_keyed.get(k)
+                    if cand is not None and cand.element.type != e.type:
+                        cand = None
+                elif i < n_old:
+                    cand = old[i]
+                    if cand.key is not None or cand.element.type != e.type:
+                        cand = None
+                else:
                     cand = None
-            elif i < n_old:
-                cand = old[i]
-                if cand.key is not None or cand.element.type != e.type:
-                    cand = None
-            else:
-                cand = None
-            if cand is not None and cand not in used:
-                used.add(cand)
-                update(cand, e)
-            else:
-                cand = mount(e, parent)
-            new.append(cand)
+                if cand is not None and cand not in used:
+                    used.add(cand)
+                    update(cand, e)
+                else:
+                    cand = mount(e, parent)
+                new.append(cand)
+        except BaseException:
+            for c in new:
+                if c not in used:  # freshly mounted, never attached (old ones stay in parent.children)
+                    self._unmount(c)
+            raise
         if len(used) != n_old:
             for o in old:
                 if o not in used:

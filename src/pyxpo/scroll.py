@@ -49,7 +49,7 @@ def _key_of(item: Any, index: int, key_extractor: Optional[Callable[[Any, int], 
 def _takes_one(fn: Callable) -> bool:
     """True when `fn` declares exactly one positional parameter (RN style `({item, index}) => ...`)."""
     code = getattr(fn, "__code__", None)
-    if code is None:
+    if code is None or hasattr(fn, "__wrapped__"):  # decorated: the wrapper's own code says (*args, **kwargs)
         import inspect
         try:
             ps = [p for p in inspect.signature(fn).parameters.values()
@@ -96,6 +96,9 @@ def FlatList(data: Optional[List[Any]] = None, render_item: Optional[Callable[[A
     `separator_size` is the extent of `item_separator` (needed to place the window).
     """
     data = list(data or [])
+    ref = props.pop("ref", None)  # RN style `ref=` (ScrollView also gets `ref=`: passing both would collide)
+    if list_ref is None:
+        list_ref = ref
     if render_item is not None:
         render_item = adapt_render_item(render_item)
     n = len(data)
