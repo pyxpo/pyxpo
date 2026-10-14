@@ -19,6 +19,10 @@ def render_with_hooks(fiber: Any, fn: Callable[..., Any], args: Sequence[Any], k
     _stack.append(fiber)
     try:
         out = fn(*args, **kwargs)
+    except BaseException:
+        if not fiber.hooks_ready:
+            del fiber.hooks[:]  # a failed first render must not leave a partial hook list behind
+        raise
     finally:
         _stack.pop()
     if fiber.hooks_ready and fiber.hook_index != len(fiber.hooks):
@@ -56,9 +60,17 @@ def _same(a: Any, b: Any) -> bool:
     if type(a) is not type(b):
         return False
     try:
-        return bool(a == b)
+        if a == b:
+            return True
     except Exception:
         return False
+    return a.__class__ is float and a != a and b != b  # NaN is the same as NaN (like Object.is)
+
+
+def _check_deps(name: str, deps: Any) -> None:
+    if deps is not None and deps.__class__ is not list and deps.__class__ is not tuple \
+            and not isinstance(deps, (list, tuple)):
+        raise HookError("%s deps must be a list, a tuple or None, got %s" % (name, type(deps).__name__))
 
 
 def _deps_changed(old: Optional[list], new: Optional[Sequence[Any]]) -> bool:
@@ -105,6 +117,7 @@ class _Memo:
 
 
 def use_memo(factory: Callable[[], Any], deps: Optional[Sequence[Any]] = None) -> Any:
+    _check_deps("use_memo", deps)
     cell, new = _use("memo", lambda f: _Memo())
     if new or _deps_changed(cell.deps, deps):
         cell.value = factory()
@@ -124,13 +137,27 @@ class _Effect:
         self.cleanup = None
 
 
-def use_effect(fn: Callable[[], Any], deps: Optional[Sequence[Any]] = None) -> None:
-    """Run fn after commit. deps=None: every render. deps=[]: once. fn may return a cleanup callable."""
-    f = _current("use_effect")
+def _effect(name: str, fn: Callable[[], Any], deps: Optional[Sequence[Any]]) -> None:
+    f = _current(name)
+    _check_deps(name, deps)
     cell, new = _use("effect", lambda _f: _Effect())
     if new or _deps_changed(cell.deps, deps):
         cell.deps = None if deps is None else list(deps)
         f.rec.pending_effects.append((f, cell, fn))
+
+
+def use_effect(fn: Callable[[], Any], deps: Optional[Sequence[Any]] = None) -> None:
+    """Run fn after commit. deps=None: every render. deps=[]: once. fn may return a cleanup callable.
+
+    Child effects run before parent effects, and all cleanups of a commit run before its setups. An exception in
+    one effect or cleanup goes to `App.on_error` and does not stop the others. An `async def` effect is scheduled
+    as a task on the app loop; it cannot return a cleanup (use `use_async` for that)."""
+    _effect("use_effect", fn, deps)
+
+
+def use_layout_effect(fn: Callable[[], Any], deps: Optional[Sequence[Any]] = None) -> None:
+    """Same timing as `use_effect`: native layout is measured asynchronously, so there is no earlier point to run."""
+    _effect("use_layout_effect", fn, deps)
 
 
 class Context:
@@ -197,7 +224,134 @@ def use_async(fn: Callable[[], Any], deps: Optional[Sequence[Any]] = None) -> As
 
 
 def reset_deps(fiber: Any) -> None:
-    """Hot reload: force memos to recompute and effects to clean up and re-run on the next render."""
+    """Hot reload: force memos to recompute and effects to clean up and re-run on the next render.
+    Error boundaries retry their children (the edit may have fixed the error)."""
     for kind, data in fiber.hooks:
         if kind in ("memo", "effect"):
             data.deps = None
+        elif kind == "boundary":
+            data.error = None
+
+
+class _Reducer:
+    __slots__ = ("value", "reducer", "dispatch")
+
+
+def use_reducer(reducer: Callable[[Any, Any], Any], initial_arg: Any, init: Optional[Callable[[Any], Any]] = None):
+    """`state, dispatch = use_reducer(reducer, initial_arg, init=None)`. dispatch is stable; a reducer result that is
+    the same as the current state does not re-render."""
+    def make(f: Any) -> _Reducer:
+        cell = _Reducer()
+        cell.value = init(initial_arg) if init is not None else initial_arg
+
+        def dispatch(action: Any) -> None:
+            if f.unmounted:
+                return
+            new = cell.reducer(cell.value, action)
+            if _same(new, cell.value):
+                return
+            cell.value = new
+            f.rec.schedule(f)
+
+        cell.dispatch = dispatch
+        return cell
+
+    cell, _ = _use("reducer", make)
+    cell.reducer = reducer  # dispatch uses the reducer of the latest render
+    return cell.value, cell.dispatch
+
+
+def use_id() -> str:
+    """A string id that is stable for the life of the component and unique within the app."""
+    def make(f: Any) -> str:
+        rec = f.rec
+        rec.id_counter += 1
+        return ":p%d:" % rec.id_counter
+
+    value, _ = _use("id", make)
+    return value
+
+
+def use_imperative_handle(ref: Any, create: Callable[[], Any], deps: Optional[Sequence[Any]] = None) -> None:
+    """Expose `create()` on a parent's ref (`ref.current`, or a callable ref). Cleared on unmount."""
+    _check_deps("use_imperative_handle", deps)
+
+    def setup() -> Optional[Callable[[], None]]:
+        if ref is None:
+            return None
+        if callable(ref) and not hasattr(ref, "current"):
+            ref(create())
+            return lambda: ref(None)
+        ref.current = create()
+
+        def clear() -> None:
+            ref.current = None
+
+        return clear
+
+    _effect("use_imperative_handle", setup, None if deps is None else [ref] + list(deps))
+
+
+class _Store:
+    __slots__ = ("value", "get")
+
+
+def use_sync_external_store(subscribe: Callable[[Callable[[], None]], Any], get_snapshot: Callable[[], Any],
+                            get_server_snapshot: Optional[Callable[[], Any]] = None) -> Any:
+    """Read an external store. `subscribe(on_change)` returns an unsubscribe callable; `get_snapshot()` returns the
+    current value (it must return the same object while the store is unchanged)."""
+    f = _current("use_sync_external_store")
+    snap = get_snapshot()
+    cell, _ = _use("store", lambda _f: _Store())
+    cell.value = snap
+    cell.get = get_snapshot
+
+    def check() -> None:
+        if not f.unmounted and not _same(cell.get(), cell.value):
+            f.rec.schedule(f)
+
+    def sub() -> Optional[Callable[[], Any]]:
+        unsubscribe = subscribe(check)
+        check()  # the store may have changed between render and subscribe
+        return unsubscribe if callable(unsubscribe) else None
+
+    _effect("use_sync_external_store", sub, [subscribe])
+    return snap
+
+
+def _start_transition(fn: Callable[[], Any]) -> None:
+    fn()
+
+
+def use_transition():
+    """`(is_pending, start_transition)`. pyxpo renders synchronously, so is_pending is always False."""
+    return False, _start_transition
+
+
+def use_deferred_value(value: Any, initial_value: Any = None) -> Any:
+    """pyxpo has no concurrent rendering: the value is returned as is."""
+    return value
+
+
+def use_debug_value(value: Any, format: Optional[Callable[[Any], Any]] = None) -> None:
+    """No-op (React DevTools label)."""
+    return None
+
+
+# React Native spellings (same objects)
+useState = use_state
+useEffect = use_effect
+useLayoutEffect = use_layout_effect
+useRef = use_ref
+useMemo = use_memo
+useCallback = use_callback
+useContext = use_context
+createContext = create_context
+useReducer = use_reducer
+useId = use_id
+useImperativeHandle = use_imperative_handle
+useSyncExternalStore = use_sync_external_store
+useTransition = use_transition
+useDeferredValue = use_deferred_value
+useDebugValue = use_debug_value
+useAsync = use_async

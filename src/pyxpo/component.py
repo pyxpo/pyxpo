@@ -10,6 +10,8 @@ from .element import Element, flatten
 class Component:
     """A function component. Calling it builds an Element; the fn runs during reconciliation."""
 
+    _boundary = False  # ErrorBoundary: the reconciler catches render errors below it
+
     def __init__(self, fn: Callable[..., Any], name: str = "") -> None:
         self.fn = fn
         self.name = name or getattr(fn, "__name__", "Component")
@@ -136,3 +138,42 @@ def memo(comp: Component, are_equal: Optional[Callable[[Dict[str, Any], Dict[str
     else:
         out.memo = lambda old, new: bool(are_equal(old.props, new.props))
     return out
+
+
+# -- ErrorBoundary ---------------------------------------------------------
+class _BoundaryCell:
+    __slots__ = ("error", "showing", "reset")
+
+
+def _boundary_cell(f: Any) -> _BoundaryCell:
+    cell = _BoundaryCell()
+    cell.error = None
+    cell.showing = False  # the current children are the fallback
+
+    def reset() -> None:
+        if cell.error is not None and not f.unmounted:
+            cell.error = None
+            f.rec.schedule(f)
+
+    cell.reset = reset
+    return cell
+
+
+def _error_boundary(*children: Any, fallback: Any = None, on_error: Optional[Callable[[BaseException], Any]] = None):
+    from .hooks import _use
+    cell, _ = _use("boundary", _boundary_cell)  # must stay the first hook: the reconciler reads hooks[0]
+    if cell.error is None:
+        return list(children)
+    if callable(fallback) and not isinstance(fallback, Element):
+        return fallback(cell.error, cell.reset)
+    return fallback
+
+
+ErrorBoundary = Component(_error_boundary, name="ErrorBoundary")
+ErrorBoundary.__doc__ = """`ErrorBoundary(*children, fallback=lambda error, reset: ..., on_error=None)`.
+
+A render error in any child (mount or update) rolls that subtree back and renders `fallback(error, reset)` (or
+`fallback` itself when it is an element; nothing when None). `reset()` renders the children again. `on_error(error)`
+is called once per caught error. Like React, only render errors are caught: event handler and effect errors go to
+`App.on_error`. An error inside the fallback goes to the next boundary up."""
+ErrorBoundary._boundary = True

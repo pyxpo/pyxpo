@@ -67,6 +67,7 @@ class App:
             type(e), e, e.__traceback__, file=sys.stderr)
         self.rec = Reconciler(self._schedule)
         self.rec.loop = loop
+        self.rec.on_error = self._report  # effect/cleanup errors; late-bound so `app.on_error = ...` still works
         self.env = self.rec.env
         env_mod.set_current(self.env)
         if os.environ.get("PYXPO_ENV"):  # native snapshot, so the first render already has the real window size
@@ -172,6 +173,9 @@ class App:
             self.on_error(e)
         self._request_flush()
 
+    def _report(self, e: BaseException) -> None:
+        self.on_error(e)
+
     def _schedule(self, fiber: Fiber) -> None:
         if fiber not in self._dirty_set:
             self._dirty_set.add(fiber)
@@ -261,6 +265,7 @@ class App:
         new = Reconciler(self._schedule)
         new.loop = self.loop
         new.env = self.env
+        new.on_error = self._report
         new._next_id = old._next_id
         new.render(self._root_element)  # may raise: old tree stays untouched
         ops: list = [Remove(p, n) for n, p in self._committed.items() if p]

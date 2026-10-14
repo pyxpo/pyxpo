@@ -27,6 +27,17 @@ from .env import (Dimensions, Platform, PixelRatio, responsive, use_breakpoint, 
 from .style import StyleSheet, parse_color
 from .hooks import (HookError, create_context, use_async, use_callback, use_context, use_effect, use_memo,
                     use_ref, use_state)
+from .hooks import (createContext, use_debug_value, use_deferred_value, use_id, use_imperative_handle,
+                    use_layout_effect, use_reducer, use_sync_external_store, use_transition, useAsync, useCallback,
+                    useContext, useDebugValue, useDeferredValue, useEffect, useId, useImperativeHandle,
+                    useLayoutEffect, useMemo, useReducer, useRef, useState, useSyncExternalStore, useTransition)
+from .component import ErrorBoundary
+
+# React Native spellings of hooks defined outside hooks.py (same objects)
+useWindowDimensions, useColorScheme, useSafeAreaInsets = use_window_dimensions, use_color_scheme, use_safe_area_insets
+useKeyboard, useOrientation, useBreakpoint, useResponsive = use_keyboard, use_orientation, use_breakpoint, use_responsive
+useTheme, useNavigation, useScrollRef = use_theme, use_navigation, use_scroll_ref
+useAnimatedValue, usePanResponder = use_animated_value, use_pan_responder
 
 __version__ = "0.1.0"
 
@@ -39,4 +50,12 @@ __all__ = [
     "StyleSheet", "parse_color", "Dimensions", "Platform", "PixelRatio", "responsive", "use_breakpoint",
     "use_color_scheme", "use_keyboard", "use_orientation", "use_responsive", "use_safe_area_insets",
     "use_window_dimensions", "use_async", "use_callback", "use_context", "use_effect", "use_memo", "use_ref", "use_state",
+]
+__all__ += [  # hooks (Phase 5/6) and ErrorBoundary
+    "ErrorBoundary", "use_debug_value", "use_deferred_value", "use_id", "use_imperative_handle", "use_layout_effect",
+    "use_reducer", "use_sync_external_store", "use_transition",
+    "createContext", "useAsync", "useCallback", "useContext", "useDebugValue", "useDeferredValue", "useEffect", "useId",
+    "useImperativeHandle", "useLayoutEffect", "useMemo", "useReducer", "useRef", "useState", "useSyncExternalStore",
+    "useTransition", "useWindowDimensions", "useColorScheme", "useSafeAreaInsets", "useKeyboard", "useOrientation",
+    "useBreakpoint", "useResponsive", "useTheme", "useNavigation", "useScrollRef", "useAnimatedValue", "usePanResponder",
 ]

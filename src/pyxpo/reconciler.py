@@ -1,6 +1,8 @@
 from __future__ import annotations
 
+import asyncio
 import inspect
+import warnings
 from typing import Any, Callable, Dict, List, Optional, Set, Tuple
 
 from .animated import runtime as _anim
@@ -45,6 +47,10 @@ def _host_ids(fiber: Fiber, out: List[int]) -> List[int]:
     return out
 
 
+def _neg_depth(p: Tuple[Fiber, Any, Any]) -> int:
+    return -p[0].depth
+
+
 _ARITY: Dict[Any, bool] = {}
 
 
@@ -81,6 +87,11 @@ class Reconciler:
         self.handlers: Dict[Tuple[int, str], Callable[..., Any]] = {}
         self._deletes: List[int] = []
         self._next_id = 2
+        self.id_counter = 0  # use_id
+        # Effect, cleanup and async-effect errors go here (App sets it). None: the first one is re-raised at the end
+        # of run_effects, after every other effect has run.
+        self.on_error: Optional[Callable[[BaseException], Any]] = None
+        self._error: Optional[BaseException] = None
         self.root = Fiber("root", None, None, self)
         self.root.id = 1
 
@@ -96,7 +107,11 @@ class Reconciler:
     def update(self, fiber: Fiber) -> None:
         if fiber.unmounted:
             return
-        self._render_comp(fiber)
+        marks = (len(self.ops), len(self.pending_effects), len(self._deletes), self._next_id)
+        try:
+            self._render_comp(fiber)
+        except Exception as e:  # noqa: BLE001
+            fiber = self._catch(fiber.parent, marks, e)  # the boundary that now shows its fallback (or re-raise)
         host = fiber.parent
         while host.kind == "comp":
             host = host.parent
@@ -110,15 +125,67 @@ class Reconciler:
         return ops
 
     def run_effects(self) -> None:
-        pending, self.pending_effects = self.pending_effects, []
-        live = [p for p in pending if not p[0].unmounted]
-        for _, cell, _fn in live:
-            if cell.cleanup:
-                cleanup, cell.cleanup = cell.cleanup, None
-                cleanup()
-        for _, cell, fn in live:
-            result = fn()
-            cell.cleanup = result if callable(result) else None
+        pending = self.pending_effects
+        if pending:
+            self.pending_effects = []
+            live = [p for p in pending if not p[0].unmounted]
+            if len(live) > 1:
+                live.sort(key=_neg_depth)  # children before parents (stable: a fiber keeps its hook order)
+            for _, cell, _fn in live:
+                if cell.cleanup is not None:
+                    cleanup, cell.cleanup = cell.cleanup, None
+                    try:
+                        cleanup()
+                    except Exception as e:  # noqa: BLE001
+                        self._report(e)
+            for _, cell, fn in live:
+                try:
+                    result = fn()
+                except Exception as e:  # noqa: BLE001
+                    self._report(e)
+                    continue
+                if result is None:
+                    continue
+                if callable(result):
+                    cell.cleanup = result
+                elif inspect.isawaitable(result):
+                    self._run_async_effect(result)
+        if self._error is not None:
+            err, self._error = self._error, None
+            raise err
+
+    def _report(self, e: BaseException) -> None:
+        if self.on_error is not None:
+            self.on_error(e)
+        elif self._error is None:
+            self._error = e
+
+    def _run_async_effect(self, aw: Any) -> None:
+        warnings.warn("async effect: it runs as a task and cannot return a cleanup; use use_async for that",
+                      RuntimeWarning, stacklevel=3)
+        loop = self.loop
+        if loop is None:
+            try:
+                loop = asyncio.get_running_loop()
+            except RuntimeError:
+                loop = None
+        if loop is None:
+            if inspect.iscoroutine(aw):
+                aw.close()
+            self._report(RuntimeError("async effect needs an app running on an asyncio loop"))
+            return
+
+        async def run() -> None:
+            await aw
+
+        def done(t: Any) -> None:
+            if not t.cancelled() and t.exception() is not None:
+                self._report(t.exception())
+                if self._error is not None:  # no app: let the loop's exception handler log it
+                    err, self._error = self._error, None
+                    raise err
+
+        loop.create_task(run()).add_done_callback(done)
 
     def dispatch(self, node_id: int, event: str, payload: Optional[Dict[str, Any]] = None) -> bool:
         fn = self.handlers.get((node_id, event))
@@ -227,8 +294,73 @@ class Reconciler:
 
     def _render_comp(self, f: Fiber) -> None:
         e = f.element
+        if e.type._boundary:
+            self._render_boundary(f)
+            return
         out = render_with_hooks(f, e.type.fn, e.children, e.props)
         self._reconcile_children(f, [out] if out.__class__ is Element else flatten([out]))
+
+    # -- error boundaries ------------------------------------------------
+    def _render_boundary(self, f: Fiber) -> None:
+        """Render an ErrorBoundary. A render error below it rolls its subtree back and shows the fallback. An error
+        while the fallback is shown propagates to the next boundary up."""
+        marks = (len(self.ops), len(self.pending_effects), len(self._deletes), self._next_id)
+        e = f.element
+        try:
+            out = render_with_hooks(f, e.type.fn, e.children, e.props)
+            cell = f.hooks[0][1]
+            if cell.showing != (cell.error is not None):  # switched between children and fallback: remount
+                self._unmount_children(f)
+                cell.showing = cell.error is not None
+            self._reconcile_children(f, [out] if out.__class__ is Element else flatten([out]))
+        except Exception as err:  # noqa: BLE001
+            if not f.hooks_ready or f.hooks[0][1].error is not None:
+                raise
+            self._fallback(f, marks, err)
+
+    def _catch(self, node: Optional[Fiber], marks: Tuple[int, int, int, int], err: Exception) -> Fiber:
+        """Hand `err` to the innermost boundary at or above `node` that is not showing its fallback. Returns it."""
+        while True:
+            b = node
+            while b is not None and not (b.kind == "comp" and b.element.type._boundary and b.hooks_ready
+                                         and b.hooks[0][1].error is None):
+                b = b.parent
+            if b is None:
+                raise err
+            try:
+                self._fallback(b, marks, err)
+                return b
+            except Exception as e2:  # noqa: BLE001  # the fallback itself failed: next boundary up
+                err, node = e2, b.parent
+
+    def _fallback(self, b: Fiber, marks: Tuple[int, int, int, int], err: Exception) -> None:
+        """Roll back everything emitted since `marks` (all of it lies inside b), unmount b's children, render the
+        fallback. Fibers created since the marks were never sent: their Delete ops and handlers are dropped."""
+        n_ops, n_eff, n_del, id_mark = marks
+        del self.ops[n_ops:]
+        del self.pending_effects[n_eff:]
+        self._unmount_children(b)
+        self._deletes[n_del:] = [i for i in self._deletes[n_del:] if i < id_mark]
+        if self._next_id > id_mark:
+            for k in [k for k in self.handlers if k[0] >= id_mark]:
+                del self.handlers[k]
+        cell = b.hooks[0][1]
+        cell.error = err
+        cell.showing = True
+        on_error = b.element.props.get("on_error")
+        if on_error is not None:
+            try:
+                on_error(err)
+            except Exception as e:  # noqa: BLE001
+                self._report(e)
+        e = b.element
+        out = render_with_hooks(b, e.type.fn, e.children, e.props)
+        self._reconcile_children(b, [out] if out.__class__ is Element else flatten([out]))
+
+    def _unmount_children(self, f: Fiber) -> None:
+        children, f.children = f.children, []
+        for c in children:
+            self._unmount(c)
 
     def _reconcile_children(self, parent: Fiber, elements: List[Element]) -> None:
         old = parent.children
@@ -271,13 +403,18 @@ class Reconciler:
         parent.children = new
 
     def _unmount(self, f: Fiber) -> None:
+        if f.unmounted:
+            return
         for c in f.children:
             self._unmount(c)
         f.unmounted = True
         for kind, data in f.hooks:
             if kind == "effect" and data.cleanup:
                 cleanup, data.cleanup = data.cleanup, None
-                cleanup()
+                try:
+                    cleanup()
+                except Exception as e:  # noqa: BLE001  # never leave a commit half-unmounted
+                    self._report(e)
         if f.kind == "host":
             ref = f.element.props.get("ref") if f.element is not None else None
             if ref is not None and hasattr(ref, "_unbind"):
