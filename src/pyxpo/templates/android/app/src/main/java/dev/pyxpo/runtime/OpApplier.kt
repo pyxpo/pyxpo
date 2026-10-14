@@ -461,6 +461,26 @@ class OpApplier(
                 "Scroll.to" -> { scrollTo(args.getInt(0), args.getDouble(1), args.getDouble(2), args.optBoolean(3, true)); null }
                 "Scroll.to_end" -> { scrollTo(args.getInt(0), null, null, args.optBoolean(1, true)); null }
                 "Back.exit" -> { (ctx as? android.app.Activity)?.finish(); null }
+                "StatusBar.set_style" -> {
+                    val act = ctx as? android.app.Activity
+                    val light = args.optString(0, "dark") == "dark"  // dark content on a light background
+                    act?.runOnUiThread {
+                        val w = act.window
+                        if (android.os.Build.VERSION.SDK_INT >= 30) {
+                            val m = android.view.WindowInsetsController.APPEARANCE_LIGHT_STATUS_BARS or
+                                android.view.WindowInsetsController.APPEARANCE_LIGHT_NAVIGATION_BARS
+                            w.insetsController?.setSystemBarsAppearance(if (light) m else 0, m)
+                        } else if (android.os.Build.VERSION.SDK_INT >= 23) {
+                            @Suppress("DEPRECATION") run {
+                                var f = w.decorView.systemUiVisibility
+                                f = if (light) f or android.view.View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR
+                                    else f and android.view.View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR.inv()
+                                w.decorView.systemUiVisibility = f
+                            }
+                        }
+                    }
+                    null
+                }
                 "Back.set_enabled" -> { backEnabled = args.optBoolean(0, false); null }
                 "Keyboard.dismiss" -> {
                     val act = ctx as? android.app.Activity

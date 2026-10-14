@@ -21,7 +21,7 @@ class SceneDelegate: UIResponder, UIWindowSceneDelegate {
 
     func scene(_ scene: UIScene, willConnectTo session: UISceneSession, options: UIScene.ConnectionOptions) {
         guard let ws = scene as? UIWindowScene else { return }
-        let vc = UIViewController()
+        let vc = PxRootViewController()
         vc.view.backgroundColor = .white
         let w = UIWindow(windowScene: ws)
         w.rootViewController = vc
@@ -58,5 +58,20 @@ class SceneDelegate: UIResponder, UIWindowSceneDelegate {
         try? fm.createDirectory(atPath: caches + "/pyxpo", withIntermediateDirectories: true)
         try? fm.copyItem(atPath: root, toPath: dest)
         return dest
+    }
+}
+
+/// Root controller: owns the status bar appearance (`StatusBar.set_style` from Python).
+final class PxRootViewController: UIViewController {
+    static weak var shared: PxRootViewController?
+    private var barStyle: UIStatusBarStyle = .darkContent
+
+    override func viewDidLoad() { super.viewDidLoad(); Self.shared = self }
+    override var preferredStatusBarStyle: UIStatusBarStyle { barStyle }
+
+    /// light=true means light (white) glyphs for dark backgrounds.
+    func setBarStyle(light: Bool) {
+        barStyle = light ? .lightContent : .darkContent
+        setNeedsStatusBarAppearanceUpdate()
     }
 }

@@ -21,6 +21,17 @@ def call(module: str, method: str, *args: Any, reply: bool = False) -> Any:
     return _app.call(module, method, *args, reply=reply)
 
 
+class StatusBar:
+    """System status bar. `style` is the glyph colour: "dark" (for light backgrounds) or "light"."""
+    _style = None
+
+    @classmethod
+    def set_style(cls, style: str) -> None:
+        if style != cls._style and _app is not None:
+            cls._style = style
+            call("StatusBar", "set_style", style)
+
+
 class Back:
     """Android hardware back. Navigators register a handler; the newest handler that returns True consumes it."""
     _handlers: list = []

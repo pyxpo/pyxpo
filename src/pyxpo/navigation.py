@@ -217,6 +217,7 @@ class _DrawerNav(_TabNav):
 
 
 _NavContext = create_context(None)
+_TopInset = create_context(True)  # False once an ancestor header already paints under the status bar
 
 
 def use_navigation() -> Navigation:
@@ -255,9 +256,11 @@ def _Header(title: str = "", can_back: bool = False, on_back: Any = None, header
             title_style: Any = None, back_label: str = "", right: Any = None, left: Any = None):
     from .ui import Pressable
     from .widgets import Icon
+    from .env import use_safe_area_insets
     c = use_theme()["colors"]
-    bar = {"height": 48, "flex_direction": "row", "align_items": "center", "padding_horizontal": 4,
-           "background_color": c["surface"], "border_bottom_width": 1, "border_color": c["border"]}
+    top = use_safe_area_insets()["top"] if use_context(_TopInset) else 0
+    bar = {"height": 48 + top, "padding_top": top, "flex_direction": "row", "align_items": "center",
+           "padding_horizontal": 4, "background_color": c["surface"], "border_bottom_width": 1, "border_color": c["border"]}
     if left is None:
         left = (Pressable(back_label and Text(back_label, style={"font_size": 30, "color": c["primary"]})
                           or Icon("chevron-left", size=26, color=c["primary"]),
@@ -332,7 +335,8 @@ def Stack(screens: Optional[Dict[str, Any]] = None, initial: Optional[str] = Non
                 _Header(title=_title(r.name, o), can_back=r is not nav.stack[0], on_back=nav.go_back,
                         header_style=header_style, title_style=title_style, left=o.get("header_left"),
                         right=o.get("header_right")) if show_header else None,
-                View(_Screen(screen=screens[r.name], navigation=handle, params=r.params), style={"flex": 1}),
+                View(_TopInset.Provider(_Screen(screen=screens[r.name], navigation=handle, params=r.params),
+                                        value=not show_header), style={"flex": 1}),
                 leaving=leaving, animate=r.anim and nav.animate, width=width,
                 on_enter=(lambda k=r.key: nav.enter_done(k)), on_exit=(lambda k=r.key: nav.exit_done(k)),
                 hidden=not leaving and r is not top and r is not below,
@@ -447,7 +451,9 @@ def TopTabs(screens: Optional[Dict[str, Any]] = None, initial: Optional[str] = N
 def _DrawerList(names: Any = (), options: Any = None, current: str = "", title: str = "", on_select: Any = None):
     from .ui import Pressable
     from .widgets import Icon
+    from .env import use_safe_area_insets
     c = use_theme()["colors"]
+    top = use_safe_area_insets()["top"]
     opts = options or {}
     rows = []
     for n in names:
@@ -464,9 +470,9 @@ def _DrawerList(names: Any = (), options: Any = None, current: str = "", title: 
                    {"background_color": c["surface_alt"]} if on else None]))
     return View(
         View(Text(title, style={"font_size": 20, "font_weight": "700", "color": c["text"]}),
-             style={"padding": 20, "padding_top": 28, "border_bottom_width": 1, "border_color": c["border"],
+             style={"padding": 20, "padding_top": 28 + top, "border_bottom_width": 1, "border_color": c["border"],
                     "margin_bottom": 8}) if title else None,
-        ScrollView(*rows, style={"flex": 1}), style={"flex": 1})
+        ScrollView(*rows, style={"flex": 1}), style={"flex": 1, "padding_top": 0 if title else top})
 
 
 @component
@@ -540,7 +546,8 @@ def Drawer(screens: Optional[Dict[str, Any]] = None, initial: Optional[str] = No
     main = View(
         _Header(title=_title(cur, o), left=menu, header_style=header_style, title_style=title_style,
                 right=o.get("header_right")) if header and o.get("header", True) else None,
-        View(*pages, style={"flex": 1}), style={"flex": 1})
+        View(_TopInset.Provider(*pages, value=not (header and o.get("header", True))), style={"flex": 1}),
+        style={"flex": 1})
     layers = [main]
     if shown:
         content = (drawer_content(navigation=handle, current=cur, names=names) if drawer_content is not None

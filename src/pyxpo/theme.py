@@ -13,7 +13,8 @@ from typing import Any, Dict, Optional
 
 from .component import component
 from .env import use_color_scheme
-from .hooks import create_context, use_context
+from .hooks import create_context, use_context, use_effect
+from .modules import StatusBar
 
 Theme = Dict[str, Any]
 
@@ -84,4 +85,5 @@ def ThemeProvider(*children: Any, theme: Optional[Theme] = None, mode: str = "sy
         chosen = dark or dark_theme
     else:
         chosen = light or light_theme
+    use_effect(lambda: StatusBar.set_style("light" if chosen.get("dark") else "dark"), [bool(chosen.get("dark"))])
     return _ThemeContext.Provider(*children, value=chosen)

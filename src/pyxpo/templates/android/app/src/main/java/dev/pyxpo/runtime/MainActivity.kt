@@ -14,6 +14,19 @@ class MainActivity : Activity() {
         val root = FrameLayout(this)
         // Edge-to-edge: the app draws under system bars. Insets and keyboard height go to Python (SafeArea).
         if (android.os.Build.VERSION.SDK_INT >= 30) window.setDecorFitsSystemWindows(false)
+        window.statusBarColor = android.graphics.Color.TRANSPARENT
+        window.navigationBarColor = android.graphics.Color.TRANSPARENT
+        if (android.os.Build.VERSION.SDK_INT >= 29) {
+            window.isNavigationBarContrastEnforced = false
+            window.isStatusBarContrastEnforced = false
+        }
+        if (android.os.Build.VERSION.SDK_INT >= 23) {
+            // Ask for the display's highest refresh rate at the current resolution (90/120 Hz panels).
+            val d = windowManager.defaultDisplay
+            val cur = d.mode
+            d.supportedModes.filter { it.physicalWidth == cur.physicalWidth && it.physicalHeight == cur.physicalHeight }
+                .maxByOrNull { it.refreshRate }?.let { window.attributes = window.attributes.also { a -> a.preferredDisplayModeId = it.modeId } }
+        }
         root.setOnApplyWindowInsetsListener { v, insets ->
             var l = 0; var t = 0; var r = 0; var b = 0; var kb = 0
             if (android.os.Build.VERSION.SDK_INT >= 30) {

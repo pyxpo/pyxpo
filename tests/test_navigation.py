@@ -261,3 +261,15 @@ def test_top_tabs_lazy_mount_and_switch():
     assert "page b" not in r.texts()
     box["n"].navigate("B")
     assert "page b" in r.texts()
+
+
+def test_statusbar_set_style_dedupes(monkeypatch):
+    from pyxpo import modules
+    calls = []
+    monkeypatch.setattr(modules, "_app", object())
+    monkeypatch.setattr(modules, "call", lambda *a, **k: calls.append(a))
+    monkeypatch.setattr(modules.StatusBar, "_style", None)
+    modules.StatusBar.set_style("light")
+    modules.StatusBar.set_style("light")
+    modules.StatusBar.set_style("dark")
+    assert calls == [("StatusBar", "set_style", "light"), ("StatusBar", "set_style", "dark")]

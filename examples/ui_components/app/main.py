@@ -145,12 +145,12 @@ def TopTabsDemo(navigation, params):
 def App():
     dark, set_dark = use_state(False)
     return ThemeProvider(
-        SafeArea(
+        View(
             Drawer(screens={"Components": lambda navigation, params: Components(dark=dark, set_dark=set_dark),
                             "Bottom tabs": BottomTabsDemo, "Top tabs": TopTabsDemo},
                    screen_options={"Components": {"icon": "layers"}, "Bottom tabs": {"icon": "home"},
                                    "Top tabs": {"icon": "compass"}}, drawer_title="pyxpo"),
-            edges=("top",), style={"flex": 1, "background_color": (dark_theme if dark else light_theme)["colors"]["background"]}),
+            style={"flex": 1, "background_color": (dark_theme if dark else light_theme)["colors"]["background"]}),
         theme=dark_theme if dark else light_theme)
 
 
