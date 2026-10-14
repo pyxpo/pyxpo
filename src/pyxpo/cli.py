@@ -89,6 +89,9 @@ def _android(args: argparse.Namespace, run: bool) -> int:
     except (BuildError, FileNotFoundError, ValueError) as e:
         print("error: %s" % e, file=sys.stderr)
         return 1
+    except OSError as e:
+        print("error: %s (is another `pyxpo run` using the dev port? try --port N or --no-reload)" % e, file=sys.stderr)
+        return 1
     return 0
 
 
@@ -105,7 +108,7 @@ def _android_dev(droid, project: Path, args: argparse.Namespace) -> None:
     try:
         droid.launch(cfg.get("bundle_id", "com.example.app"),
                      {"pyxpo_dev_url": dev.url, "pyxpo_dev_token": token})
-        print("hot reload on %s; edit app/ files, Ctrl-C to stop" % dev.url)
+        print("hot reload on %s; edit app/ files, Ctrl-C to stop" % dev.url, flush=True)
         dev.serve_forever()
     finally:
         droid._run([adb, "reverse", "--remove", "tcp:" + port])
@@ -132,7 +135,7 @@ def _ios(args: argparse.Namespace, run: bool) -> int:
         proc = ios.install_and_run(app, app_id, extras)
         try:
             if dev:
-                print("hot reload on %s; edit app/ files, Ctrl-C to stop" % dev.url)
+                print("hot reload on %s; edit app/ files, Ctrl-C to stop" % dev.url, flush=True)
                 dev.serve_forever()
             else:
                 proc.wait()
@@ -140,6 +143,9 @@ def _ios(args: argparse.Namespace, run: bool) -> int:
             proc.terminate()
     except (ios.BuildError, FileNotFoundError, ValueError) as e:
         print("error: %s" % e, file=sys.stderr)
+        return 1
+    except OSError as e:
+        print("error: %s (is another `pyxpo run` using the dev port? try --port N or --no-reload)" % e, file=sys.stderr)
         return 1
     return 0
 
