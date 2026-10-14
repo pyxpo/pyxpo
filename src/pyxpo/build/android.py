@@ -10,6 +10,7 @@ from pathlib import Path
 from typing import Dict, List, Optional
 
 from ..config import load_config
+from . import elfcheck
 
 REPO = Path(__file__).resolve().parents[3]
 DIST = Path(os.environ.get("PYXPO_ANDROID_DIST", REPO / "dist" / "android"))
@@ -113,6 +114,32 @@ def _hoist_shared_libs(site: Path, jni_abi: Path) -> None:
         shutil.move(str(so), str(jni_abi / ("%s_wheel.so" % stem)))
 
 
+def _rel(p: Path, *roots: Path) -> str:
+    for r in roots:
+        try:
+            return str(p.relative_to(r))
+        except ValueError:
+            pass
+    return p.name
+
+
+def _check_16kb(site: Path, jni_abi: Path, abi: str, allow: bool) -> None:
+    """Android 15+ devices with 16 KB pages cannot load .so files aligned to 4 KB."""
+    bad = elfcheck.find_unaligned([site, jni_abi])
+    if not bad:
+        return
+    lines = ["  %s (p_align=%d)" % (_rel(p, site, jni_abi), a)
+             for p, a in bad[:10]]
+    msg = ("%d native libs for %s are not 16 KB aligned and crash on 16 KB-page devices "
+           "(Pixel 8+ on Android 15+, required by Google Play):\n%s%s\n"
+           "Use wheels built with -Wl,-z,max-page-size=16384 (pyxpo-wheels), or set allow_4kb_libs = true "
+           "in [tool.pyxpo] to build anyway for 4 KB devices only." % (
+               len(bad), abi, "\n".join(lines), "\n  ..." if len(bad) > 10 else ""))
+    if not allow:
+        raise BuildError(msg)
+    print("warning: " + msg)
+
+
 def _skip_runtime_file(rel: Path, release: bool) -> bool:
     """Files left out of app.zip: tooling always; the hot-reload package in release builds."""
     if rel.parts[0] in ("templates", "build") or rel.name == "cli.py" or "__pycache__" in rel.parts:
@@ -167,6 +194,7 @@ def build(project: Path, release: bool = False, install: bool = False, run: bool
         install_requires(list(cfg.get("requires", [])), abi, site)
         (jni / abi).mkdir(parents=True)
         _hoist_shared_libs(site, jni / abi)
+        _check_16kb(site, jni / abi, abi, bool(cfg.get("allow_4kb_libs", False)))
         _zip_tree(assets / ("site-%s.zip" % abi), site)
         for so in SO_FOR_JNILIBS:
             shutil.copy2(str(prefix / "lib" / so), str(jni / abi / so))

@@ -11,3 +11,5 @@
 - Done M3 iOS (simulator arm64): native/ios/build_cpython.py -> dist/ios/Python.xcframework; template src/pyxpo/templates/ios (XcodeGen, UIKit, PyxpoRuntime.m NSThread 8MB, OpApplier.swift, PyxpoLayout.swift flexbox); ext .so -> frameworks via build/ios_wrap.py in Xcode phase; `pyxpo build|run ios`. VERIFIED on iPhone 18 sim: render + hot reload (SIMCTL_CHILD_ env, files copied to Caches). NOT verified: tap (no simctl tap tool), device/x86_64 slices (--all), --release, requires wheels.
 - iOS quirks: Xcode 27 min deploy target 15.0; XcodeGen hangs on `group:` for native path; UILabel backgroundColor=nil renders black -> use .clear; goto over ARC var in .m.
 - Next: M4 wheels index (16 KB) + more components. Opus final diff review still pending.
+
+- 16 KB: own CPython libs verified 16 KB-aligned (81/81 LOAD p_align=0x4000). Build now runs build/elfcheck.py on site/ + jniLibs and fails on 4 KB libs (Chaquopy numpy) unless `allow_4kb_libs = true`. Real fix = own 16 KB wheels (M4 pyxpo-wheels); post-hoc ELF realign not feasible.
