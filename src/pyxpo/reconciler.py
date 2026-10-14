@@ -75,7 +75,8 @@ class Reconciler:
         self._sync(host)
 
     def take_ops(self) -> List[Op]:
-        ops = self.ops
+        from .animated import runtime as _anim
+        ops = _anim.drain() + self.ops
         ops.extend(Delete(i) for i in self._deletes)
         self.ops, self._deletes = [], []
         return ops
@@ -117,7 +118,13 @@ class Reconciler:
         events: Dict[str, Callable[..., Any]] = {}
         for k, v in props.items():
             if k == "style":
-                v = normalize_style(v) if self.wire_v2 else (flatten_style(v) if isinstance(v, (list, tuple)) else v)
+                if self.wire_v2:
+                    v = normalize_style(v)
+                else:
+                    if isinstance(v, (list, tuple)):
+                        v = flatten_style(v)
+                    if isinstance(v, dict) and any(getattr(x, "_is_animated", False) for x in v.values()):
+                        v = {a: (x._wire() if getattr(x, "_is_animated", False) else x) for a, x in v.items()}
             if callable(v):
                 events[k[3:] if k.startswith("on_") else k] = v
                 wire[k] = True

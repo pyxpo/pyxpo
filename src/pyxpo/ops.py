@@ -64,7 +64,51 @@ class Call(Op):
     op = "call"
 
 
-_BY_NAME = {c.op: c for c in (Create, Update, Insert, Remove, Delete, Call)}
+@dataclass
+class ANode(Op):
+    """Create an animated node (value / interp / add / mul). Ids are separate from view ids."""
+    id: int
+    node: Dict[str, Any]
+    op = "anode"
+
+
+@dataclass
+class ANodeDel(Op):
+    id: int
+    op = "anode_del"
+
+
+@dataclass
+class AListen(Op):
+    """Ask native to send `anim_value` events for this value node."""
+    id: int
+    on: bool
+    op = "alisten"
+
+
+@dataclass
+class Animate(Op):
+    """Start animation tree `anim` on the native driver. Native answers with `anim_end` (id = animation id)."""
+    id: int
+    anim: Dict[str, Any]
+    op = "animate"
+
+
+@dataclass
+class AStop(Op):
+    id: int
+    op = "astop"
+
+
+@dataclass
+class ASet(Op):
+    """Set value nodes ({node id as str: value}); also stops native animations driving them."""
+    vals: Dict[str, float]
+    op = "aset"
+
+
+_BY_NAME = {c.op: c for c in (Create, Update, Insert, Remove, Delete, Call, ANode, ANodeDel, AListen, Animate, AStop,
+                              ASet)}
 
 
 def op_from_dict(d: Dict[str, Any]) -> Op:

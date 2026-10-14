@@ -69,6 +69,9 @@ class OpApplier(
     private var rootH = 0
     private var sentEnv: String? = null
     private var batching = false
+    private val anim = Animated({ n, id, pl -> event(n, id, pl) }) { touched -> onAnimFrame(touched) }
+    private val binds = HashMap<Int, HashMap<String, Int>>()   // view id -> style key -> animated node id
+    private val depCache = HashMap<Int, Set<Int>>()
 
     init {
         // Root id 1 is implicit in the ops protocol: it is never created by the reconciler.
@@ -90,6 +93,12 @@ class OpApplier(
                 "insert" -> insert(o.getInt("parent"), o.getInt("id"), o.getInt("index"))
                 "remove" -> remove(o.getInt("parent"), o.getInt("id"))
                 "delete" -> delete(o.getInt("id"))
+                "anode" -> { anim.anode(o.getInt("id"), o.getJSONObject("node")); depCache.clear() }
+                "anode_del" -> { anim.anodeDel(o.getInt("id")); depCache.clear() }
+                "alisten" -> anim.alisten(o.getInt("id"), o.getBoolean("on"))
+                "animate" -> anim.animate(o.getInt("id"), o.getJSONObject("anim"))
+                "astop" -> anim.astop(o.getInt("id"))
+                "aset" -> anim.aset(o.getJSONObject("vals"))
                 "call" -> call(o.getInt("id"), o.getString("module"), o.getString("method"),
                     o.optJSONArray("args") ?: JSONArray(), o.optBoolean("reply"))
             }
@@ -464,6 +473,7 @@ class OpApplier(
 
     private fun delete(id: Int) {
         val v = views.remove(id)
+        binds.remove(id)
         touching.remove(id); a11y.remove(id); inputCfg.remove(id); wired.remove(id)
         texts.remove(id); spans.remove(id)
         (v?.parent as? ViewGroup)?.removeView(v)
@@ -482,7 +492,64 @@ class OpApplier(
     // -- style -------------------------------------------------------------------------------------
     private fun prop(name: String): Int = propIds.getOrPut(name) { layout.propId(name) }
 
-    private fun applyStyle(id: Int, v: View, s: JSONObject) {
+    private fun animVal(k: String, node: Int): Any {
+        val x = anim.resolve(node)
+        return if (k == "color" || k.endsWith("_color")) x.toLong() else x
+    }
+
+    /** Replaces `{"$a": node}` bindings with the node's current value and records the bindings for the frame loop. */
+    private fun resolveBinds(id: Int, s: JSONObject): JSONObject {
+        var b: HashMap<String, Int>? = null
+        val it = s.keys()
+        while (it.hasNext()) {
+            val k = it.next()
+            val o = s.opt(k)
+            if (o is JSONObject && o.has("\$a")) { if (b == null) b = HashMap(); b[k] = o.getInt("\$a") }
+        }
+        if (b == null) { binds.remove(id); return s }
+        val out = JSONObject()
+        val ks = s.keys()
+        while (ks.hasNext()) { val k = ks.next(); out.put(k, s.get(k)) }
+        for ((k, n) in b) out.put(k, animVal(k, n))
+        binds[id] = b
+        return out
+    }
+
+    private fun depsOf(node: Int): Set<Int> = depCache.getOrPut(node) { anim.deps(node) }
+
+    private val TRANSFORM = setOf("opacity", "rotate", "scale", "scale_x", "scale_y", "translate_x", "translate_y")
+
+    /** Per-frame: write the changed animated values straight onto views. Layout keys re-run the engine once. */
+    private fun onAnimFrame(touched: Set<Int>) {
+        var relayout = false
+        for ((id, b) in binds) {
+            val v = views[id] ?: continue
+            val s = styles[id] ?: continue
+            var tr = false; var box = false; var txt = false; var shadow = false
+            for ((k, n) in b) {
+                if (touched.none { it in depsOf(n) }) continue
+                val nv = animVal(k, n)
+                s.put(k, nv)
+                when {
+                    k in TRANSFORM -> tr = true
+                    k == "color" -> txt = true
+                    k.startsWith("shadow") || k == "elevation" -> shadow = true
+                    else -> {
+                        if (prop(k) >= 0) { pushLayout(id, k, nv); layout.markDirty(id); relayout = true }
+                        if (k.startsWith("background") || k.startsWith("border")) box = true
+                    }
+                }
+            }
+            if (tr) paintTransform(v, s)
+            if (box) paintBox(id, v, s)
+            if (shadow) paintShadow(v, s)
+            if (txt && v is TextView) v.setTextColor(col(s, "color"))
+        }
+        if (relayout) flush()
+    }
+
+    private fun applyStyle(id: Int, v: View, raw: JSONObject) {
+        val s = resolveBinds(id, raw)
         val old = styles[id] ?: JSONObject()
         val it = s.keys()
         while (it.hasNext()) {
@@ -525,14 +592,18 @@ class OpApplier(
         val clip = s.optString("overflow") == "hidden"
         v.clipToOutline = clip && id in painted
         (v as? PxGroup)?.clipChildren = clip
-        v.alpha = num(s, "opacity", 1.0).toFloat().coerceIn(0f, 1f)
         paintShadow(v, s)
+        paintTransform(v, s)
+        if (v is TextView) paintText(id, v, s)
+    }
+
+    private fun paintTransform(v: View, s: JSONObject) {
+        v.alpha = num(s, "opacity", 1.0).toFloat().coerceIn(0f, 1f)
         v.rotation = num(s, "rotate").toFloat()
         v.scaleX = (num(s, "scale", 1.0) * num(s, "scale_x", 1.0)).toFloat()
         v.scaleY = (num(s, "scale", 1.0) * num(s, "scale_y", 1.0)).toFloat()
         v.translationX = px(num(s, "translate_x"))
         v.translationY = px(num(s, "translate_y"))
-        if (v is TextView) paintText(id, v, s)
     }
 
     private fun paintBox(id: Int, v: View, s: JSONObject) {

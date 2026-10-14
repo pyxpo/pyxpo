@@ -8,6 +8,7 @@ from .component import enable_registry as _enable_registry
 if _os.environ.get("PYXPO_DEV_URL"):
     _enable_registry(True)  # keep Component identity across hot reloads; must run before app code
 
+from .animated import Animated, Easing, use_animated_value
 from .app import App, create_app, run_app
 from .channel import Channel, LocalChannel
 from .component import Component, component
@@ -23,6 +24,7 @@ from .hooks import (HookError, create_context, use_async, use_callback, use_cont
 __version__ = "0.1.0"
 
 __all__ = [
+    "Animated", "Easing", "use_animated_value",
     "App", "create_app", "run_app", "Channel", "LocalChannel", "Component", "component", "Element",
     "Alert", "Clipboard", "Keyboard", "Linking", "Vibration", "SafeArea", "KeyboardAvoidingView", "Pressable", "Switch", "Checkbox", "View", "Text", "Button", "Image", "TextInput", "ScrollView", "HookError", "create_context",
     "StyleSheet", "parse_color", "Dimensions", "Platform", "PixelRatio", "responsive", "use_breakpoint",

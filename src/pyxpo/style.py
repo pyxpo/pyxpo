@@ -149,7 +149,13 @@ def expand(style: Dict[str, Any]) -> Dict[str, Any]:
             out["flex_grow"] = max(f, 0)
             out["flex_shrink"] = 1 if f > 0 else 0
             out["flex_basis"] = 0 if f > 0 else "auto"
+    tf = style.get("transform")
+    if isinstance(tf, (list, tuple)):  # RN style: transform=[{"translate_y": 10}, {"scale": 2}]
+        for item in tf:
+            out.update(item)
     for k, v in style.items():
+        if k == "transform" and isinstance(tf, (list, tuple)):
+            continue
         if k in ("margin", "padding", "border_width", "border_color", "border_radius", "gap", "flex") \
                 or k.endswith(("_horizontal", "_vertical")) and k.rsplit("_", 1)[0] in _EDGE_FAMILIES:
             continue
@@ -166,7 +172,9 @@ def normalize(style: Any, *, warn: bool = False) -> Dict[str, Any]:
             continue
         if warn and k not in KNOWN_KEYS and k not in out:
             _warn("unknown style key %r" % k)
-        if k == "color" or k == "background_color" or k.endswith("_color"):
+        if getattr(v, "_is_animated", False):
+            v = v._wire()
+        elif k == "color" or k == "background_color" or k.endswith("_color"):
             v = parse_color(v)
         elif k == "linear_gradient":
             v = _gradient(v)

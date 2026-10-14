@@ -9,6 +9,7 @@ from typing import Any, Callable, Dict, List, Optional
 
 from . import env as env_mod
 from . import modules as modules_mod
+from .animated import runtime as anim_runtime
 from .channel import Channel, LocalChannel
 from .component import Component, component
 from .element import Element
@@ -61,6 +62,7 @@ class App:
         self._call_id = 0
         self._pending: Dict[int, Any] = {}
         modules_mod.set_app(self)
+        anim_runtime.set_app(self)
         self._committed: Dict[int, int] = {}  # native node id -> parent id (0 = detached)
         self._error_shown = False
         self.set_root(root, **props)
@@ -129,6 +131,13 @@ class App:
                     fut.set_exception(RuntimeError(str(pl["error"])))
                 else:
                     fut.set_result(pl.get("value"))
+            return
+        if msg.get("event") in ("anim_end", "anim_value"):
+            try:
+                anim_runtime.handle_event(msg)
+            except Exception as e:  # noqa: BLE001
+                self.on_error(e)
+            self._request_flush()
             return
         try:
             self.rec.dispatch(msg["id"], msg["event"], msg.get("payload"))

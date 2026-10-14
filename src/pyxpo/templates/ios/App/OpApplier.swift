@@ -22,6 +22,10 @@ final class OpApplier {
     private var sentEnv: String?
     private var kbHeight: CGFloat = 0
     private var batching = false
+    private lazy var anim = Animated(emit: { [weak self] n, id, pl in self?.event(n, id, pl) },
+                                     onFrame: { [weak self] t in self?.onAnimFrame(t) })
+    private var binds: [Int: [String: Int]] = [:]   // view id -> style key -> animated node id
+    private var depCache: [Int: Set<Int>] = [:]
     private let sendEvent: (String) -> Void
     private var scale: CGFloat { UIScreen.main.scale }
 
@@ -99,6 +103,12 @@ final class OpApplier {
             case "insert": insert(o["parent"] as? Int ?? 0, id, o["index"] as? Int ?? 0)
             case "remove": remove(o["parent"] as? Int ?? 0, id)
             case "delete": delete(id)
+            case "anode": anim.anode(id, o["node"] as? [String: Any] ?? [:]); depCache.removeAll()
+            case "anode_del": anim.anodeDel(id); depCache.removeAll()
+            case "alisten": anim.alisten(id, o["on"] as? Bool ?? false)
+            case "animate": anim.animate(id, o["anim"] as? [String: Any] ?? [:])
+            case "astop": anim.astop(id)
+            case "aset": anim.aset(o["vals"] as? [String: Any] ?? [:])
             case "call": call(id, o["module"] as? String ?? "", o["method"] as? String ?? "",
                               o["args"] as? [Any] ?? [], o["reply"] as? Bool ?? false)
             default: break
@@ -264,6 +274,7 @@ final class OpApplier {
 
     private func delete(_ id: Int) {
         views.removeValue(forKey: id)?.removeFromSuperview()
+        binds.removeValue(forKey: id)
         if types.removeValue(forKey: id) == "ScrollView" { px_node_delete(tree, Int32(id | Self.content)) }
         px_node_delete(tree, Int32(id))
         styles.removeValue(forKey: id)
@@ -363,7 +374,63 @@ final class OpApplier {
         return p
     }
 
-    private func applyStyle(_ id: Int, _ v: UIView, _ s: [String: Any]) {
+    private func animVal(_ k: String, _ node: Int) -> NSNumber {
+        let x = anim.resolve(node)
+        if k == "color" || k.hasSuffix("_color") { return NSNumber(value: UInt32(x)) }
+        return NSNumber(value: x)
+    }
+
+    /// Replaces `{"$a": node}` bindings with the node's current value and records the bindings for the frame loop.
+    private func resolveBinds(_ id: Int, _ s: [String: Any]) -> [String: Any] {
+        var b: [String: Int] = [:]
+        for (k, o) in s { if let m = o as? [String: Any], let n = m["$a"] as? Int { b[k] = n } }
+        if b.isEmpty { binds.removeValue(forKey: id); return s }
+        var out = s
+        for (k, n) in b { out[k] = animVal(k, n) }
+        binds[id] = b
+        return out
+    }
+
+    private func depsOf(_ node: Int) -> Set<Int> {
+        if let d = depCache[node] { return d }
+        var d = Set<Int>()
+        anim.deps(node, &d)
+        depCache[node] = d
+        return d
+    }
+
+    private static let transformKeys: Set<String> = ["opacity", "rotate", "scale", "scale_x", "scale_y", "translate_x", "translate_y"]
+
+    /// Per-frame: write the changed animated values straight onto views. Layout keys re-run the engine once.
+    private func onAnimFrame(_ touched: Set<Int>) {
+        var relayout = false
+        for (id, b) in binds {
+            guard let v = views[id], var s = styles[id] else { continue }
+            var tr = false, box = false, txt = false
+            for (k, n) in b where !touched.isDisjoint(with: depsOf(n)) {
+                let nv = animVal(k, n)
+                s[k] = nv
+                if Self.transformKeys.contains(k) { tr = true }
+                else if k == "color" { txt = true }
+                else if k.hasPrefix("shadow") || k == "elevation" || k.hasPrefix("background") || k.hasPrefix("border") {
+                    box = true
+                    if prop(k) >= 0 { px_node_set_num(tree, Int32(id), prop(k), nv.floatValue); px_node_mark_dirty(tree, Int32(id)); relayout = true }
+                } else if prop(k) >= 0 {
+                    px_node_set_num(tree, Int32(id), prop(k), nv.floatValue)
+                    px_node_mark_dirty(tree, Int32(id))
+                    relayout = true
+                }
+            }
+            styles[id] = s
+            if tr { paintTransform(v, s) }
+            if box { paintBox(id, v, s) }
+            if txt { paintText(id, v, s) }
+        }
+        if relayout { flush() }
+    }
+
+    private func applyStyle(_ id: Int, _ v: UIView, _ raw: [String: Any]) {
+        let s = resolveBinds(id, raw)
         let old = styles[id] ?? [:]
         let nid = Int32(id)
         for (k, nv) in s where "\(old[k] ?? "")" != "\(nv)" || old[k] == nil {
@@ -405,12 +472,16 @@ final class OpApplier {
             (v as? UIButton)?.contentEdgeInsets = p
         }
         paintBox(id, v, s)
+        paintTransform(v, s)
+        paintText(id, v, s)
+    }
+
+    private func paintTransform(_ v: UIView, _ s: [String: Any]) {
         v.alpha = min(max(num(s, "opacity", 1), 0), 1)
         let sc = num(s, "scale", 1)
         v.transform = CGAffineTransform(translationX: num(s, "translate_x"), y: num(s, "translate_y"))
             .rotated(by: num(s, "rotate") * .pi / 180)
             .scaledBy(x: sc * num(s, "scale_x", 1), y: sc * num(s, "scale_y", 1))
-        paintText(id, v, s)
     }
 
     private func paintBox(_ id: Int, _ v: UIView, _ s: [String: Any]) {

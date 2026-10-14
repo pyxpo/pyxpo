@@ -1,9 +1,12 @@
 from __future__ import annotations
 
+import json
 from typing import Any, Dict, List, Optional
 
 from ..channel import LocalChannel
-from ..ops import Call, Create, Delete, Insert, Remove, Update, event_to_json, from_json
+from ..animated import engine
+from ..style import flatten
+from ..ops import ANode, ANodeDel, AListen, Animate, AStop, ASet, Call, Create, Delete, Insert, Remove, Update, event_to_json, from_json
 
 
 class MockError(RuntimeError):
@@ -36,6 +39,9 @@ class MockRenderer:
         self.nodes: Dict[int, Node] = {1: self.root}
         self.batches = 0
         self.calls: List[Call] = []
+        self.driver = engine.Driver()
+        self.clock = 0.0          # virtual ms, moved by advance()
+        self.anim_ops = 0         # animation ops received (Python must not send per-frame ops for native anims)
         channel.set_native_handler(self.apply_json)
 
     def apply_json(self, payload: str) -> None:
@@ -84,8 +90,43 @@ class MockRenderer:
             del self.nodes[op.id]
         elif isinstance(op, Call):
             self.calls.append(op)
+        elif isinstance(op, (ANode, ANodeDel, AListen, Animate, AStop, ASet)):
+            self.anim_ops += 1
+            d = self.driver
+            if isinstance(op, ANode):
+                d.anode(op.id, op.node)
+            elif isinstance(op, ANodeDel):
+                self._events(d.anode_del(op.id))
+            elif isinstance(op, AListen):
+                d.alisten(op.id, op.on)
+            elif isinstance(op, Animate):
+                self._events(d.animate(op.id, op.anim))
+            elif isinstance(op, AStop):
+                self._events(d.astop(op.id))
+            else:
+                self._events(d.aset(op.vals))
         else:
             raise MockError("unknown op %r" % (op,))
+
+    # -- animation -------------------------------------------------------
+    def _events(self, evs: List[Dict[str, Any]]) -> None:
+        for e in evs:
+            self.channel.emit_event(json.dumps(e))
+
+    def advance(self, ms: float, step: float = 16.0) -> None:
+        """Move the virtual clock forward in frame-sized steps, ticking the animation driver."""
+        end = self.clock + ms
+        while self.clock < end:
+            self.clock = min(end, self.clock + step)
+            self._events(self.driver.tick(self.clock))
+
+    def resolved(self, node: Any, key: str) -> Any:
+        """Effective style value: animated binding if the style key is bound, else the static value."""
+        n = node if isinstance(node, Node) else self._node(node)
+        v = flatten(n.props.get("style")).get(key)
+        if isinstance(v, dict) and "$a" in v:
+            return self.driver.resolve(v["$a"])
+        return v
 
     # -- query helpers -------------------------------------------------
     def find_all(self, type: str) -> List[Node]:
