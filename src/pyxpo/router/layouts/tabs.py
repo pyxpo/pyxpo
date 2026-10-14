@@ -26,13 +26,21 @@ def TabBar(items: Any = (), index: int = 0, on_select: Any = None, style: Any = 
         icon = it.get("icon")
         icon = icon({"color": col, "size": 24, "focused": on}) if callable(icon) else icon
         badge = it.get("badge")
+        pill = (View(Text(str(badge), style={"fontSize": 10, "color": "#FFFFFF"}),
+                     style={"minWidth": 16, "height": 16, "borderRadius": 8, "alignItems": "center",
+                            "justifyContent": "center", "paddingHorizontal": 3, "backgroundColor": c["notification"]})
+                if badge not in (None, False) else None)
+        label = Text(it["label"], style={"fontSize": 11, "marginTop": 3, "color": col})
+        if icon is not None:  # pill rides the icon's top-right corner
+            body = (View(icon, View(pill, style={"position": "absolute", "top": -4, "right": -10})
+                         if pill is not None else None), label)
+        elif pill is not None:  # no icon: pill sits beside the label
+            body = (View(label, View(pill, style={"marginLeft": 4, "marginTop": 3}),
+                         style={"flexDirection": "row", "alignItems": "center"}),)
+        else:
+            body = (label,)
         cells.append(Pressable(
-            View(icon, View(Text(str(badge), style={"fontSize": 10, "color": "#FFFFFF"}),
-                            style={"position": "absolute", "top": -4, "right": -10, "minWidth": 16, "height": 16,
-                                   "borderRadius": 8, "alignItems": "center", "justifyContent": "center",
-                                   "paddingHorizontal": 3, "backgroundColor": c["notification"]})
-                 if badge not in (None, False) else None),
-            Text(it["label"], style={"fontSize": 11, "marginTop": 3, "color": col}),
+            *body,
             on_press=(lambda i=i: on_select(i)), key=it["key"], accessibility_role="tab",
             accessibility_state={"selected": on},
             style={"flex": 1, "alignItems": "center", "justifyContent": "center", "paddingVertical": 6}))
@@ -59,7 +67,7 @@ def Tabs(*children, screen_options: Any = None, initial_route_name: Optional[str
         items[-1] = {k: v for k, v in items[-1].items() if v is not None}
         if r["key"] not in seen.current and o.get("lazy", True):
             continue
-        show = o.get("headerShown", False)
+        show = o.get("headerShown", True)
         pages.append(View(Header(title=o.get("title", r["name"]), options=o) if show else None,
                           View(TopInset.Provider(route_element(nav, node, r), value=not show), style={"flex": 1}),
                           key=r["key"], style=[FILL, {"backgroundColor": bg}, None if i == cur else HIDDEN]))
