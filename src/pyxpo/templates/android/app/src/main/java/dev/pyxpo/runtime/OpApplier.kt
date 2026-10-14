@@ -124,6 +124,7 @@ class OpApplier(
             "ScrollView" -> (if (props.optBoolean("horizontal")) PxHScroll(ctx) else PxScroll(ctx)).also {
                 it.addView(PxGroup(ctx), ViewGroup.LayoutParams(-2, -2))
             }
+            "Modal" -> PxGroup(ctx).also { it.isClickable = true; it.isFocusable = true }
             else -> PxGroup(ctx)
         }
         views[id] = v
@@ -185,7 +186,9 @@ class OpApplier(
                     }
                 }
                 "placeholder" -> (v as? EditText)?.hint = props.optString(k)
-                "on_press", "on_press_in", "on_press_out", "on_long_press" -> if (v !is Button) attachTouch(id, v)
+                "on_press", "on_press_in", "on_press_out", "on_long_press" -> if (v !is Button) { pressy.add(id); attachTouch(id, v) }
+                "on_touch_start", "on_touch_move", "on_touch_end" -> { rawTouch.add(id); attachTouch(id, v) }
+                "on_request_close" -> closeListeners.add(id)
                 "accessibility_label", "accessibility_hint", "accessibility_role", "accessibility_state",
                 "accessibility_value", "accessible" -> a11yDirty = true
                 "style" -> applyStyle(id, v, props.optJSONObject(k) ?: JSONObject())
@@ -196,6 +199,7 @@ class OpApplier(
         }
         for (k in r) {
             if (k == "on_layout") layoutListeners.remove(id)
+            if (k == "on_request_close") closeListeners.remove(id)
             if (v is PxScrollable) scrollProp(id, v as FrameLayout, k, null)
             if (v is ImageView && !props.has(k) && (k == "source" || k == "resize_mode" || k == "tint_color")) applyImage(id, v, JSONObject(), r)
         }
@@ -498,6 +502,9 @@ class OpApplier(
 
     private val a11y = HashMap<Int, JSONObject>()
     private val touching = HashSet<Int>()
+    private val pressy = HashSet<Int>()
+    private val rawTouch = HashSet<Int>()
+    private val closeListeners = HashSet<Int>()
 
     private fun merge(dst: JSONObject, props: JSONObject, removed: Set<String>) {
         for (k in removed) dst.remove(k)
@@ -547,29 +554,41 @@ class OpApplier(
         var down = false
         var long = false
         val longRun = Runnable { if (down) { long = true; event("long_press", id) } }
+        val dens = ctx.resources.displayMetrics.density
+        fun raw(name: String, e: android.view.MotionEvent) {
+            if (!rawTouch.contains(id)) return
+            event(name, id, JSONObject().put("value", JSONObject().put("x", e.x / dens).put("y", e.y / dens)
+                .put("page_x", e.rawX / dens).put("page_y", e.rawY / dens)))
+        }
         v.setOnTouchListener { view, e ->
             val inside = e.x >= -24 && e.y >= -24 && e.x <= view.width + 24 && e.y <= view.height + 24
             when (e.actionMasked) {
                 android.view.MotionEvent.ACTION_DOWN -> {
                     down = true; long = false
-                    view.parent?.requestDisallowInterceptTouchEvent(false)
-                    handler.postDelayed(longRun, 500)
-                    event("press_in", id, JSONObject().put("x", e.x / ctx.resources.displayMetrics.density)
+                    view.parent?.requestDisallowInterceptTouchEvent(rawTouch.contains(id))
+                    raw("touch_start", e)
+                    if (pressy.contains(id)) handler.postDelayed(longRun, 500)
+                    if (pressy.contains(id)) event("press_in", id, JSONObject().put("x", e.x / ctx.resources.displayMetrics.density)
                         .put("y", e.y / ctx.resources.displayMetrics.density))
                     true
                 }
                 android.view.MotionEvent.ACTION_MOVE -> {
-                    if (down && !inside) { down = false; handler.removeCallbacks(longRun); event("press_out", id) }
+                    raw("touch_move", e)
+                    if (down && !inside) { down = false; handler.removeCallbacks(longRun); if (pressy.contains(id)) event("press_out", id) }
                     true
                 }
                 android.view.MotionEvent.ACTION_UP -> {
                     handler.removeCallbacks(longRun)
-                    if (down) { down = false; event("press_out", id); if (!long) event("press", id) }
+                    raw("touch_end", e)
+                    if (down && pressy.contains(id)) { event("press_out", id); if (!long) event("press", id) }
+                    down = false
                     true
                 }
                 android.view.MotionEvent.ACTION_CANCEL -> {
                     handler.removeCallbacks(longRun)
-                    if (down) { down = false; event("press_out", id) }
+                    raw("touch_end", e)
+                    if (down && pressy.contains(id)) event("press_out", id)
+                    down = false
                     true
                 }
                 else -> false
@@ -629,16 +648,33 @@ class OpApplier(
         else Typeface.create(base, (if (weight >= 600) 1 else 0) or (if (italic) 2 else 0))
     }
 
-    private fun insert(parent: Int, id: Int, index: Int) {
+    /** Modals live on the root so they cover the whole screen whatever their Python parent is. */
+    private fun host(id: Int, parent: Int) = if (types[id] == "Modal") 1 else parent
+
+    /** Android back: closest-to-top Modal with `on_request_close` gets the event. */
+    fun handleBack(): Boolean {
+        val root = groupOf(1) ?: return false
+        for (i in root.childCount - 1 downTo 0) {
+            val id = views.entries.firstOrNull { it.value === root.getChildAt(i) }?.key ?: continue
+            if (types[id] == "Modal" && closeListeners.contains(id)) { event("request_close", id); return true }
+        }
+        return false
+    }
+
+    private fun insert(parent0: Int, id: Int, index0: Int) {
+        val parent = host(id, parent0)
+        val index = if (parent != parent0) Int.MAX_VALUE else index0
         val g = groupOf(parent) ?: return
         val v = views[id] ?: return
         (v.parent as? ViewGroup)?.removeView(v)
         g.addView(v, min(index, g.childCount), ViewGroup.LayoutParams(-2, -2))
         layout.remove(parentNode(parent), id)
         layout.insert(parentNode(parent), id, index)
+        if (types[id] == "Modal") v.bringToFront()
     }
 
-    private fun remove(parent: Int, id: Int) {
+    private fun remove(parent0: Int, id: Int) {
+        val parent = host(id, parent0)
         val v = views[id] ?: return
         groupOf(parent)?.removeView(v)
         layout.remove(parentNode(parent), id)
@@ -647,7 +683,7 @@ class OpApplier(
     private fun delete(id: Int) {
         val v = views.remove(id)
         binds.remove(id)
-        touching.remove(id); a11y.remove(id); inputCfg.remove(id); wired.remove(id)
+        touching.remove(id); pressy.remove(id); rawTouch.remove(id); closeListeners.remove(id); a11y.remove(id); inputCfg.remove(id); wired.remove(id)
         texts.remove(id); spans.remove(id)
         (v?.parent as? ViewGroup)?.removeView(v)
         scrolls.remove(id); layoutListeners.remove(id); imgReq.remove(id)

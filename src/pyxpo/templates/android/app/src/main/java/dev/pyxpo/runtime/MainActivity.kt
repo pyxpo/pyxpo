@@ -50,6 +50,11 @@ class MainActivity : Activity() {
         rt.start(devEnv = dev)
     }
 
+    @Deprecated("Deprecated in Java")
+    override fun onBackPressed() {
+        if (applier?.handleBack() != true) @Suppress("DEPRECATION") super.onBackPressed()
+    }
+
     override fun onConfigurationChanged(newConfig: android.content.res.Configuration) {
         super.onConfigurationChanged(newConfig)
         applier?.configChanged()

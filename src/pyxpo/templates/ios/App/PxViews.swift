@@ -4,13 +4,21 @@ import UIKit
 class PxGroup: UIView {
     /// Set when the view has on_press* handlers. Events: press_in(point), press_out, press, long_press.
     var onTouch: ((String, CGPoint?) -> Void)?
+    /// Set for on_touch_start/move/end: (event name, point in view, point in window).
+    var onRaw: ((String, CGPoint, CGPoint) -> Void)?
     private var down = false
     private var long = false
     private var timer: Timer?
 
     private func inside(_ t: UITouch) -> Bool { bounds.insetBy(dx: -24, dy: -24).contains(t.location(in: self)) }
 
+    private func raw(_ name: String, _ touches: Set<UITouch>) {
+        guard let r = onRaw, let t = touches.first else { return }
+        r(name, t.location(in: self), t.location(in: nil))
+    }
+
     override func touchesBegan(_ touches: Set<UITouch>, with event: UIEvent?) {
+        raw("touch_start", touches)
         guard let cb = onTouch, let t = touches.first else { return super.touchesBegan(touches, with: event) }
         down = true; long = false
         timer?.invalidate()
@@ -22,17 +30,20 @@ class PxGroup: UIView {
     }
 
     override func touchesMoved(_ touches: Set<UITouch>, with event: UIEvent?) {
+        raw("touch_move", touches)
         guard let cb = onTouch, let t = touches.first else { return super.touchesMoved(touches, with: event) }
         if down && !inside(t) { down = false; timer?.invalidate(); cb("press_out", nil) }
     }
 
     override func touchesEnded(_ touches: Set<UITouch>, with event: UIEvent?) {
+        raw("touch_end", touches)
         guard let cb = onTouch else { return super.touchesEnded(touches, with: event) }
         timer?.invalidate()
         if down { down = false; cb("press_out", nil); if !long { cb("press", nil) } }
     }
 
     override func touchesCancelled(_ touches: Set<UITouch>, with event: UIEvent?) {
+        raw("touch_end", touches)
         guard let cb = onTouch else { return super.touchesCancelled(touches, with: event) }
         timer?.invalidate()
         if down { down = false; cb("press_out", nil) }

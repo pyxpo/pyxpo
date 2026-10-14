@@ -5,11 +5,12 @@ so every colour, size and radius is a style the app can override.
 """
 from __future__ import annotations
 
+import time
 from typing import Any, Callable, Dict, List, Optional
 
 from .component import component
-from .element import Text, View
-from .hooks import use_state
+from .element import Text, View, _Modal
+from .hooks import use_ref, use_state
 from .style import flatten
 
 _A11Y = ("accessible", "accessibility_label", "accessibility_hint", "accessibility_role", "accessibility_state",
@@ -120,3 +121,143 @@ def KeyboardAvoidingView(*children: Any, offset: float = 0.0, style: Any = None,
     extra = st.get("padding_bottom", st.get("padding_vertical", st.get("padding", 0)))
     st = {**st, "padding_bottom": max(0.0, kb["height"] - offset) + (extra if isinstance(extra, (int, float)) else 0)}
     return View(*children, style=st, **props)
+
+
+@component
+def Slider(value: float = 0.0, minimum: float = 0.0, maximum: float = 1.0, step: float = 0.0,
+           on_value_change: Optional[Callable[[float], Any]] = None,
+           on_sliding_complete: Optional[Callable[[float], Any]] = None, disabled: bool = False,
+           min_track_color: Any = "#007aff", max_track_color: Any = "#c7c7cc", thumb_color: Any = "#ffffff",
+           thumb_size: float = 28, track_height: float = 4, style: Any = None, **props: Any):
+    """Horizontal slider driven by native touch events. Controlled: pass `value`, update it in `on_value_change`."""
+    width, set_width = use_state(0.0)
+    span = float(maximum - minimum) or 1.0
+    usable = max(1.0, width - thumb_size)
+    frac = min(1.0, max(0.0, (value - minimum) / span))
+
+    def at(x: float) -> float:
+        f = min(1.0, max(0.0, (x - thumb_size / 2) / usable))
+        v = minimum + f * span
+        if step:
+            v = minimum + round((v - minimum) / step) * step
+        return min(float(maximum), max(float(minimum), v))
+
+    def layout(e: Dict[str, Any]) -> None:
+        if e["width"] != width:
+            set_width(float(e["width"]))
+
+    def move(e: Dict[str, Any]) -> None:
+        if on_value_change is not None:
+            on_value_change(at(e["x"]))
+
+    def end(e: Dict[str, Any]) -> None:
+        if on_sliding_complete is not None:
+            on_sliding_complete(at(e["x"]))
+
+    base = {"height": thumb_size, "justify_content": "center", "opacity": 0.4 if disabled else 1.0}
+    track = {"position": "absolute", "left": thumb_size / 2, "right": thumb_size / 2, "height": track_height,
+             "border_radius": track_height / 2, "background_color": max_track_color}
+    fill = {"position": "absolute", "left": thumb_size / 2, "width": frac * usable, "height": track_height,
+            "border_radius": track_height / 2, "background_color": min_track_color}
+    thumb = {"position": "absolute", "left": frac * usable, "width": thumb_size, "height": thumb_size,
+             "border_radius": thumb_size / 2, "background_color": thumb_color, "shadow_color": "#000000",
+             "shadow_opacity": 0.25, "shadow_radius": 2, "shadow_offset_y": 1}
+    touch: Dict[str, Any] = {} if disabled else {"on_touch_start": move, "on_touch_move": move, "on_touch_end": end}
+    return View(View(style=track), View(style=fill), View(style=thumb), style=[base, style], on_layout=layout,
+                **{"accessibility_role": "adjustable", "accessibility_value": str(round(value, 3)), **_a11y(props)},
+                **touch)
+
+
+class Gesture:
+    """PanResponder state: dx/dy since touch start (dp), vx/vy velocity (dp/s), x0/y0 start, x/y current."""
+
+    def __init__(self) -> None:
+        self.x0 = self.y0 = self.x = self.y = 0.0
+        self.dx = self.dy = self.vx = self.vy = 0.0
+        self._t = 0.0
+
+    def _start(self, e: Dict[str, Any]) -> None:
+        self.x0 = self.x = float(e.get("page_x", e["x"]))
+        self.y0 = self.y = float(e.get("page_y", e["y"]))
+        self.dx = self.dy = self.vx = self.vy = 0.0
+        self._t = time.monotonic()
+
+    def _move(self, e: Dict[str, Any]) -> None:
+        x, y, now = float(e.get("page_x", e["x"])), float(e.get("page_y", e["y"])), time.monotonic()
+        dt = now - self._t
+        if dt > 0:
+            self.vx, self.vy = (x - self.x) / dt, (y - self.y) / dt
+        self.x, self.y, self._t = x, y, now
+        self.dx, self.dy = x - self.x0, y - self.y0
+
+
+def use_pan_responder(on_start: Optional[Callable[[Gesture], Any]] = None,
+                      on_move: Optional[Callable[[Gesture], Any]] = None,
+                      on_end: Optional[Callable[[Gesture], Any]] = None) -> Dict[str, Any]:
+    """Props to spread on a View (`View(**pan)`) to track a drag. Callbacks get a [Gesture]."""
+    g = use_ref(None)
+    if g.current is None:
+        g.current = Gesture()
+    fns = use_ref(None)
+    fns.current = (on_start, on_move, on_end)  # latest callbacks without changing the handler identity
+
+    def start(e: Dict[str, Any]) -> None:
+        g.current._start(e)
+        if fns.current[0]:
+            fns.current[0](g.current)
+
+    def move(e: Dict[str, Any]) -> None:
+        g.current._move(e)
+        if fns.current[1]:
+            fns.current[1](g.current)
+
+    def end(e: Dict[str, Any]) -> None:
+        g.current._move(e)
+        if fns.current[2]:
+            fns.current[2](g.current)
+
+    return {"on_touch_start": start, "on_touch_move": move, "on_touch_end": end}
+
+
+@component
+def Modal(*children: Any, visible: bool = True, animation_type: str = "none", transparent: bool = False,
+          on_request_close: Optional[Callable[[], Any]] = None, backdrop_color: Any = "rgba(0,0,0,0.5)",
+          duration: float = 250, style: Any = None, **props: Any):
+    """Full-screen layer above the whole app. `animation_type`: none | fade | slide. Android back fires
+    `on_request_close`. With `transparent` the layer has no backdrop colour."""
+    from .animated import Animated, use_animated_value
+    from .env import use_window_dimensions
+    animated = animation_type in ("fade", "slide")
+    mounted, set_mounted = use_state(bool(visible))
+    p = use_animated_value(1.0 if visible else 0.0)
+    h = use_window_dimensions()["height"]
+    from .hooks import use_effect
+
+    first = use_ref(True)
+
+    def run() -> None:
+        if first.current:
+            first.current = False
+            return
+        if not animated:
+            return
+        if visible:
+            set_mounted(True)
+            Animated.timing(p, 1.0, duration=duration).start()
+        else:
+            Animated.timing(p, 0.0, duration=duration).start(lambda r: set_mounted(False))
+
+    use_effect(run, [bool(visible), animated])
+    show = (mounted or visible) if animated else bool(visible)
+    if not show:
+        return None
+    fill = {"flex": 1, "background_color": "transparent" if transparent else backdrop_color}
+    if animation_type == "fade":
+        fill["opacity"] = p
+    box: Dict[str, Any] = {"flex": 1}
+    if animation_type == "slide":
+        box["transform"] = [{"translate_y": p.interpolate([0, 1], [h, 0])}]
+        fill = {"flex": 1, "background_color": "transparent" if transparent else backdrop_color}
+    inner = View(*children, style=[box, style], **props)
+    return _Modal(View(inner, style=fill), on_request_close=on_request_close,
+                  style={"position": "absolute", "left": 0, "top": 0, "right": 0, "bottom": 0})

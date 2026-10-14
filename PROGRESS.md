@@ -1,10 +1,11 @@
 # Pyxpo progress
-- Goal: from-scratch Python mobile framework (no Kivy/BeeWare/Chaquopy); all libs via mobile wheels. See DESIGN.md, PLAN.md. Tests: `.venv/bin/pytest -q` (95 pass).
+- Goal: from-scratch Python mobile framework (no Kivy/BeeWare/Chaquopy); all libs via mobile wheels. See DESIGN.md, PLAN.md. Tests: `.venv/bin/pytest -q` (99 pass).
 - Infra done: own CPython 3.13 (Android arm64/x86_64, iOS sim arm64), C bridge, Kotlin + Swift shells, `pyxpo create|build|run android|ios|desktop`, hot reload (`pyxpo run`, --no-reload), config `wheel_index`, 16 KB ELF check, own numpy 2.5.4 wheels (android).
 - Env quirks: Gradle needs IPv6 flag (in template); host py3.9; no `timeout`; `sed -i ''`; iOS build ~10 min and may hang; iOS sim UDID AB7F4D9C-C6AA-4F37-8062-F80A000A8315; no iOS tap tool. Core must stay py3.9 compatible.
 - UI system: units dp/pt; own C flexbox (native/common/pyxpo_layout.c); wire v2 normalized styles; batched JSON ops; events `{"event","id","payload"}`.
 - UI M1-M9 DONE + committed (protocol/style/env, C layout, Android+iOS on core, box painter, Text/fonts, Pressable/Switch/Checkbox/a11y, TextInput/keyboard/SafeArea/call modules, Animated native-driven).
-- UI M10 (ScrollView/FlatList/Image/Animated.event/on_layout) IN PROGRESS, uncommitted. Python+mock+tests done. Android VERIFIED (scroll, clip, native Animated.event, scroll_to/end, FlatList windowing, Image load). Engine style `scroll` (unbounded main axis) added; JNI frame ids as int bits. iOS port written (ScrollHost delegate, Images.swift, Scroll.to, on_layout), build/verify pending.
+- UI M10 DONE + committed (ScrollView/FlatList/Image/Animated.event/on_layout/ScrollRef).
+- UI M11 (Modal/Slider/use_pan_responder/on_touch_*) committed. Android VERIFIED (slider drag, pan, modal slide/backdrop/touch-block, back button -> request_close). iOS port written, build/verify pending.
 - Deferred from M10: pull-to-refresh, snap_to_interval, inverted, horizontal multi-column, keyboard_dismiss_mode, recycling (M14), image blur/placeholder.
 - Next: M11 Modal/Slider/gestures, M12 navigation, M13 theme/UI kit + final opus full-diff review (1 opus run left), M14 perf/recycling.
 - Other pending: generic lib support (non-meson wheels, sdist build, CI+index, iOS wheels, OpenBLAS/Pillow/litert); verify gaps (iOS tap, device slices, --release, API 24, 4 KB emulator); DESIGN.md update.

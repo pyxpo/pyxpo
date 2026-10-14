@@ -221,6 +221,12 @@ final class OpApplier {
                         self?.event(name, id, pl)
                     }
                 }
+            case "on_touch_start", "on_touch_move", "on_touch_end":
+                if let g = v as? PxGroup, g.onRaw == nil {
+                    g.onRaw = { [weak self] name, p, w in
+                        self?.event(name, id, ["value": ["x": p.x, "y": p.y, "page_x": w.x, "page_y": w.y]])
+                    }
+                }
             case let k where k.hasPrefix("accessib"): a11yDirty = true
             case "on_layout": layoutListeners.insert(id)
             case "source", "resize_mode", "tint_color": if let i = v as? UIImageView { applyImage(id, i, props, removed) }
@@ -348,15 +354,20 @@ final class OpApplier {
         return p is PxGroup || p is PxRoot ? p : nil
     }
 
-    private func insert(_ parent: Int, _ id: Int, _ index: Int) {
+    private func insert(_ parent0: Int, _ id: Int, _ index0: Int) {
+        // Modals live on the root so they cover the whole screen whatever their Python parent is.
+        let parent = types[id] == "Modal" ? 1 : parent0
+        let index = parent == parent0 ? index0 : Int(Int32.max)
         guard let g = groupOf(parent), let v = views[id] else { return }
         v.removeFromSuperview()
         g.insertSubview(v, at: min(index, g.subviews.count))
+        if types[id] == "Modal" { g.bringSubviewToFront(v) }
         px_node_remove(tree, parentNode(parent), Int32(id))
         px_node_insert(tree, parentNode(parent), Int32(id), Int32(index))
     }
 
-    private func remove(_ parent: Int, _ id: Int) {
+    private func remove(_ parent0: Int, _ id: Int) {
+        let parent = types[id] == "Modal" ? 1 : parent0
         views[id]?.removeFromSuperview()
         px_node_remove(tree, parentNode(parent), Int32(id))
     }
