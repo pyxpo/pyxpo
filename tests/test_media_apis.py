@@ -1,0 +1,194 @@
+from __future__ import annotations
+
+import asyncio
+import os
+
+import pytest
+
+from pyxpo import ImagePicker, ImageTools, ImageTooLargeError, MediaLibrary, Share
+from pyxpo.apis import _bridge
+from pyxpo.apis.image_tools import centered_crop, fit_size, parse_ratio, search_under
+
+
+class FakeApp:
+    """Records native calls and answers from `handlers[(module, method)]`."""
+
+    loop = None
+
+    def __init__(self, handlers):
+        self.handlers = handlers
+        self.calls = []
+
+    def call(self, module, method, *args, reply=False):
+        self.calls.append((module, method, args))
+        fut = asyncio.get_event_loop().create_future()
+        out = self.handlers[(module, method)](*args)
+        if isinstance(out, Exception):
+            fut.set_exception(out)
+        else:
+            fut.set_result(out)
+        return fut
+
+
+def run(handlers, coro_fn):
+    app = FakeApp(handlers)
+    old = _bridge.get_app()
+    _bridge.set_app(app)
+    try:
+        return asyncio.run(coro_fn()), app
+    finally:
+        _bridge.set_app(old)
+
+
+def test_ratio_and_crop_math():
+    assert parse_ratio("4:5") == 0.8
+    with pytest.raises(ValueError):
+        parse_ratio("square")
+    assert centered_crop(4000, 3000, 1.0) == {"x": 500, "y": 0, "width": 3000, "height": 3000}
+    assert centered_crop(3000, 4000, 16 / 9) == {"x": 0, "y": 1156, "width": 3000, "height": 1688}
+
+
+def test_fit_size():
+    assert fit_size(4000, 3000, {"width": 1080, "height": 1080}) == (1080, 1080)
+    assert fit_size(4000, 3000, {"width": 1080, "height": 1080, "mode": "fit"}) == (1080, 810)
+    assert fit_size(4000, 3000, {"width": 2000}) == (2000, 1500)
+    with pytest.raises(ValueError):
+        fit_size(10, 10, {})
+
+
+def _model(tmp_path, base=4_000_000, floor=0.0):
+    """Fake renderer: size ~ base * quality^2 * scale^2 (+floor); writes a real file so discards are observable."""
+    files = []
+
+    async def render(q, scale):
+        p = tmp_path / ("r%d.jpg" % len(files))
+        p.write_bytes(b"x")
+        files.append(p)
+        return {"uri": str(p), "fileSize": int(base * q * q * scale * scale + floor)}
+
+    return render, files
+
+
+def test_search_returns_first_try_when_it_fits(tmp_path):
+    render, files = _model(tmp_path, base=1_000_000)
+    out = asyncio.run(search_under(render, 2_000_000, 4000, 320))
+    assert out["fileSize"] <= 2_000_000 and len(files) == 1
+
+
+def test_search_picks_highest_quality_that_fits_and_cleans_up(tmp_path):
+    render, files = _model(tmp_path)
+    target = 1_000_000
+    out = asyncio.run(search_under(render, target, 4000, 320))
+    assert out["fileSize"] <= target and out["scale"] == 1.0
+    assert 0.45 < out["quality"] < 0.52  # sqrt(1/4) = 0.5, found by bisection
+    assert [p for p in files if p.exists()] == [__import__("pathlib").Path(out["uri"])]
+
+
+def test_search_scales_down_when_quality_floor_is_not_enough(tmp_path):
+    render, files = _model(tmp_path, base=40_000_000)
+    out = asyncio.run(search_under(render, 500_000, 4000, 320))
+    assert out["fileSize"] <= 500_000 and out["scale"] < 1.0
+    assert sum(p.exists() for p in files) == 1
+
+
+def test_search_gives_up_below_min_edge(tmp_path):
+    render, files = _model(tmp_path, base=1_000, floor=10_000_000)
+    with pytest.raises(ImageTooLargeError):
+        asyncio.run(search_under(render, 1000, 4000, 320))
+    assert not any(p.exists() for p in files)
+
+
+def test_search_png_only_scales(tmp_path):
+    files = []
+
+    async def render(q, scale):
+        assert q == 1.0
+        p = tmp_path / ("p%d.png" % len(files))
+        p.write_bytes(b"x")
+        files.append(p)
+        return {"uri": str(p), "fileSize": int(9_000_000 * scale * scale)}
+
+    out = asyncio.run(search_under(render, 2_000_000, 4000, 320, lossy=False))
+    assert out["fileSize"] <= 2_000_000 and sum(p.exists() for p in files) == 1
+
+
+def _tools(log):
+    def open_(path, max_edge):
+        log.append(("open", path, max_edge))
+        return {"h": 7, "width": 4000, "height": 3000, "sourceWidth": 8000, "sourceHeight": 6000}
+
+    def render(h, spec):
+        log.append(("render", h, spec))
+        return {"uri": "/o.jpg", "fileSize": 10, "width": 1, "height": 1}
+
+    def close(h):
+        log.append(("close", h))
+
+    return {("ImageTools", "open"): open_, ("ImageTools", "render"): render, ("ImageTools", "close"): close}
+
+
+def test_process_builds_spec_and_always_closes():
+    log = []
+    out, _ = run(_tools(log), lambda: ImageTools.process("/a.heic", crop="1:1", resize={"width": 1080, "height": 1080},
+                                                         format="jpeg", quality=0.8, maxEdge=4000))
+    assert out["uri"] == "/o.jpg"
+    assert log[0] == ("open", "/a.heic", 4000)
+    spec = log[1][2]
+    assert spec["crop"] == {"x": 500, "y": 0, "width": 3000, "height": 3000}
+    assert (spec["width"], spec["height"], spec["format"], spec["quality"]) == (1080, 1080, "jpeg", 0.8)
+    assert log[-1] == ("close", 7)
+
+
+def test_process_scales_pixel_crop_to_downsampled_bitmap():
+    log = []
+    run(_tools(log), lambda: ImageTools.process("/a.jpg", crop={"x": 1000, "y": 2000, "width": 4000, "height": 2000}))
+    assert log[1][2]["crop"] == {"x": 500, "y": 1000, "width": 2000, "height": 1000}
+
+
+def test_process_closes_handle_on_native_error():
+    log = []
+    h = _tools(log)
+    h[("ImageTools", "render")] = lambda hh, spec: RuntimeError("boom")
+    with pytest.raises(RuntimeError, match="boom"):
+        run(h, lambda: ImageTools.process("/a.jpg"))
+    assert ("close", 7) in log
+
+
+def test_compress_to_size_uses_search_and_closes(tmp_path):
+    log = []
+    h = _tools(log)
+    n = []
+
+    def render(hh, spec):
+        p = tmp_path / ("c%d.jpg" % len(n))
+        p.write_bytes(b"x")
+        n.append(p)
+        return {"uri": str(p), "fileSize": int(4_000_000 * spec["quality"] ** 2)}
+
+    h[("ImageTools", "render")] = render
+    out, _ = run(h, lambda: ImageTools.compressToSize("/a.jpg", 1_000_000))
+    assert out["fileSize"] <= 1_000_000
+    assert log[0] == ("open", "/a.jpg", 4096) and log[-1] == ("close", 7)
+    with pytest.raises(ValueError):
+        run(h, lambda: ImageTools.compressToSize("/a.jpg", 0))
+
+
+def test_picker_share_and_library_shapes():
+    out, app = run({("ImagePicker", "pick"): lambda multi, limit: {"assets": [{"uri": "/x.jpg"}]}},
+                   lambda: ImagePicker.launch_image_library_async(allowsMultipleSelection=True, selectionLimit=3))
+    assert out == {"canceled": False, "assets": [{"uri": "/x.jpg"}]}
+    assert app.calls[0][2] == (True, 3)
+    out, _ = run({("ImagePicker", "pick"): lambda m, l: {"assets": []}}, lambda: ImagePicker.launchImageLibraryAsync())
+    assert out == {"canceled": True, "assets": []}
+
+    out, app = run({("Share", "share"): lambda urls, msg: {"action": "sharedAction"}},
+                   lambda: Share.share({"urls": ["/a", "/b"]}))
+    assert out == {"action": "sharedAction"} and app.calls[0][2] == (["/a", "/b"], "")
+    with pytest.raises(ValueError):
+        run({}, lambda: Share.share({}))
+
+    out, _ = run({("MediaLibrary", "request_permission"): lambda w: {"granted": True}},
+                 lambda: MediaLibrary.requestPermissionsAsync())
+    assert out == {"granted": True, "status": "granted"}
+    _, app = run({("MediaLibrary", "save"): lambda p: None}, lambda: MediaLibrary.saveToLibraryAsync("/a.jpg"))
+    assert app.calls[0][:2] == ("MediaLibrary", "save")

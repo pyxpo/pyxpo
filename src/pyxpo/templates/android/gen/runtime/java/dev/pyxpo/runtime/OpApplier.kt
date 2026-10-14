@@ -672,7 +672,11 @@ class OpApplier(
                     b.show()
                     return
                 }
-                else -> { if (wantReply) reply(id, null, "unknown native call $module.$method"); return }
+                else -> {
+                    if (PxMedia.handle(ctx, module, method, args) { v, e -> if (wantReply) reply(id, v, e) }) return
+                    if (wantReply) reply(id, null, "unknown native call $module.$method")
+                    return
+                }
             }
             if (wantReply) reply(id, out)
         } catch (e: Exception) {

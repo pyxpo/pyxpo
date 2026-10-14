@@ -43,6 +43,10 @@ from .apis.appearance import Appearance
 from .apis.appstate import AppState
 from .apis.back_handler import BackHandler
 from .apis.clipboard import Clipboard
+from .apis.image_picker import ImagePicker
+from .apis.image_tools import ImageTools, ImageTooLargeError
+from .apis.media_library import MediaLibrary
+from .apis.share import Share
 from .apis.dimensions import Dimensions
 from .apis.i18n_manager import I18nManager
 from .apis.keyboard import Keyboard
@@ -75,7 +79,7 @@ __all__ = [
     "TouchableNativeFeedback", "Button", "Switch", "ActivityIndicator", "Modal", "KeyboardAvoidingView",
     "SafeAreaView", "StatusBar", "RefreshControl", "Picker", "Slider", "ErrorBoundary",
     # apis
-    "Alert", "Animated", "Easing", "Appearance", "AppState", "BackHandler", "Clipboard", "Dimensions",
+    "Alert", "Animated", "Easing", "Appearance", "AppState", "BackHandler", "Clipboard", "Dimensions", "ImagePicker", "ImageTools", "ImageTooLargeError", "MediaLibrary", "Share",
     "I18nManager", "Keyboard", "Linking", "PanResponder", "PixelRatio", "Platform", "StyleSheet", "ToastAndroid",
     "Vibration", "processColor",
     # hooks

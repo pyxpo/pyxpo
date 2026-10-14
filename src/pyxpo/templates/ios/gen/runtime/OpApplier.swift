@@ -511,6 +511,9 @@ final class OpApplier {
             top?.present(a, animated: true)
             return
         default:
+            if PxMedia.handle(module, method, args, root: root, reply: { [weak self] v, e in
+                if wantReply { self?.reply(id, v, error: e) }
+            }) { return }
             if wantReply { reply(id, nil, error: "unknown native call \(module).\(method)") }
             return
         }

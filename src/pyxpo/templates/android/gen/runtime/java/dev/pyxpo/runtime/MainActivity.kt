@@ -71,6 +71,11 @@ class MainActivity : Activity() {
         rt.start(devEnv = dev)
     }
 
+    @Suppress("DEPRECATION")
+    override fun onActivityResult(requestCode: Int, resultCode: Int, data: android.content.Intent?) {
+        if (!PxMedia.onActivityResult(requestCode, resultCode, data)) super.onActivityResult(requestCode, resultCode, data)
+    }
+
     override fun onNewIntent(intent: android.content.Intent) {
         super.onNewIntent(intent)
         intent.data?.let { applier?.openURL(it.toString()) }
