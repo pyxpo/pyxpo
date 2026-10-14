@@ -176,6 +176,7 @@ def Image(*children: Any, key: Any = None, **props: Any) -> Element:
 
 View = _host("View")
 _Modal = _host("Modal")
+NavStack = _host("NavStack")
 Text = _text_factory
 Text.__name__ = "Text"
 Button = _host("Button", "text")

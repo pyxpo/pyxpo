@@ -198,7 +198,7 @@ def test_tabs_screens_toggle_empty_keeps_hook_order():
     assert "a" in r.texts()
 
 
-def test_stack_pop_keeps_leaving_screen_until_animation_ends():
+def test_stack_native_swipe_back_event_pops():
     box = {}
 
     def Home(navigation, params):
@@ -206,11 +206,11 @@ def test_stack_pop_keeps_leaving_screen_until_animation_ends():
         return Text("home")
 
     app, r = mount(lambda: Stack(screens={"Home": Home, "Detail": lambda navigation, params: Text("detail")}))
+    host = r.find_all("NavStack")[0]
+    assert host.props["gesture"] is False
     box["n"].navigate("Detail")
-    box["n"].go_back()
-    assert "detail" in r.texts()  # still sliding out
-    nav = box["n"]._nav
-    nav.exit_done(nav.leaving[0].key)
+    assert "detail" in r.texts() and host.props["gesture"] is True
+    r.emit("pop_gesture", host)  # native finished an edge swipe
     assert "detail" not in r.texts()
 
 

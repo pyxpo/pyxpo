@@ -126,6 +126,7 @@ class OpApplier(
                 it.addView(PxGroup(ctx), ViewGroup.LayoutParams(-2, -2))
             }
             "Modal" -> PxGroup(ctx).also { it.isClickable = true; it.isFocusable = true }
+            "NavStack" -> PxNav(ctx).also { n -> n.onPop = { event("pop_gesture", id) } }
             else -> PxGroup(ctx)
         }
         views[id] = v
@@ -196,6 +197,8 @@ class OpApplier(
                 "accessibility_value", "accessible" -> a11yDirty = true
                 "style" -> applyStyle(id, v, props.optJSONObject(k) ?: JSONObject())
                 "on_layout" -> layoutListeners.add(id)
+                "animated" -> (v as? PxNav)?.animated = props.optBoolean(k, true)
+                "gesture" -> (v as? PxNav)?.gesture = props.optBoolean(k, true)
                 "source", "resize_mode", "tint_color" -> if (v is ImageView) applyImage(id, v, props, r)
                 else -> if (v is PxScrollable) scrollProp(id, v as FrameLayout, k, props)
             }
@@ -714,13 +717,15 @@ class OpApplier(
         g.addView(v, min(index, g.childCount), ViewGroup.LayoutParams(-2, -2))
         layout.remove(parentNode(parent), id)
         layout.insert(parentNode(parent), id, index)
+        if (g is PxNav && v.parent === g) g.pushed(v)
         if (types[id] == "Modal") v.bringToFront()
     }
 
     private fun remove(parent0: Int, id: Int) {
         val parent = host(id, parent0)
         val v = views[id] ?: return
-        groupOf(parent)?.removeView(v)
+        val g = groupOf(parent)
+        if (!(g is PxNav && g.popped(v))) g?.removeView(v)
         layout.remove(parentNode(parent), id)
     }
 
@@ -729,7 +734,8 @@ class OpApplier(
         binds.remove(id)
         touching.remove(id); pressy.remove(id); rawTouch.remove(id); touchKeys.remove(id); closeListeners.remove(id); a11y.remove(id); inputCfg.remove(id); wired.remove(id)
         texts.remove(id); spans.remove(id)
-        (v?.parent as? ViewGroup)?.removeView(v)
+        val host = v?.parent as? ViewGroup
+        if (!(host is PxNav && v in host.lingering)) host?.removeView(v)  // a popping screen leaves when its animation ends
         scrolls.remove(id); layoutListeners.remove(id); imgReq.remove(id)
         if (types.remove(id) == "ScrollView") layout.delete(id or CONTENT)
         layout.delete(id)

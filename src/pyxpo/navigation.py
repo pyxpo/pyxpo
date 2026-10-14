@@ -16,7 +16,7 @@ from typing import Any, Callable, Dict, List, Optional
 
 from .animated import Animated, Easing, use_animated_value
 from .component import component
-from .element import ScrollView, Text, View
+from .element import NavStack, ScrollView, Text, View
 from .env import use_window_dimensions
 from .hooks import create_context, use_context, use_effect, use_memo, use_ref, use_state
 from .theme import use_theme
@@ -217,6 +217,7 @@ class _DrawerNav(_TabNav):
 
 
 _NavContext = create_context(None)
+_EdgeLock = create_context(None)  # Drawer hands nested Stacks a callable(token, locked): a pushed Stack owns the left-edge swipe
 _TopInset = create_context(True)  # False once an ancestor header already paints under the status bar
 
 
@@ -309,6 +310,16 @@ def Stack(screens: Optional[Dict[str, Any]] = None, initial: Optional[str] = Non
     _, tick = use_state(0)  # hooks before any early return: `screens` may toggle between empty and not
     holder = use_ref(None)
     _use_back(lambda: holder.current is not None and holder.current.can_go_back() and (holder.current.go_back() or True))
+    lock = use_context(_EdgeLock)
+    deep = holder.current is not None and len(holder.current.stack) > 1
+    tok = use_ref(object())
+
+    def sync_lock() -> Any:
+        if lock is None:
+            return None
+        lock(tok.current, deep)
+        return lambda: lock(tok.current, False)
+    use_effect(sync_lock, [deep, lock])
     if not names:
         return View(style=style)
     if holder.current is None:
@@ -323,29 +334,28 @@ def Stack(screens: Optional[Dict[str, Any]] = None, initial: Optional[str] = Non
         nav.stack[:] = live
     nav.leaving[:] = [r for r in nav.leaving if r.name in screens]
     top = nav.stack[-1]
-    below = nav.stack[-2] if len(nav.stack) > 1 and nav.transitioning else None
+    below = nav.stack[-2] if len(nav.stack) > 1 else None  # stays laid out: native slides/drags over it
 
-    def route_view(r: Route, leaving: bool):
+    def route_view(r: Route):
         o = opts.get(r.name, {})
         handle = Navigation(nav, r)
         show_header = header and o.get("header", True)
         # Each screen gets its own context value so use_navigation() sees its own route and params.
         return _NavContext.Provider(
-            _Slide(
+            View(
                 _Header(title=_title(r.name, o), can_back=r is not nav.stack[0], on_back=nav.go_back,
                         header_style=header_style, title_style=title_style, left=o.get("header_left"),
                         right=o.get("header_right")) if show_header else None,
                 View(_TopInset.Provider(_Screen(screen=screens[r.name], navigation=handle, params=r.params),
                                         value=not show_header), style={"flex": 1}),
-                leaving=leaving, animate=r.anim and nav.animate, width=width,
-                on_enter=(lambda k=r.key: nav.enter_done(k)), on_exit=(lambda k=r.key: nav.exit_done(k)),
-                hidden=not leaving and r is not top and r is not below,
-                style=[_FILL, {"background_color": bg}]),
+                style=[_FILL, {"background_color": bg}, _HIDDEN if r is not top and r is not below else None]),
             value=handle, key="r%d" % r.key)
 
-    kids = [route_view(r, False) for r in nav.stack] + [route_view(r, True) for r in nav.leaving]
-    return _NavContext.Provider(View(*kids, style=[{"flex": 1, "overflow": "hidden"}, style]),
-                                value=Navigation(nav, top))
+    # The native NavStack animates pushes/pops and the edge-swipe back; it reports a finished swipe here.
+    return _NavContext.Provider(
+        NavStack(*[route_view(r) for r in nav.stack], animated=animate, gesture=len(nav.stack) > 1,
+                 on_pop_gesture=nav.go_back, style=[{"flex": 1, "overflow": "hidden"}, style]),
+        value=Navigation(nav, top))
 
 
 def _screen_pages(nav: _Nav, screens: Dict[str, Any], names: List[str], seen: set, cur: str, bg: str) -> List[Any]:
@@ -497,6 +507,16 @@ def Drawer(screens: Optional[Dict[str, Any]] = None, initial: Optional[str] = No
     seen = use_ref(set())
     holder = use_ref(None)
     live = use_ref(None)
+    locks = use_ref(set())
+    _l, bump_lock = use_state(0)
+
+    def lock_edge(token: Any, on: bool) -> None:
+        if (token in locks.current) != on:
+            (locks.current.add if on else locks.current.discard)(token)
+            bump_lock(lambda v: v + 1)
+    lock_edge_ref = use_ref(None)
+    if lock_edge_ref.current is None:
+        lock_edge_ref.current = lock_edge
     parent = use_context(_NavContext)
     _, tick = use_state(0)
     p = use_animated_value(0.0)
@@ -559,7 +579,8 @@ def Drawer(screens: Optional[Dict[str, Any]] = None, initial: Optional[str] = No
                            style={"position": "absolute", "left": 0, "top": 0, "bottom": 0, "width": width,
                                   "background_color": c["surface"], "translate_x": tx, "shadow_color": "#000000",
                                   "shadow_opacity": 0.3, "shadow_radius": 12, "elevation": 16}))
-    else:
+    elif not locks.current:
         layers.append(View(key="edge", style={"position": "absolute", "left": 0, "top": 0, "bottom": 0, "width": 16},
                            **edge))
-    return _NavContext.Provider(View(*layers, style=[{"flex": 1, "overflow": "hidden"}, style]), value=handle)
+    return _NavContext.Provider(_EdgeLock.Provider(View(*layers, style=[{"flex": 1, "overflow": "hidden"}, style]),
+                                                   value=lock_edge_ref.current), value=handle)

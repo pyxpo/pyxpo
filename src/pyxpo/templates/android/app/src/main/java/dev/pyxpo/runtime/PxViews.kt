@@ -98,3 +98,100 @@ class PxPath(ctx: Context) : View(ctx) {
         canvas.restore()
     }
 }
+
+/**
+ * Native stack host. Screens are its children (last = top). Pushes slide in from the right over a parallax-shifted
+ * previous screen, pops slide out, and an edge drag pops interactively. All motion runs on the UI/render thread
+ * through ViewPropertyAnimator, so Python is not in the loop while a transition plays.
+ */
+class PxNav(ctx: Context) : PxGroup(ctx) {
+    var animated = true
+    var gesture = true
+    var onPop: (() -> Unit)? = null
+    /** Children kept only until their pop animation ends. */
+    val lingering = HashSet<View>()
+
+    private val density = ctx.resources.displayMetrics.density
+    private val slop = android.view.ViewConfiguration.get(ctx).scaledTouchSlop
+    private val ease = android.view.animation.PathInterpolator(0.2f, 0.8f, 0.2f, 1f)
+    private var edgeDown = false
+    private var dragging = false
+    private var downX = 0f
+    private var downY = 0f
+    private var vt: android.view.VelocityTracker? = null
+
+    private fun live(): List<View> = (0 until childCount).map { getChildAt(it) }.filter { it !in lingering }
+    private fun parallax(w: Int) = w * 0.25f
+
+    fun pushed(v: View) {
+        val below = live().let { l -> l.getOrNull(l.indexOf(v) - 1) }
+        if (!animated || width <= 0 || below == null) return
+        val w = width
+        v.translationX = w.toFloat()
+        v.animate().translationX(0f).setDuration(320).setInterpolator(ease).start()
+        below.animate().translationX(-parallax(w)).setDuration(320).setInterpolator(ease).start()
+    }
+
+    /** Returns true when the view stays until its exit animation ends. */
+    fun popped(v: View): Boolean {
+        val w = width
+        if (!animated || w <= 0 || v.translationX >= w * 0.99f) return false
+        lingering.add(v)
+        v.animate().translationX(w.toFloat()).setDuration(260).setInterpolator(ease)
+            .withEndAction { lingering.remove(v); removeView(v) }.start()
+        live().lastOrNull()?.animate()?.translationX(0f)?.setDuration(260)?.setInterpolator(ease)?.start()
+        return true
+    }
+
+    override fun onInterceptTouchEvent(e: android.view.MotionEvent): Boolean {
+        if (!gesture) return false
+        when (e.actionMasked) {
+            android.view.MotionEvent.ACTION_DOWN -> {
+                edgeDown = live().size > 1 && e.x < 24 * density
+                downX = e.x; downY = e.y
+                vt?.recycle(); vt = android.view.VelocityTracker.obtain(); vt?.addMovement(e)
+            }
+            android.view.MotionEvent.ACTION_MOVE -> if (edgeDown) {
+                vt?.addMovement(e)
+                val dx = e.x - downX
+                if (dx > slop && dx > Math.abs(e.y - downY)) {
+                    dragging = true
+                    parent?.requestDisallowInterceptTouchEvent(true)
+                    return true
+                }
+            }
+            android.view.MotionEvent.ACTION_UP, android.view.MotionEvent.ACTION_CANCEL -> edgeDown = false
+        }
+        return false
+    }
+
+    override fun onTouchEvent(e: android.view.MotionEvent): Boolean {
+        if (!dragging) return false
+        vt?.addMovement(e)
+        val l = live()
+        val top = l.lastOrNull() ?: return true
+        val below = l.getOrNull(l.size - 2)
+        val w = width.toFloat()
+        val dx = Math.max(0f, Math.min(w, e.x - downX))
+        when (e.actionMasked) {
+            android.view.MotionEvent.ACTION_MOVE -> {
+                top.translationX = dx
+                below?.translationX = -parallax(width) * (1f - dx / w)
+            }
+            android.view.MotionEvent.ACTION_UP, android.view.MotionEvent.ACTION_CANCEL -> {
+                dragging = false; edgeDown = false
+                vt?.computeCurrentVelocity(1000)
+                val vx = vt?.xVelocity ?: 0f
+                val commit = e.actionMasked == android.view.MotionEvent.ACTION_UP && (dx > w * 0.35f || (vx > 900f * density && dx > 24 * density))
+                if (commit) {
+                    top.animate().translationX(w).setDuration(180).setInterpolator(ease).withEndAction { onPop?.invoke() }.start()
+                    below?.animate()?.translationX(0f)?.setDuration(180)?.setInterpolator(ease)?.start()
+                } else {
+                    top.animate().translationX(0f).setDuration(200).setInterpolator(ease).start()
+                    below?.animate()?.translationX(-parallax(width))?.setDuration(200)?.setInterpolator(ease)?.start()
+                }
+            }
+        }
+        return true
+    }
+}
