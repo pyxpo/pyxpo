@@ -54,11 +54,35 @@ def Pressable(*children: Any, on_press: Optional[Callable[[], Any]] = None,
     return View(*kids, style=st, **extra)
 
 
+def _passthru(props: Dict[str, Any]) -> Dict[str, Any]:
+    """Props forwarded to the native control as-is (event handlers, test ids, layout callbacks)."""
+    return {k: v for k, v in props.items() if k.startswith("on_") or k in ("test_id", "native_id")}
+
+
+@component
+def ActivityIndicator(animating: bool = True, size: Any = "small", color: Any = None, style: Any = None,
+                      key: Any = None, **props: Any):
+    """Native spinner. `size`: "small", "large" or a number of dp."""
+    from .native import native_spinner
+    from .theme import use_theme
+    return native_spinner(size, color or use_theme()["colors"]["primary"], animating, style, key,
+                          {**_a11y(props), **_passthru(props)})
+
+
 @component
 def Switch(value: bool = False, on_value_change: Optional[Callable[[bool], Any]] = None, disabled: bool = False,
-           track_color: Optional[Dict[str, Any]] = None, thumb_color: Any = "#ffffff",
-           width: float = 52, height: float = 32, style: Any = None, **props: Any):
-    tc = {"off": "#c7c7cc", "on": "#34c759", **(track_color or {})}
+           track_color: Any = None, thumb_color: Any = None, width: float = 52, height: float = 32,
+           style: Any = None, native: bool = True, key: Any = None, **props: Any):
+    """Native switch (UISwitch / Material switch). `track_color` / `thumb_color`: one color or {"on", "off"}.
+    `native=False` draws a custom switch of `width` x `height` instead."""
+    if native:
+        from .native import native_switch
+        from .theme import use_theme
+        tc = track_color if track_color is not None else {"on": use_theme()["colors"]["primary"]}
+        return native_switch(value, on_value_change, disabled, tc, thumb_color, style, key,
+                             {**_a11y(props), **_passthru(props)})
+    thumb_color = thumb_color or "#ffffff"
+    tc = {"off": "#c7c7cc", "on": "#34c759", **(track_color if isinstance(track_color, dict) else {})}
     pad = 2
     knob = height - 2 * pad
     track = {"width": width, "height": height, "border_radius": height / 2, "padding": pad,
@@ -74,8 +98,15 @@ def Switch(value: bool = False, on_value_change: Optional[Callable[[bool], Any]]
 
 @component
 def Checkbox(value: bool = False, on_value_change: Optional[Callable[[bool], Any]] = None, disabled: bool = False,
-             size: float = 24, color: Any = "#007aff", check_color: Any = "#ffffff", radius: float = 6,
-             style: Any = None, **props: Any):
+             size: float = 24, color: Any = None, check_color: Any = "#ffffff", radius: float = 6,
+             style: Any = None, native: bool = True, unchecked_color: Any = None, key: Any = None, **props: Any):
+    """Native checkbox (Material checkbox / iOS-style check). `color` tints it. `native=False` draws a custom box."""
+    if native:
+        from .native import native_checkbox
+        from .theme import use_theme
+        return native_checkbox(value, on_value_change, disabled, color or use_theme()["colors"]["primary"],
+                               unchecked_color, style, key, {**_a11y(props), **_passthru(props)})
+    color = color or "#007aff"
     box = {"width": size, "height": size, "border_radius": radius, "border_width": 2, "border_color": color,
            "background_color": color if value else "transparent", "align_items": "center",
            "justify_content": "center"}
@@ -128,8 +159,18 @@ def Slider(value: float = 0.0, minimum: float = 0.0, maximum: float = 1.0, step:
            on_value_change: Optional[Callable[[float], Any]] = None,
            on_sliding_complete: Optional[Callable[[float], Any]] = None, disabled: bool = False,
            min_track_color: Any = "#007aff", max_track_color: Any = "#c7c7cc", thumb_color: Any = "#ffffff",
-           thumb_size: float = 28, track_height: float = 4, style: Any = None, **props: Any):
-    """Horizontal slider driven by native touch events. Controlled: pass `value`, update it in `on_value_change`."""
+           thumb_size: float = 28, track_height: float = 4, style: Any = None, native: bool = True,
+           key: Any = None, **props: Any):
+    """Native slider (UISlider / SeekBar). Controlled: pass `value`, update it in `on_value_change`.
+    `native=False` draws a custom slider (thumb_size, track_height)."""
+    if native:
+        from .native import native_slider
+        from .theme import use_theme
+        return native_slider(value, minimum, maximum, step, on_value_change, on_sliding_complete, disabled,
+                             min_track_color if min_track_color != "#007aff" else use_theme()["colors"]["primary"],
+                             None if max_track_color == "#c7c7cc" else max_track_color,
+                             use_theme()["colors"]["primary"] if thumb_color == "#ffffff" else thumb_color, style, key,
+                             {**_a11y(props), **_passthru(props)})
     width, set_width = use_state(0.0)
     span = float(maximum - minimum) or 1.0
     usable = max(1.0, width - thumb_size)

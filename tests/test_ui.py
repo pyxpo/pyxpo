@@ -55,7 +55,7 @@ def test_switch_toggles():
     @component
     def App():
         on, set_on = use_state(False)
-        return Switch(value=on, on_value_change=set_on)
+        return Switch(value=on, on_value_change=set_on, native=False)
 
     app, r = mount(App)
     sw = first(r, "View")
@@ -70,7 +70,7 @@ def test_checkbox_toggles_and_shows_check():
     @component
     def App():
         on, set_on = use_state(False)
-        return View(Checkbox(value=on, on_value_change=set_on))
+        return View(Checkbox(value=on, on_value_change=set_on, native=False))
 
     app, r = mount(App)
     assert r.texts() == []
@@ -119,3 +119,29 @@ def test_call_op_and_result():
 
     assert loop.run_until_complete(go()) == "hi"
     loop.close()
+
+
+def test_native_controls_emit_single_host_with_colors_and_events():
+    from pyxpo import ActivityIndicator, Slider
+    from pyxpo.widgets import Radio
+    from pyxpo.kit import ProgressBar
+    seen = []
+
+    @component
+    def App():
+        on, set_on = use_state(False)
+        return View(Switch(value=on, on_value_change=lambda v: (seen.append(v), set_on(v)), track_color={"on": "#ff0000"}),
+                    Checkbox(value=True), Slider(value=0.5), ProgressBar(value=0.3), ProgressBar(value=None),
+                    ActivityIndicator(size="large"), Radio(selected=True, label="A"))
+
+    app, r = mount(App)
+    kinds = [n for n in ("NativeSwitch", "NativeCheckBox", "NativeSlider", "NativeProgress", "NativeSpinner",
+                         "NativeRadio") if r.find_all(n)]
+    assert len(kinds) == 6 and len(r.find_all("NativeProgress")) == 2
+    sw = first(r, "NativeSwitch")
+    assert sw.props["track_on"] == 0xFFFF0000 and sw.props["value"] is False
+    r.emit("value_change", sw, {"value": True})
+    assert seen == [True]
+    assert first(r, "NativeSwitch").props["value"] is True
+    bars = r.find_all("NativeProgress")
+    assert bars[0].props["value"] == 0.3 and bars[1].props["indeterminate"] is True

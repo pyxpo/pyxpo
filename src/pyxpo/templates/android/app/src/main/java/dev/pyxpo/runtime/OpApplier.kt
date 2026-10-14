@@ -31,7 +31,7 @@ class OpApplier(
 ) {
     companion object {
         private const val CONTENT = 0x40000000  // id bit for a ScrollView's synthetic content node
-        private val LEAVES = setOf("Text", "Button", "TextInput", "Image")
+        private val LEAVES = setOf("Text", "Button", "TextInput", "Image") + PxControls.TYPES
 
         /** Env snapshot for the Python side. Sizes in dp. */
         fun envJson(ctx: Context, wPx: Int, hPx: Int, ins: IntArray = IntArray(4), kbPx: Int = 0): JSONObject {
@@ -54,6 +54,7 @@ class OpApplier(
         }
     }
 
+    private val controls = PxControls(ctx) { name, id, payload -> event(name, id, payload) }
     private val views = HashMap<Int, View>()
     private val types = HashMap<Int, String>()
     private val styles = HashMap<Int, JSONObject>()
@@ -113,6 +114,7 @@ class OpApplier(
 
     private fun create(id: Int, type: String, props: JSONObject) {
         val v: View = when (type) {
+            in PxControls.TYPES -> controls.create(id, type)
             "Text" -> TextView(ctx).also { it.includeFontPadding = false }
             "Button" -> Button(ctx).also {
                 it.minWidth = 0; it.minHeight = 0; it.minimumWidth = 0; it.minimumHeight = 0
@@ -215,6 +217,7 @@ class OpApplier(
             if (v is ImageView && !props.has(k) && (k == "source" || k == "resize_mode" || k == "tint_color")) applyImage(id, v, JSONObject(), r)
         }
         if (v is EditText) applyInput(id, v, props, r)
+        if (types[id] in PxControls.TYPES) controls.update(id, v, props, r)
         if (v is PxPath) {
             if (props.has("path")) v.setCommands(props.optJSONArray("path")) else if ("path" in r) v.setCommands(null)
             if (props.has("viewbox")) v.setBox(props.optDouble("viewbox", 24.0).toFloat())
@@ -738,6 +741,7 @@ class OpApplier(
         if (!(host is PxNav && v in host.lingering)) host?.removeView(v)  // a popping screen leaves when its animation ends
         scrolls.remove(id); layoutListeners.remove(id); imgReq.remove(id)
         if (types.remove(id) == "ScrollView") layout.delete(id or CONTENT)
+        controls.drop(id)
         layout.delete(id)
         styles.remove(id); frames.remove(id); pads.remove(id); painted.remove(id); defaultText.remove(id)
     }

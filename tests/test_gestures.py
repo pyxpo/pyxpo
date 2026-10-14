@@ -15,7 +15,7 @@ def test_slider_touch_and_layout():
         def ch(x):
             seen.append(x)
             set_v(x)
-        return Slider(value=v, minimum=0, maximum=100, on_value_change=ch)
+        return Slider(value=v, minimum=0, maximum=100, on_value_change=ch, native=False)
 
     app, r = mount(App)
     root = r.find_all("View")[0]

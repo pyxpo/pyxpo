@@ -52,7 +52,7 @@ def test_system_mode_follows_os_scheme():
 
 def test_kit_components_use_theme_colors():
     app, r = mount(lambda: ThemeProvider(
-        Card(Typography("hi", variant="title"), AppButton(label="Go", tone="danger"), ProgressBar(value=2)),
+        Card(Typography("hi", variant="title"), AppButton(label="Go", tone="danger"), ProgressBar(value=2, native=False)),
         mode="dark"))
     d = dark_theme["colors"]
     t = r.find_text("hi")

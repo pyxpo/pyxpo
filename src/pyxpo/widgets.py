@@ -346,8 +346,17 @@ def _fmt_time(v: _dt.time) -> str:
 
 @component
 def Radio(selected: bool = False, label: str = "", on_press: Optional[Callable[[], Any]] = None, size: float = 22,
-          style: Any = None):
+          style: Any = None, native: bool = True, color: Any = None, unchecked_color: Any = None,
+          label_style: Any = None):
+    """Native radio button (Material radio) with a label. `native=False` draws a custom ring of `size`."""
     c = use_theme()["colors"]
+    if native:
+        from .native import native_radio
+        return Pressable(
+            native_radio(selected, None, False, color or c["primary"], unchecked_color or c["border"], None, None, {}),
+            Text(label, style=[{"margin_left": 4, "font_size": 15, "color": c["text"]}, label_style]) if label else None,
+            on_press=on_press, accessibility_role="radio", accessibility_state={"selected": selected},
+            accessibility_label=label, style=[{"flex_direction": "row", "align_items": "center"}, style])
     ring = {"width": size, "height": size, "border_radius": size / 2, "border_width": 2,
             "border_color": c["primary"] if selected else c["border"], "align_items": "center", "justify_content": "center"}
     return Pressable(View(View(style={"width": size / 2, "height": size / 2, "border_radius": size / 4,

@@ -144,10 +144,17 @@ def Field(label: Optional[str] = None, error: Optional[str] = None, hint: Option
 
 
 @component
-def ProgressBar(value: float = 0.0, tone: str = "primary", height: float = 6, style: Any = None):
-    """`value` in 0..1."""
+def ProgressBar(value: Optional[float] = 0.0, tone: str = "primary", height: float = 6, style: Any = None,
+                native: bool = True, color: Any = None, track_color: Any = None):
+    """`value` in 0..1, or None for an indeterminate bar. Native progress bar by default; `native=False` draws
+    a custom bar `height` dp tall."""
     t = use_theme()
     c = t["colors"]
+    if native:
+        from .native import native_progress
+        return native_progress(value, color or c.get(tone, c["primary"]), track_color or c["surface_alt"],
+                               [{"height": height}, style], None, {})
+    value = 0.0 if value is None else value
     pct = max(0.0, min(1.0, float(value))) * 100
     return View(View(style={"width": "%g%%" % pct, "height": height, "background_color": c.get(tone, c["primary"]),
                             "border_radius": height / 2}),
