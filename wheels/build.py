@@ -1,7 +1,9 @@
 """Build a pyxpo-wheels recipe for Android with cibuildwheel (needs Python >= 3.11, cibuildwheel >= 3.1).
 
-Usage: python wheels/build.py numpy [--arch arm64_v8a ...] [--out wheels/dist]
-Downloads the sdist from PyPI, builds cp313 wheels, then runs check_wheel.py on each result.
+Usage: python wheels/build.py <name>[==<version>] [--arch arm64_v8a ...] [--out wheels/dist]
+Works for any package with an sdist on PyPI. An optional wheels/recipes/<name>.toml adds
+config settings (e.g. numpy needs no-BLAS flags); without one the defaults are used.
+Downloads the sdist, builds cp313 wheels, then runs check_wheel.py on each result.
 """
 from __future__ import annotations
 
@@ -19,9 +21,10 @@ ROOT = HERE.parent
 CACHE = ROOT / ".cache" / "src"
 
 
-def fetch_sdist(name: str, version: str) -> Path:
+def fetch_sdist(name: str, version: str = "") -> Path:
     CACHE.mkdir(parents=True, exist_ok=True)
-    with urllib.request.urlopen("https://pypi.org/pypi/%s/%s/json" % (name, version)) as r:
+    url = "https://pypi.org/pypi/%s/%s/json" % (name, version) if version else "https://pypi.org/pypi/%s/json" % name
+    with urllib.request.urlopen(url) as r:
         info = json.load(r)
     sd = next(u for u in info["urls"] if u["packagetype"] == "sdist")
     dest = CACHE / sd["filename"]
@@ -36,9 +39,12 @@ def main() -> int:
     ap.add_argument("--arch", action="append")
     ap.add_argument("--out", default=str(ROOT / "wheels" / "dist"))
     args = ap.parse_args()
-    rec = tomllib.loads((HERE / "recipes" / (args.recipe + ".toml")).read_text())
-    pkg, bld = rec["package"], rec.get("build", {})
-    sdist = fetch_sdist(pkg["name"], pkg["version"])
+    name, _, version = args.recipe.partition("==")
+    rfile = HERE / "recipes" / (name + ".toml")
+    rec = tomllib.loads(rfile.read_text()) if rfile.is_file() else {}
+    bld = rec.get("build", {})
+    version = version or rec.get("package", {}).get("version", "")
+    sdist = fetch_sdist(name, version)
     settings = list(bld.get("config_settings", [])) + ["setup-args=--cross-file=%s" % (HERE / "meson-android.ini")]
     out = Path(args.out)
     out.mkdir(parents=True, exist_ok=True)
