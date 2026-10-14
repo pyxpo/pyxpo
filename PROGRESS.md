@@ -18,4 +18,5 @@
 - Router auto status bar style (RouterRoot + Header set_bar_style from theme/scheme). Android emu verified: light/dark icons, Drawer open+item tap -> nested Tabs, tab switch, RR reload (resets to Home).
 - Deep links DONE: scheme <app_id>:// (Android intent-filter+onNewIntent, iOS CFBundleURLTypes+openURLContexts, DEBUG PYXPO_INITIAL_URL), router `url` event + env initial_url. iOS cold-start verified (Tabs->Two); Android/warm path not device-tested.
 - Dev server POST /reload (token header) -> client reload_all. iOS full reload VERIFIED (timestamp changed). iOS launch manual: SIMCTL_CHILD_PYXPO_DEV_URL + _TOKEN; `pyxpo run ios` prints 'Unable to find application Simulator' after build OK.
+- iOS XCUITest e2e (tests/ios_ui) PASSED on simulator: Add tap, Drawer open+item tap, Tabs switch, Cmd+R, double-R reload. Gap: Drawer item Text not exposed to accessibility (no label) - fix.
 - TODO next: Android deep link device test, release/live, real-world project, Animated audit vs RN, fps measure, Drawer/Tabs device taps, router tests, D3 review.
