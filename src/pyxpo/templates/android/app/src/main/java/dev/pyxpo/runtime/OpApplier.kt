@@ -121,7 +121,9 @@ class OpApplier(
             }
             "Image" -> ImageView(ctx)
             "TextInput" -> EditText(ctx)
-            "ScrollView" -> ScrollView(ctx).also { it.addView(PxGroup(ctx), ViewGroup.LayoutParams(-2, -2)) }
+            "ScrollView" -> (if (props.optBoolean("horizontal")) PxHScroll(ctx) else PxScroll(ctx)).also {
+                it.addView(PxGroup(ctx), ViewGroup.LayoutParams(-2, -2))
+            }
             else -> PxGroup(ctx)
         }
         views[id] = v
@@ -130,9 +132,15 @@ class OpApplier(
         layout.create(id)
         if (type in LEAVES) layout.setMeasured(id, true)
         if (type == "ScrollView") {
+            layout.setNum(id, prop("scroll"), 1f)
             layout.create(id or CONTENT)
             layout.insert(id, id or CONTENT, 0)
             layout.setNum(id or CONTENT, prop("flex_shrink"), 0f)
+            if (props.optBoolean("horizontal")) {
+                layout.setStr(id, prop("flex_direction"), "row")
+                layout.setStr(id or CONTENT, prop("flex_direction"), "row")
+            }
+            wireScroll(id, v as FrameLayout)
         }
         update(id, props, null)
         if (type == "TextInput") {
@@ -181,12 +189,175 @@ class OpApplier(
                 "accessibility_label", "accessibility_hint", "accessibility_role", "accessibility_state",
                 "accessibility_value", "accessible" -> a11yDirty = true
                 "style" -> applyStyle(id, v, props.optJSONObject(k) ?: JSONObject())
+                "on_layout" -> layoutListeners.add(id)
+                "source", "resize_mode", "tint_color" -> if (v is ImageView) applyImage(id, v, props, r)
+                else -> if (v is PxScrollable) scrollProp(id, v as FrameLayout, k, props)
             }
+        }
+        for (k in r) {
+            if (k == "on_layout") layoutListeners.remove(id)
+            if (v is PxScrollable) scrollProp(id, v as FrameLayout, k, null)
+            if (v is ImageView && !props.has(k) && (k == "source" || k == "resize_mode" || k == "tint_color")) applyImage(id, v, JSONObject(), r)
         }
         if (v is EditText) applyInput(id, v, props, r)
         if (textDirty && v is TextView) { applyText(id, v); layout.markDirty(id) }
         if (a11yDirty) a11y[id] = (a11y[id] ?: JSONObject()).also { merge(it, props, r) }.also { applyA11y(v, it) }
         if (!batching) flush()
+    }
+
+    // -- ScrollView ---------------------------------------------------------------------------------
+    private class ScrollCfg {
+        var paging = false
+        var throttle = 16L
+        var ae: JSONObject? = null
+        var emit = false
+        var onScroll = false
+        var begin = false; var end = false; var momentum = false
+        var last = 0L
+        var dragging = false
+        var idle: Runnable? = null
+    }
+
+    private val scrolls = HashMap<Int, ScrollCfg>()
+    private val layoutListeners = HashSet<Int>()
+    private val imgReq = HashMap<Int, String>()
+    private val images by lazy { Images(ctx) }
+    private val ui = android.os.Handler(android.os.Looper.getMainLooper())
+
+    private fun scrollProp(id: Int, v: FrameLayout, k: String, props: JSONObject?) {
+        val c = scrolls[id] ?: return
+        val on = props?.opt(k)
+        when (k) {
+            "paging_enabled" -> c.paging = props?.optBoolean(k) ?: false
+            "scroll_enabled" -> (v as PxScrollable).userScroll = props?.optBoolean(k, true) ?: true
+            "shows_scroll_indicator" -> {
+                val show = props?.optBoolean(k, true) ?: true
+                v.isVerticalScrollBarEnabled = show; v.isHorizontalScrollBarEnabled = show
+            }
+            "bounces" -> v.overScrollMode = if (props?.optBoolean(k, true) ?: true) View.OVER_SCROLL_IF_CONTENT_SCROLLS else View.OVER_SCROLL_NEVER
+            "scroll_event_throttle" -> c.throttle = props?.optLong(k, 16) ?: 16
+            "on_scroll" -> {
+                c.ae = (on as? JSONObject)?.optJSONObject("\$ae")
+                c.emit = if (on is JSONObject) on.optBoolean("emit") else on == true
+                c.onScroll = on != null
+            }
+            "on_scroll_begin_drag" -> c.begin = props != null
+            "on_scroll_end_drag" -> c.end = props != null
+            "on_momentum_scroll_end" -> c.momentum = props != null
+        }
+    }
+
+    private fun scrollInfo(id: Int, v: FrameLayout): JSONObject {
+        val f = frames[id or CONTENT]
+        return JSONObject().put("x", v.scrollX / d.toDouble()).put("y", v.scrollY / d.toDouble())
+            .put("width", v.width / d.toDouble()).put("height", v.height / d.toDouble())
+            .put("content_width", (f?.get(2) ?: 0f).toDouble()).put("content_height", (f?.get(3) ?: 0f).toDouble())
+    }
+
+    private fun emitScroll(id: Int, v: FrameLayout, c: ScrollCfg) {
+        if (c.emit) event("scroll", id, JSONObject().put("value", scrollInfo(id, v)))
+    }
+
+    private fun wireScroll(id: Int, v: FrameLayout) {
+        val c = ScrollCfg()
+        scrolls[id] = c
+        c.idle = Runnable {
+            val h = v as? PxScrollable ?: return@Runnable
+            if (c.dragging) return@Runnable
+            if (c.paging) {
+                val horiz = v is PxHScroll
+                val page = if (horiz) v.width else v.height
+                val pos = if (horiz) v.scrollX else v.scrollY
+                if (page > 0) {
+                    val target = (Math.round(pos.toFloat() / page) * page)
+                    if (target != pos) {
+                        if (horiz) (v as PxHScroll).smoothScrollTo(target, 0) else (v as PxScroll).smoothScrollTo(0, target)
+                        ui.postDelayed(c.idle!!, 90); return@Runnable
+                    }
+                }
+            }
+            emitScroll(id, v, c)
+            if (c.momentum) event("momentum_scroll_end", id, JSONObject().put("value", scrollInfo(id, v)))
+        }
+        v.setOnScrollChangeListener { _, _, _, _, _ ->
+            val ae = c.ae
+            if (ae != null) {
+                val info = scrollInfo(id, v)
+                val vals = JSONObject()
+                val it = ae.keys()
+                while (it.hasNext()) { val key = it.next(); if (info.has(key)) vals.put(ae.getInt(key).toString(), info.getDouble(key)) }
+                anim.aset(vals)
+            }
+            val now = android.os.SystemClock.uptimeMillis()
+            if (c.emit && now - c.last >= c.throttle) { c.last = now; emitScroll(id, v, c) }
+            ui.removeCallbacks(c.idle!!)
+            ui.postDelayed(c.idle!!, 90)
+        }
+        v.setOnTouchListener { _, e ->
+            when (e.actionMasked) {
+                android.view.MotionEvent.ACTION_MOVE -> if (!c.dragging) {
+                    c.dragging = true
+                    if (c.begin) event("scroll_begin_drag", id, JSONObject().put("value", scrollInfo(id, v)))
+                }
+                android.view.MotionEvent.ACTION_UP, android.view.MotionEvent.ACTION_CANCEL -> if (c.dragging) {
+                    c.dragging = false
+                    if (c.end) event("scroll_end_drag", id, JSONObject().put("value", scrollInfo(id, v)))
+                    ui.removeCallbacks(c.idle!!)
+                    ui.postDelayed(c.idle!!, 90)
+                }
+            }
+            false
+        }
+    }
+
+    private fun scrollTo(id: Int, x: Double?, y: Double?, animated: Boolean) {
+        val v = views[id] as? FrameLayout ?: return
+        val f = frames[id or CONTENT]
+        val horiz = v is PxHScroll
+        val tx = x?.let { (it * d).roundToInt() } ?: if (horiz) max(0, ((f?.get(2) ?: 0f) * d).roundToInt() - v.width) else v.scrollX
+        val ty = y?.let { (it * d).roundToInt() } ?: if (!horiz) max(0, ((f?.get(3) ?: 0f) * d).roundToInt() - v.height) else v.scrollY
+        if (animated) {
+            if (horiz) (v as PxHScroll).smoothScrollTo(tx, ty) else (v as PxScroll).smoothScrollTo(tx, ty)
+        } else v.scrollTo(tx, ty)
+    }
+
+    // -- Image -------------------------------------------------------------------------------------
+    private fun applyImage(id: Int, v: ImageView, props: JSONObject, removed: Set<String>) {
+        if (props.has("resize_mode") || "resize_mode" in removed) {
+            v.scaleType = when (props.optString("resize_mode", "cover")) {
+                "contain" -> ImageView.ScaleType.FIT_CENTER
+                "stretch" -> ImageView.ScaleType.FIT_XY
+                "center" -> ImageView.ScaleType.CENTER
+                else -> ImageView.ScaleType.CENTER_CROP
+            }
+        }
+        if (props.has("tint_color") || "tint_color" in removed) {
+            val t = props.opt("tint_color")
+            val c = when (t) {
+                is Number -> t.toInt()
+                is String -> try { android.graphics.Color.parseColor(t) } catch (_: Exception) { null }
+                else -> null
+            }
+            if (c != null) v.setColorFilter(c, android.graphics.PorterDuff.Mode.SRC_IN) else v.clearColorFilter()
+        }
+        if (props.has("source") || "source" in removed) {
+            val uri = props.optJSONObject("source")?.optString("uri")
+            if (uri.isNullOrEmpty()) {
+                imgReq.remove(id); v.setImageDrawable(null); layout.markDirty(id)
+            } else if (imgReq[id] != uri) {
+                imgReq[id] = uri
+                images.load(uri) { bmp, err ->
+                    if (imgReq[id] != uri || views[id] !== v) return@load
+                    if (bmp != null) {
+                        v.setImageBitmap(bmp)
+                        layout.markDirty(id)
+                        flush()
+                        event("load", id, JSONObject().put("value", JSONObject()
+                            .put("width", bmp.width / d.toDouble()).put("height", bmp.height / d.toDouble())))
+                    } else event("error", id, JSONObject().put("value", JSONObject().put("message", err ?: "error")))
+                }
+            }
+        }
     }
 
     // -- TextInput ---------------------------------------------------------------------------------
@@ -268,6 +439,8 @@ class OpApplier(
     private fun call(id: Int, module: String, method: String, args: JSONArray, wantReply: Boolean) {
         try {
             val out: Any? = when ("$module.$method") {
+                "Scroll.to" -> { scrollTo(args.getInt(0), args.getDouble(1), args.getDouble(2), args.optBoolean(3, true)); null }
+                "Scroll.to_end" -> { scrollTo(args.getInt(0), null, null, args.optBoolean(1, true)); null }
                 "Keyboard.dismiss" -> {
                     val act = ctx as? android.app.Activity
                     val f = act?.currentFocus
@@ -477,6 +650,7 @@ class OpApplier(
         touching.remove(id); a11y.remove(id); inputCfg.remove(id); wired.remove(id)
         texts.remove(id); spans.remove(id)
         (v?.parent as? ViewGroup)?.removeView(v)
+        scrolls.remove(id); layoutListeners.remove(id); imgReq.remove(id)
         if (types.remove(id) == "ScrollView") layout.delete(id or CONTENT)
         layout.delete(id)
         styles.remove(id); frames.remove(id); pads.remove(id); painted.remove(id); defaultText.remove(id)
@@ -486,7 +660,7 @@ class OpApplier(
 
     private fun groupOf(parent: Int): ViewGroup? {
         val p = views[parent] ?: return null
-        return if (p is ScrollView) p.getChildAt(0) as ViewGroup else p as? ViewGroup
+        return if (p is PxScrollable) (p as FrameLayout).getChildAt(0) as ViewGroup else p as? ViewGroup
     }
 
     // -- style -------------------------------------------------------------------------------------
@@ -737,15 +911,21 @@ class OpApplier(
         if (id == 1) return
         if (id and CONTENT != 0) {
             val base = id and CONTENT.inv()
-            val c = (views[base] as? ScrollView)?.getChildAt(0) as? PxGroup ?: return
-            c.fw = (f[2] * d).roundToInt(); c.fh = (f[3] * d).roundToInt()
+            val c = (views[base] as? FrameLayout)?.getChildAt(0) as? PxGroup ?: return
+            val nw = (f[2] * d).roundToInt(); val nh = (f[3] * d).roundToInt()
+            if (nw != c.fw || nh != c.fh) { c.fw = nw; c.fh = nh; c.requestLayout() }
             frames[id] = f
             touched.add(base)
             return
         }
         val v = views[id] ?: return
+        val old = frames[id]
         frames[id] = f
-        if (v is ScrollView) touched.add(id) else placeView(v, f)
+        if (id in layoutListeners && (old == null || !old.contentEquals(f))) {
+            event("layout", id, JSONObject().put("value", JSONObject().put("x", f[0].toDouble()).put("y", f[1].toDouble())
+                .put("width", f[2].toDouble()).put("height", f[3].toDouble())))
+        }
+        if (v is PxScrollable) touched.add(id) else placeView(v, f)
     }
 
     private fun placeView(v: View, f: FloatArray) {

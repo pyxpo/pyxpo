@@ -169,8 +169,64 @@ def stop_value(value: Value, cb: Optional[Callable[[float], None]]) -> None:
         cb(value._value)
 
 
+class AnimatedEvent:
+    """`Animated.event(mapping)`: feeds scroll offsets into animated values.
+
+    `mapping` is `{"y": value}` (keys x, y, width, height, content_width, content_height) or the React Native
+    form `[{"native_event": {"content_offset": {"y": value}}}]`. With `use_native_driver` the native scroll view
+    writes the value every frame and Python sees nothing unless a `listener` is given.
+    """
+    _is_animated_event = True
+
+    def __init__(self, mapping: Any, listener: Optional[Callable[[Dict[str, Any]], Any]] = None,
+                 use_native_driver: bool = True) -> None:
+        self.map = self._flatten(mapping)
+        for v in self.map.values():
+            _check(v)
+        self.listener = listener
+        self.native = use_native_driver
+
+    @staticmethod
+    def _flatten(mapping: Any) -> Dict[str, Value]:
+        if isinstance(mapping, (list, tuple)):
+            mapping = mapping[0] if mapping else {}
+        if "native_event" in mapping:
+            mapping = mapping["native_event"]
+        out: Dict[str, Value] = {}
+        for k, v in mapping.items():
+            if k == "content_offset":
+                out.update(v)
+            elif k == "content_size":
+                out.update({"content_" + a: b for a, b in v.items()})
+            elif k == "layout_measurement":
+                out.update(v)
+            else:
+                out[k] = v
+        return out
+
+    def _wire(self) -> Dict[str, Any]:
+        for v in self.map.values():
+            v._register()
+        return {"$ae": {k: v.id for k, v in self.map.items()}, "emit": self.listener is not None}
+
+    def __call__(self, e: Any = None) -> None:
+        """Python path (no native driver)."""
+        if isinstance(e, dict):
+            for k, v in self.map.items():
+                if k in e:
+                    v.set_value(e[k])
+        if self.listener is not None:
+            self.listener(e)
+
+
+def event(mapping: Any, listener: Optional[Callable[[Dict[str, Any]], Any]] = None,
+          use_native_driver: bool = True) -> AnimatedEvent:
+    return AnimatedEvent(mapping, listener, use_native_driver)
+
+
 class Animated:
     Value = Value
+    event = staticmethod(event)
     timing = staticmethod(timing)
     spring = staticmethod(spring)
     decay = staticmethod(decay)

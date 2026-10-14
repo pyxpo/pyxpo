@@ -120,6 +120,20 @@ class MockRenderer:
             self.clock = min(end, self.clock + step)
             self._events(self.driver.tick(self.clock))
 
+    def scroll(self, node: Any, x: float = 0, y: float = 0, width: float = 360, height: float = 640,
+               content_width: float = 360, content_height: float = 2000) -> None:
+        """Act like a native scroll view: write bound animated values, emit `scroll` when Python listens."""
+        n = node if isinstance(node, Node) else self._node(node)
+        prop = n.props.get("on_scroll")
+        value = {"x": x, "y": y, "width": width, "height": height,
+                 "content_width": content_width, "content_height": content_height}
+        emit = bool(prop)
+        if isinstance(prop, dict) and "$ae" in prop:
+            self._events(self.driver.aset({str(nid): float(value[k]) for k, nid in prop["$ae"].items() if k in value}))
+            emit = bool(prop.get("emit"))
+        if emit:
+            self.channel.emit_event(json.dumps({"event": "scroll", "id": n.id, "payload": {"value": value}}))
+
     def resolved(self, node: Any, key: str) -> Any:
         """Effective style value: animated binding if the style key is bound, else the static value."""
         n = node if isinstance(node, Node) else self._node(node)

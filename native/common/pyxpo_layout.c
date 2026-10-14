@@ -24,7 +24,7 @@ typedef struct {
     int display, position, direction, wrap, justify, align_items, align_self, align_content;
     PxVal dim[2], min[2], max[2], basis;
     PxVal pos[4], margin[4], padding[4], border[4]; /* left, top, right, bottom */
-    float grow, shrink, aspect, gap[2];             /* gap[0] = column gap (x), gap[1] = row gap (y) */
+    float grow, shrink, aspect, gap[2], scroll;           /* gap[0] = column gap (x), gap[1] = row gap (y) */
 } PxStyle;
 
 typedef struct { float aw, ah, ow; int wm, hm; float rw, rh; } PxCache;
@@ -63,7 +63,7 @@ enum { K_ENUM, K_DIM, K_NUM, K_BORDER };
 enum {
     P_DISPLAY, P_POSITION, P_DIRECTION, P_WRAP, P_JUSTIFY, P_ALIGN_ITEMS, P_ALIGN_SELF, P_ALIGN_CONTENT,
     P_WIDTH, P_HEIGHT, P_MIN_W, P_MIN_H, P_MAX_W, P_MAX_H, P_BASIS,
-    P_GROW, P_SHRINK, P_ASPECT, P_COL_GAP, P_ROW_GAP,
+    P_GROW, P_SHRINK, P_ASPECT, P_COL_GAP, P_ROW_GAP, P_SCROLL,
     P_LEFT, P_TOP, P_RIGHT, P_BOTTOM,
     P_ML, P_MT, P_MR, P_MB, P_PL, P_PT, P_PR, P_PB, P_BL, P_BT, P_BR, P_BB,
     P_COUNT
@@ -73,7 +73,7 @@ static const struct { const char *name; int kind; } PROPS[P_COUNT] = {
     {"justify_content", K_ENUM}, {"align_items", K_ENUM}, {"align_self", K_ENUM}, {"align_content", K_ENUM},
     {"width", K_DIM}, {"height", K_DIM}, {"min_width", K_DIM}, {"min_height", K_DIM},
     {"max_width", K_DIM}, {"max_height", K_DIM}, {"flex_basis", K_DIM},
-    {"flex_grow", K_NUM}, {"flex_shrink", K_NUM}, {"aspect_ratio", K_NUM}, {"column_gap", K_NUM}, {"row_gap", K_NUM},
+    {"flex_grow", K_NUM}, {"flex_shrink", K_NUM}, {"aspect_ratio", K_NUM}, {"column_gap", K_NUM}, {"row_gap", K_NUM}, {"scroll", K_NUM},
     {"left", K_DIM}, {"top", K_DIM}, {"right", K_DIM}, {"bottom", K_DIM},
     {"margin_left", K_DIM}, {"margin_top", K_DIM}, {"margin_right", K_DIM}, {"margin_bottom", K_DIM},
     {"padding_left", K_DIM}, {"padding_top", K_DIM}, {"padding_right", K_DIM}, {"padding_bottom", K_DIM},
@@ -133,6 +133,7 @@ static float *num_slot(PxStyle *s, int p) {
     case P_ASPECT: return &s->aspect;
     case P_COL_GAP: return &s->gap[0];
     case P_ROW_GAP: return &s->gap[1];
+    case P_SCROLL: return &s->scroll;
     }
     return NULL;
 }
@@ -558,7 +559,7 @@ static void layout_flex(PxTree *t, PxNode *n, float W, int wm, float H, int hm, 
             float cw, ch, caw, cah;
             int cwm, chm;
             /* content size: main AT_MOST inner (or undefined), cross as constrained as known */
-            float ma = DEF(inner[M]) ? inner[M] - it->ms[M] - it->me[M] : UNDEF;
+            float ma = (DEF(inner[M]) && s->scroll == 0) ? inner[M] - it->ms[M] - it->me[M] : UNDEF; /* scroll: main axis unbounded */
             int mm = DEF(ma) ? M_ATMOST : M_UNDEF;
             float ca = UNDEF;
             int cm = M_UNDEF;

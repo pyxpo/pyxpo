@@ -29,3 +29,26 @@ class PxRoot(ctx: Context, private val onSize: (Int, Int) -> Unit) : PxGroup(ctx
         onSize(w, h)
     }
 }
+
+/** Scroll views whose touch handling can be switched off (`scroll_enabled=False`). */
+interface PxScrollable { var userScroll: Boolean }
+
+class PxScroll(ctx: Context) : android.widget.ScrollView(ctx), PxScrollable {
+    override var userScroll = true
+    override fun onInterceptTouchEvent(e: android.view.MotionEvent) = userScroll && super.onInterceptTouchEvent(e)
+    override fun onTouchEvent(e: android.view.MotionEvent) = userScroll && super.onTouchEvent(e)
+    override fun dispatchDraw(canvas: android.graphics.Canvas) {
+        canvas.save(); canvas.clipRect(scrollX, scrollY, scrollX + width, scrollY + height)
+        super.dispatchDraw(canvas); canvas.restore()
+    }
+}
+
+class PxHScroll(ctx: Context) : android.widget.HorizontalScrollView(ctx), PxScrollable {
+    override var userScroll = true
+    override fun onInterceptTouchEvent(e: android.view.MotionEvent) = userScroll && super.onInterceptTouchEvent(e)
+    override fun onTouchEvent(e: android.view.MotionEvent) = userScroll && super.onTouchEvent(e)
+    override fun dispatchDraw(canvas: android.graphics.Canvas) {
+        canvas.save(); canvas.clipRect(scrollX, scrollY, scrollX + width, scrollY + height)
+        super.dispatchDraw(canvas); canvas.restore()
+    }
+}

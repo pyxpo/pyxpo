@@ -146,7 +146,8 @@ final class OpApplier {
             t.addAction(UIAction { [weak self, weak t] _ in self?.event("submit", id, ["value": t?.text ?? ""]) },
                         for: .editingDidEndOnExit)
             v = t
-        case "Image": v = UIImageView()
+        case "Image":
+            let i = UIImageView(); i.clipsToBounds = true; i.contentMode = .scaleAspectFill; v = i
         case "ScrollView": v = ScrollHost()
         default: v = PxGroup()
         }
@@ -159,6 +160,19 @@ final class OpApplier {
             px_node_create(tree, c)
             px_node_insert(tree, Int32(id), c, 0)
             px_node_set_num(tree, c, prop("flex_shrink"), 0)
+            px_node_set_num(tree, Int32(id), prop("scroll"), 1)
+            if props["horizontal"] as? Bool == true {
+                px_node_set_str(tree, Int32(id), prop("flex_direction"), "row")
+                px_node_set_str(tree, c, prop("flex_direction"), "row")
+            }
+            if let sh = v as? ScrollHost {
+                sh.onEvent = { [weak self] n, p in self?.event(n, id, p) }
+                sh.onAE = { [weak self] vals in
+                    var j: [String: Any] = [:]
+                    for (k, x) in vals { j[String(k)] = x }
+                    self?.anim.aset(j)
+                }
+            }
         }
         update(id, props, [])
     }
@@ -208,7 +222,16 @@ final class OpApplier {
                     }
                 }
             case let k where k.hasPrefix("accessib"): a11yDirty = true
-            default: break
+            case "on_layout": layoutListeners.insert(id)
+            case "source", "resize_mode", "tint_color": if let i = v as? UIImageView { applyImage(id, i, props, removed) }
+            default: if let sh = v as? ScrollHost { scrollProp(sh, k, props[k]) }
+            }
+        }
+        for k in removed {
+            if k == "on_layout" { layoutListeners.remove(id) }
+            if let sh = v as? ScrollHost { scrollProp(sh, k, nil) }
+            if let i = v as? UIImageView, ["source", "resize_mode", "tint_color"].contains(k), props[k] == nil {
+                applyImage(id, i, [:], removed)
             }
         }
         if a11yDirty {
@@ -222,6 +245,72 @@ final class OpApplier {
     }
 
     private var a11y: [Int: [String: Any]] = [:]
+    private var layoutListeners = Set<Int>()
+    private var imgReq: [Int: String] = [:]
+    private let images = Images()
+
+    private func scrollProp(_ s: ScrollHost, _ k: String, _ val: Any?) {
+        switch k {
+        case "paging_enabled": s.isPagingEnabled = val as? Bool ?? false
+        case "scroll_enabled": s.isScrollEnabled = val as? Bool ?? true
+        case "shows_scroll_indicator":
+            let on = val as? Bool ?? true
+            s.showsVerticalScrollIndicator = on; s.showsHorizontalScrollIndicator = on
+        case "bounces": s.bounces = val as? Bool ?? true
+        case "scroll_event_throttle": s.throttle = (val as? NSNumber).map { $0.doubleValue / 1000 } ?? 0.016
+        case "on_scroll":
+            let o = val as? [String: Any]
+            s.ae = (o?["$ae"] as? [String: Any])?.compactMapValues { ($0 as? NSNumber)?.intValue }
+            s.emit = o.map { $0["emit"] as? Bool ?? false } ?? (val as? Bool == true)
+        case "on_scroll_begin_drag": s.onBegin = val != nil
+        case "on_scroll_end_drag": s.onEnd = val != nil
+        case "on_momentum_scroll_end": s.onMomentum = val != nil
+        default: break
+        }
+    }
+
+    private func applyImage(_ id: Int, _ v: UIImageView, _ props: [String: Any], _ removed: [String]) {
+        if props["resize_mode"] != nil || removed.contains("resize_mode") {
+            switch props["resize_mode"] as? String ?? "cover" {
+            case "contain": v.contentMode = .scaleAspectFit
+            case "stretch": v.contentMode = .scaleToFill
+            case "center": v.contentMode = .center
+            default: v.contentMode = .scaleAspectFill
+            }
+        }
+        if props["tint_color"] != nil || removed.contains("tint_color") || props["source"] != nil {
+            let t = props["tint_color"] as? NSNumber
+            v.tintColor = t.map { Self.color($0.uint32Value) }
+            v.image = v.image?.withRenderingMode(t == nil ? .alwaysOriginal : .alwaysTemplate)
+        }
+        if props["source"] != nil || removed.contains("source") {
+            let uri = (props["source"] as? [String: Any])?["uri"] as? String ?? ""
+            if uri.isEmpty {
+                imgReq.removeValue(forKey: id); v.image = nil; px_node_mark_dirty(tree, Int32(id))
+            } else if imgReq[id] != uri {
+                imgReq[id] = uri
+                let tinted = v.tintColor != nil && (props["tint_color"] != nil)
+                images.load(uri) { [weak self, weak v] img, err in
+                    guard let self = self, let v = v, self.imgReq[id] == uri else { return }
+                    if let img = img {
+                        v.image = tinted ? img.withRenderingMode(.alwaysTemplate) : img
+                        px_node_mark_dirty(self.tree, Int32(id))
+                        self.flush()
+                        self.event("load", id, ["value": ["width": Double(img.size.width), "height": Double(img.size.height)]])
+                    } else { self.event("error", id, ["value": ["message": err ?? "error"]]) }
+                }
+            }
+        }
+    }
+
+    private func scrollTo(_ id: Int, _ x: Double?, _ y: Double?, _ animated: Bool) {
+        guard let s = views[id] as? ScrollHost else { return }
+        let maxX = max(0, s.contentSize.width - s.bounds.width), maxY = max(0, s.contentSize.height - s.bounds.height)
+        let horiz = s.contentSize.width > s.contentSize.height && s.contentSize.height <= s.bounds.height
+        let tx = x.map { CGFloat($0) } ?? (horiz ? maxX : s.contentOffset.x)
+        let ty = y.map { CGFloat($0) } ?? (horiz ? s.contentOffset.y : maxY)
+        s.setContentOffset(CGPoint(x: min(max(0, tx), maxX), y: min(max(0, ty), maxY)), animated: animated)
+    }
 
     private func applyA11y(_ v: UIView, _ a: [String: Any]) {
         let st = a["accessibility_state"] as? [String: Any] ?? [:]
@@ -275,6 +364,7 @@ final class OpApplier {
     private func delete(_ id: Int) {
         views.removeValue(forKey: id)?.removeFromSuperview()
         binds.removeValue(forKey: id)
+        layoutListeners.remove(id); imgReq.removeValue(forKey: id)
         if types.removeValue(forKey: id) == "ScrollView" { px_node_delete(tree, Int32(id | Self.content)) }
         px_node_delete(tree, Int32(id))
         styles.removeValue(forKey: id)
@@ -339,6 +429,10 @@ final class OpApplier {
 
     private func call(_ id: Int, _ module: String, _ method: String, _ args: [Any], _ wantReply: Bool) {
         switch "\(module).\(method)" {
+        case "Scroll.to":
+            scrollTo(args[0] as? Int ?? 0, (args[1] as? NSNumber)?.doubleValue, (args[2] as? NSNumber)?.doubleValue,
+                     args.count > 3 ? args[3] as? Bool ?? true : true)
+        case "Scroll.to_end": scrollTo(args[0] as? Int ?? 0, nil, nil, args.count > 1 ? args[1] as? Bool ?? true : true)
         case "Keyboard.dismiss":
             UIApplication.shared.sendAction(#selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil)
         case "Clipboard.set_string": UIPasteboard.general.string = args.first as? String ?? ""
@@ -719,6 +813,10 @@ final class OpApplier {
                     sh.contentSize = r.size
                 }
             } else {
+                if layoutListeners.contains(id) {
+                    event("layout", id, ["value": ["x": Double(r.minX), "y": Double(r.minY),
+                                                   "width": Double(r.width), "height": Double(r.height)]])
+                }
                 if let v = views[id] {
                     // bounds + center, not frame: frame is undefined under a transform
                     v.bounds = CGRect(origin: v.bounds.origin, size: r.size)

@@ -117,6 +117,14 @@ class Reconciler:
         wire: Dict[str, Any] = {}
         events: Dict[str, Callable[..., Any]] = {}
         for k, v in props.items():
+            if k == "ref":
+                continue
+            if getattr(v, "_is_animated_event", False):
+                if v.native:
+                    wire[k] = v._wire()
+                    if v.listener is not None:
+                        events[k[3:]] = v.listener
+                    continue
             if k == "style":
                 if self.wire_v2:
                     v = normalize_style(v)
@@ -146,6 +154,7 @@ class Reconciler:
             self._next_id += 1
             wire, events = self._wire(e.props)
             f.sent = wire
+            self._bind_ref(f, e)
             self.ops.append(Create(f.id, e.type, dict(wire)))
             self._set_handlers(f, events)
             self._reconcile_children(f, e.children)
@@ -159,6 +168,7 @@ class Reconciler:
         f.element = e
         if f.kind == "host":
             wire, events = self._wire(e.props)
+            self._bind_ref(f, e)
             changed = {k: v for k, v in wire.items() if k not in f.sent or not _same(f.sent[k], v)}
             removed = [k for k in f.sent if k not in wire]
             if changed or removed:
@@ -169,6 +179,12 @@ class Reconciler:
             self._sync(f)
         else:
             self._render_comp(f)
+
+    @staticmethod
+    def _bind_ref(f: Fiber, e: Element) -> None:
+        ref = e.props.get("ref")
+        if ref is not None and hasattr(ref, "_bind"):
+            ref._bind(f.id)
 
     def _render_comp(self, f: Fiber) -> None:
         e = f.element
@@ -208,6 +224,9 @@ class Reconciler:
                 cleanup, data.cleanup = data.cleanup, None
                 cleanup()
         if f.kind == "host":
+            ref = f.element.props.get("ref") if f.element is not None else None
+            if ref is not None and hasattr(ref, "_unbind"):
+                ref._unbind(f.id)
             for ev in f.events:
                 self.handlers.pop((f.id, ev), None)
             self._deletes.append(f.id)

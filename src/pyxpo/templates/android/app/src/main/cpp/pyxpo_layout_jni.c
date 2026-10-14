@@ -88,7 +88,7 @@ JNIEXPORT jint JNICALL FN(nCalc)(JNIEnv *env, jobject t, jlong p, jfloat w, jflo
     float *buf = (*env)->GetFloatArrayElements(env, out, NULL);
     for (int i = 0; i < n; i++) {
         float f[4];
-        buf[i * 5] = (float)px_tree_changed_at(tr, i, f);
+        { int cid = px_tree_changed_at(tr, i, f); memcpy(&buf[i * 5], &cid, sizeof cid); }
         memcpy(&buf[i * 5 + 1], f, sizeof f);
     }
     (*env)->ReleaseFloatArrayElements(env, out, buf, 0);
@@ -103,7 +103,7 @@ JNIEXPORT jint JNICALL FN(nChanged)(JNIEnv *env, jobject t, jlong p, jfloatArray
     float *buf = (*env)->GetFloatArrayElements(env, out, NULL);
     for (int i = 0; i < n; i++) {
         float f[4];
-        buf[i * 5] = (float)px_tree_changed_at(tr, i, f);
+        { int cid = px_tree_changed_at(tr, i, f); memcpy(&buf[i * 5], &cid, sizeof cid); }
         memcpy(&buf[i * 5 + 1], f, sizeof f);
     }
     (*env)->ReleaseFloatArrayElements(env, out, buf, 0);

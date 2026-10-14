@@ -133,10 +133,33 @@ def _host(name: str, text_prop: Optional[str] = None):
     return factory
 
 
+def ScrollView(*children: Any, key: Any = None, **props: Any) -> Element:
+    """Scrollable container. `content_container_style` styles the inner content box."""
+    kids = flatten(children)
+    ccs = props.pop("content_container_style", None)
+    if ccs is not None:
+        kids = [Element("View", {"style": [{"flex_direction": "row"}, ccs] if props.get("horizontal") else ccs}, kids)]
+    return Element("ScrollView", props, kids, key)
+
+
+def Image(*children: Any, key: Any = None, **props: Any) -> Element:
+    """Image from `source`: a path, an http(s) URL, a data: URI, `asset:name`, or `{"uri": ...}`."""
+    src = props.get("source")
+    if isinstance(src, str):
+        src = {"uri": src}
+    if isinstance(src, dict) and isinstance(src.get("uri"), str):
+        uri = src["uri"]
+        if "://" not in uri and not uri.startswith(("data:", "asset:", "/")):
+            import os
+            uri = os.path.abspath(uri)
+        src = dict(src, uri=uri)
+    if src is not None:
+        props["source"] = src
+    return Element("Image", props, [], key)
+
+
 View = _host("View")
-ScrollView = _host("ScrollView")
 Text = _text_factory
 Text.__name__ = "Text"
 Button = _host("Button", "text")
-Image = _host("Image")
 TextInput = _host("TextInput")

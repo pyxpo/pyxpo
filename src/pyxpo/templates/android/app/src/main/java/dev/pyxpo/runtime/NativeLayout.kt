@@ -30,7 +30,7 @@ class NativeLayout(private val measurer: (Int, Float, Int, Float, Int) -> Long) 
     inline fun calc(w: Float, h: Float, onFrame: (Int, Float, Float, Float, Float) -> Unit) {
         val n = runCalc(w, h)
         val b = frames()
-        for (i in 0 until n) onFrame(b[i * 5].toInt(), b[i * 5 + 1], b[i * 5 + 2], b[i * 5 + 3], b[i * 5 + 4])
+        for (i in 0 until n) onFrame(java.lang.Float.floatToRawIntBits(b[i * 5]), b[i * 5 + 1], b[i * 5 + 2], b[i * 5 + 3], b[i * 5 + 4])
     }
 
     @PublishedApi internal fun frames(): FloatArray = buf

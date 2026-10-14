@@ -61,16 +61,57 @@ final class PxRoot: UIView {
 }
 
 /// ScrollView host: `content` is placed by the engine's synthetic content node.
-final class ScrollHost: UIScrollView {
+final class ScrollHost: UIScrollView, UIScrollViewDelegate {
     let content = PxGroup()
+    var emit = false, onBegin = false, onEnd = false, onMomentum = false
+    var throttle: TimeInterval = 0.016
+    var ae: [String: Int]?
+    var onAE: (([Int: Double]) -> Void)?
+    var onEvent: ((String, [String: Any]) -> Void)?
+    private var last: TimeInterval = 0
 
     override init(frame: CGRect) {
         super.init(frame: frame)
         contentInsetAdjustmentBehavior = .never
+        delegate = self
         addSubview(content)
     }
 
     required init?(coder: NSCoder) { fatalError("init(coder:) not supported") }
+
+    func info() -> [String: Any] {
+        ["x": Double(contentOffset.x), "y": Double(contentOffset.y),
+         "width": Double(bounds.width), "height": Double(bounds.height),
+         "content_width": Double(contentSize.width), "content_height": Double(contentSize.height)]
+    }
+
+    private func send(_ name: String) { onEvent?(name, ["value": info()]) }
+
+    func scrollViewDidScroll(_ s: UIScrollView) {
+        if let m = ae, let b = onAE {
+            let i = info()
+            var vals: [Int: Double] = [:]
+            for (k, id) in m { if let v = i[k] as? Double { vals[id] = v } }
+            b(vals)
+        }
+        let now = CACurrentMediaTime()
+        if emit && now - last >= throttle { last = now; send("scroll") }
+    }
+
+    func scrollViewWillBeginDragging(_ s: UIScrollView) { if onBegin { send("scroll_begin_drag") } }
+
+    func scrollViewDidEndDragging(_ s: UIScrollView, willDecelerate d: Bool) {
+        if onEnd { send("scroll_end_drag") }
+        if !d { settled() }
+    }
+
+    func scrollViewDidEndDecelerating(_ s: UIScrollView) { settled() }
+    func scrollViewDidEndScrollingAnimation(_ s: UIScrollView) { settled() }
+
+    private func settled() {
+        if emit { send("scroll") }
+        if onMomentum { send("momentum_scroll_end") }
+    }
 }
 
 /// Label that draws inside padding + border insets (the engine's frame includes them).

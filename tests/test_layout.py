@@ -296,3 +296,15 @@ def test_prop_lookup_and_reset(lib):
     t.calc(100, 100)
     assert t.f(a)[3] == 0
     assert lib.px_node_set_str(t.t, a, lib.px_prop_id(b"flex_direction"), b"sideways") == -1
+
+
+def test_scroll_content_taller_than_viewport(lib):
+    t = Tree(lib)
+    sv = t.add(flex_grow=1, scroll=1)
+    content = t.add(parent=sv, flex_shrink=0)
+    wrap = t.add(parent=content)
+    for _ in range(100):
+        t.add(parent=wrap, height=48)
+    t.calc(300, 600)
+    assert t.f(sv) == (0, 0, 300, 600)
+    assert t.f(content)[3] == 4800
