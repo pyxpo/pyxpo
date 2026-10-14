@@ -54,6 +54,8 @@ def build(abi: str, src: Path, version: str) -> None:
     host = HOSTS[abi]
     env = dict(os.environ)
     env.setdefault("ANDROID_HOME", str(Path.home() / "Library/Android/sdk"))
+    # NDK r27 defaults to 4 KB ELF alignment; Android 15+/Play need 16 KB.
+    env["LDFLAGS"] = (env.get("LDFLAGS", "") + " -Wl,-z,max-page-size=16384").strip()
     host_py = next((shutil.which(n) for n in ("python3.13", "python3.12", "python3.11", "python3.10") if shutil.which(n)), None)
     if host_py is None:
         raise SystemExit("android.py needs Python >= 3.10 on PATH")

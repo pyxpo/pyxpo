@@ -9,3 +9,4 @@ set_target_properties(python3.13 PROPERTIES IMPORTED_LOCATION "${PY_PREFIX}/lib/
 add_library(pyxpo_jni SHARED pyxpo_jni.c "${PYXPO_NATIVE_COMMON}/pyxpo_bridge.c")
 target_include_directories(pyxpo_jni PRIVATE "${PY_PREFIX}/include/python3.13" "${PYXPO_NATIVE_COMMON}")
 target_link_libraries(pyxpo_jni python3.13 log)
+target_link_options(pyxpo_jni PRIVATE -Wl,-z,max-page-size=16384)
