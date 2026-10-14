@@ -21,10 +21,22 @@ class PyxpoRuntime(private val ctx: Context, private val applier: OpApplier) {
 
     /** Called from the Python thread via JNI. */
     @Suppress("unused")
-    fun onOps(json: String) { ui.post { applier.apply(json) } }
+    fun onOps(json: String) {
+        ui.post {
+            // first ops batch proves the Python handler is registered: flush events queued before startup
+            if (!ready) { ready = true; for (e in pending) events.execute { nativeDispatchEvent(e) }; pending.clear() }
+            applier.apply(json)
+        }
+    }
+
+    private var ready = false  // UI thread only
+    private val pending = ArrayList<String>()
 
     /** Called on the UI thread; the bridge takes the GIL, so run off-thread to avoid UI stalls. */
-    fun sendEvent(json: String) { events.execute { nativeDispatchEvent(json) } }
+    fun sendEvent(json: String) {
+        if (!ready) { pending.add(json); return }
+        events.execute { nativeDispatchEvent(json) }
+    }
 
     private val events = java.util.concurrent.Executors.newSingleThreadExecutor()
 

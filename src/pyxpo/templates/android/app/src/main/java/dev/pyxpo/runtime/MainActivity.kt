@@ -6,6 +6,7 @@ import android.widget.FrameLayout
 
 class MainActivity : Activity() {
     private var runtime: PyxpoRuntime? = null
+    private var applier: OpApplier? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -22,10 +23,14 @@ class MainActivity : Activity() {
         setContentView(root)
         lateinit var rt: PyxpoRuntime
         val applier = OpApplier(this, root) { json -> rt.sendEvent(json) }
+        this.applier = applier
         rt = PyxpoRuntime(this, applier)
         runtime = rt
         // Hot-reload endpoint is honoured in debuggable builds only.
         val dev = HashMap<String, String>()
+        dev["PYXPO_WIRE"] = "2"
+        val dm = resources.displayMetrics
+        dev["PYXPO_ENV"] = OpApplier.envJson(this, dm.widthPixels, dm.heightPixels).toString()
         val debuggable = (applicationInfo.flags and android.content.pm.ApplicationInfo.FLAG_DEBUGGABLE) != 0
         val url = intent?.getStringExtra("pyxpo_dev_url")
         if (debuggable && url != null) {
@@ -33,5 +38,10 @@ class MainActivity : Activity() {
             dev["PYXPO_DEV_TOKEN"] = intent?.getStringExtra("pyxpo_dev_token") ?: ""
         }
         rt.start(devEnv = dev)
+    }
+
+    override fun onConfigurationChanged(newConfig: android.content.res.Configuration) {
+        super.onConfigurationChanged(newConfig)
+        applier?.configChanged()
     }
 }

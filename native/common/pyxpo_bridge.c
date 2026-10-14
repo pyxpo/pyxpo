@@ -53,6 +53,7 @@ int pyxpo_bridge_register(void) { return PyImport_AppendInittab("_pyxpo_bridge",
 
 int pyxpo_bridge_dispatch_event(const char *json_utf8) {
     int rc = 0;
+    if (!Py_IsInitialized()) return -1;  /* events can arrive before Python starts */
     PyGILState_STATE gil = PyGILState_Ensure();
     if (g_handler == NULL) {
         rc = -1;

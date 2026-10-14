@@ -51,6 +51,11 @@ class App:
         self.rec.loop = loop
         self.env = self.rec.env
         env_mod.set_current(self.env)
+        if os.environ.get("PYXPO_ENV"):  # native snapshot, so the first render already has the real window size
+            try:
+                self.env.update(json.loads(os.environ["PYXPO_ENV"]))
+            except ValueError:
+                pass
         self.broken = False
         self._committed: Dict[int, int] = {}  # native node id -> parent id (0 = detached)
         self._error_shown = False

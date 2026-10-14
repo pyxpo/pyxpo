@@ -1,12 +1,13 @@
 from __future__ import annotations
 
+import os
 import inspect
 from typing import Any, Callable, Dict, List, Optional, Set, Tuple
 
 from .element import Element, flatten
 from . import env as _env_mod
 from .hooks import _same, render_with_hooks
-from .style import flatten as flatten_style
+from .style import flatten as flatten_style, normalize as normalize_style
 from .ops import Create, Delete, Insert, Op, Remove, Update
 
 
@@ -46,6 +47,7 @@ class Reconciler:
         self._schedule = schedule
         self.loop: Any = None
         self.env = _env_mod.Env()
+        self.wire_v2 = os.environ.get("PYXPO_WIRE") == "2"  # native understands normalized styles (ARGB ints)
         self.ops: List[Op] = []
         self.pending_effects: List[Tuple[Fiber, Any, Callable[[], Any]]] = []
         self.handlers: Dict[Tuple[int, str], Callable[..., Any]] = {}
@@ -110,13 +112,12 @@ class Reconciler:
         return True
 
     # -- internals -----------------------------------------------------
-    @staticmethod
-    def _wire(props: Dict[str, Any]):
+    def _wire(self, props: Dict[str, Any]):
         wire: Dict[str, Any] = {}
         events: Dict[str, Callable[..., Any]] = {}
         for k, v in props.items():
-            if k == "style" and isinstance(v, (list, tuple)):
-                v = flatten_style(v)
+            if k == "style":
+                v = normalize_style(v) if self.wire_v2 else (flatten_style(v) if isinstance(v, (list, tuple)) else v)
             if callable(v):
                 events[k[3:] if k.startswith("on_") else k] = v
                 wire[k] = True

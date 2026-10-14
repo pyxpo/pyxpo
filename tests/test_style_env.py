@@ -82,3 +82,21 @@ def test_env_hooks_rerender_and_style_list():
 def test_platform_select():
     assert pyxpo.Platform.select({"android": 1, "default": 2}) == 2
     assert pyxpo.PixelRatio.round_to_nearest_pixel(1.3) == 1.0
+
+
+def test_wire_v2_normalizes_style(monkeypatch):
+    monkeypatch.setenv("PYXPO_WIRE", "2")
+    monkeypatch.setenv("PYXPO_ENV", '{"window": {"width": 412, "height": 900}, "scale": 2.5}')
+    from pyxpo import View, Text
+    from pyxpo.app import App
+    from pyxpo.channel import LocalChannel
+    ch = LocalChannel()
+    ch.sent = []
+    ch.set_native_handler(ch.sent.append)
+    app = App(View(style=[{"padding": 4}, {"background_color": "#ff0000"}]), ch)
+    app.start()
+    assert app.env.get()["window"]["width"] == 412 and app.env.get()["scale"] == 2.5
+    import json
+    ops = [o for batch in ch.sent for o in json.loads(batch)]
+    st = [o for o in ops if o["op"] == "create"][0]["props"]["style"]
+    assert st["background_color"] == 0xFFFF0000 and st["padding_left"] == 4 and "padding" not in st
