@@ -6,7 +6,7 @@ from __future__ import annotations
 
 import re
 import sys
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Optional
 
 from ._keys import to_snake
 
@@ -356,9 +356,10 @@ class StyleSheet:
     Style keys may be camelCase (`fontSize`) or snake_case (`font_size`)."""
 
     @staticmethod
-    def create(styles: Dict[str, Dict[str, Any]]) -> StyleSheetDict:
+    def create(styles: Optional[Dict[str, Dict[str, Any]]] = None, **named: Dict[str, Any]) -> StyleSheetDict:
+        """`StyleSheet.create({"title": {...}})` or, closest to JS, `StyleSheet.create(title=dict(fontSize=24))`."""
         out = StyleSheetDict()
-        for name, s in styles.items():
+        for name, s in {**(styles or {}), **named}.items():
             normalize(s, warn=True)  # validate (raises StyleError on bad values)
             if hasattr(dict, name):
                 _warn("style name %r shadows a dict method, use styles[%r]" % (name, name))
