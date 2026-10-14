@@ -1,0 +1,9 @@
+[project]
+name = "ui_components"
+version = "0.1.0"
+
+[tool.pyxpo]
+name = "ui_components"
+bundle_id = "com.example.uicomponents"
+targets = ["android", "ios"]
+requires = []

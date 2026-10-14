@@ -59,7 +59,7 @@ def Divider(vertical: bool = False, inset: float = 0, style: Any = None):
 def AppButton(label: str = "", on_press: Optional[Callable[[], Any]] = None, variant: str = "solid",
               tone: str = "primary", size: str = "md", disabled: bool = False, loading: bool = False,
               left: Any = None, full_width: bool = False, style: Any = None, text_style: Any = None, **props: Any):
-    """Themed button. `variant`: solid, outline, ghost. `tone`: primary, secondary, success, warning, danger.
+    """Themed button. `variant`: solid, outline, soft, ghost. `tone`: primary, secondary, success, warning, danger.
     `size`: sm, md, lg."""
     t = use_theme()
     c = t["colors"]
@@ -68,6 +68,8 @@ def AppButton(label: str = "", on_press: Optional[Callable[[], Any]] = None, var
     h, fs, px = {"sm": (32, 13, 12), "md": (44, 15, 16), "lg": (52, 17, 24)}.get(size, (44, 15, 16))
     if variant == "solid":
         bg, fg, border = main, on, main
+    elif variant == "soft":  # tinted background, tone-coloured text
+        bg, fg, border = (main + "22" if main.startswith("#") and len(main) == 7 else c["surface_alt"]), main, "transparent"
     elif variant == "outline":
         bg, fg, border = "transparent", main, main
     else:
@@ -75,7 +77,7 @@ def AppButton(label: str = "", on_press: Optional[Callable[[], Any]] = None, var
     box = {"height": h, "padding_horizontal": px, "border_radius": t["radius"]["md"], "background_color": bg,
            "border_width": 1, "border_color": border, "flex_direction": "row", "align_items": "center",
            "justify_content": "center", "align_self": "stretch" if full_width else "flex-start"}
-    return Pressable(left, Text("…" if loading else label, style=[{"color": fg, "font_size": fs, "font_weight": "600",
+    return Pressable(left, Text("…" if loading else label, style=[{"number_of_lines": 1, "color": fg, "font_size": fs, "font_weight": "600",
                                                                  "margin_left": 6 if left is not None else 0}, text_style]),
                      on_press=None if loading else on_press, disabled=disabled, accessibility_role="button",
                      accessibility_label=label, style=[box, style], **props)
