@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 import re
-from typing import Dict
+from typing import Any, Dict
 
 _SPLIT = re.compile(r"(?<=[a-z0-9])(?=[A-Z])|(?<=[A-Z])(?=[A-Z][a-z])")
 _SNAKE: Dict[str, str] = {}
@@ -21,3 +21,27 @@ def to_snake(name: str) -> str:
             _SNAKE.clear()
         _SNAKE[name] = hit
     return hit
+
+
+# RN prop names that map to a differently named pyxpo prop (everything else follows to_snake)
+PROP_OVERRIDES: Dict[str, str] = {
+    "placeholderTextColor": "placeholder_color", "returnKeyType": "return_key", "secureTextEntry": "secure",
+    "minimumValue": "minimum", "maximumValue": "maximum", "minimumTrackTintColor": "min_track_color",
+    "maximumTrackTintColor": "max_track_color", "thumbTintColor": "thumb_color",
+    "ItemSeparatorComponent": "item_separator", "viewBox": "viewbox", "testID": "test_id", "nativeID": "native_id",
+}
+
+
+def prop_name(k: str) -> str:
+    return k if k.islower() else (PROP_OVERRIDES.get(k) or to_snake(k))
+
+
+def alias_props(props: Dict[str, Any]) -> Dict[str, Any]:
+    """Converts camelCase prop names to the snake_case ones. Giving both spellings raises like a duplicate kwarg."""
+    out: Dict[str, Any] = {}
+    for k, v in props.items():
+        n = prop_name(k)
+        if n in out or (n != k and n in props):
+            raise TypeError("got both %r and %r" % (k, n))
+        out[n] = v
+    return out

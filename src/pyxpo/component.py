@@ -3,6 +3,7 @@ from __future__ import annotations
 import os
 from typing import Any, Callable, Dict, List, Optional, Tuple
 
+from ._keys import alias_props, prop_name
 from .element import Element, flatten
 
 
@@ -13,9 +14,36 @@ class Component:
         self.fn = fn
         self.name = name or getattr(fn, "__name__", "Component")
         self.memo: Optional[Callable[[Element, Element], bool]] = None  # (old, new) -> True to skip re-render
+        self._target: "Component" = self  # memo() wrappers point at the wrapped component
+        self._params: Optional[frozenset] = None
 
     def __call__(self, *children: Any, key: Any = None, **props: Any) -> Element:
+        if props and not "".join(props).islower():
+            props = self._alias(props)
         return Element(self, props, flatten(children), key)
+
+    def _alias(self, props: Dict[str, Any]) -> Dict[str, Any]:
+        """RN spellings (`onPress`) -> pyxpo ones. Built-ins convert every key. A user component converts a key only
+        when its snake_case form is an explicit parameter (so `def Card(onPress=None)` keeps its own names)."""
+        t = self._target
+        fn = t.fn
+        mod = getattr(fn, "__module__", "") or ""
+        if mod == "pyxpo" or mod.startswith("pyxpo."):
+            return alias_props(props)
+        if t._params is None:
+            import inspect
+            try:
+                t._params = frozenset(inspect.signature(fn).parameters)
+            except (TypeError, ValueError):
+                t._params = frozenset()
+        params = t._params
+        out: Dict[str, Any] = {}
+        for k, v in props.items():
+            n = prop_name(k) if (k not in params and prop_name(k) in params) else k
+            if n in out or (n != k and n in props):
+                raise TypeError("got both %r and %r" % (k, n))
+            out[n] = v
+        return out
 
     def __repr__(self) -> str:
         return "<Component %s>" % self.name
@@ -57,6 +85,7 @@ def commit_swap() -> int:
     for k, fn in pending.items():
         c = _registry[k]
         c.fn = fn
+        c._params = None
     del _added[:]
     return len(pending)
 
@@ -83,6 +112,7 @@ def component(fn: Callable[..., Any]) -> Component:
         _pending[k] = fn
     else:
         existing.fn = fn
+        existing._params = None
     return existing
 
 
@@ -100,6 +130,7 @@ def memo(comp: Component, are_equal: Optional[Callable[[Dict[str, Any], Dict[str
     A component that reads context (or has a descendant that does) is never skipped, so theme and
     navigation updates still reach it. `are_equal(old_props, new_props)` overrides the comparison."""
     out = Component(lambda *a, **k: comp.fn(*a, **k), name=comp.name)  # late-bound: hot reload swaps comp.fn
+    out._target = comp._target
     if are_equal is None:
         out.memo = _props_equal
     else:

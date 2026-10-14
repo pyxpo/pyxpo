@@ -28,7 +28,9 @@ def _c(v: Any) -> Optional[int]:
 def _pair(v: Any, on: Any = None, off: Any = None) -> Dict[str, Any]:
     """`v` is one color or {"on": ..., "off": ...}."""
     if isinstance(v, dict):
-        return {"on": _c(v.get("on", on)), "off": _c(v.get("off", off))}
+        # RN's trackColor is {false: c, true: c}; "on"/"off" are the pyxpo spelling
+        return {"on": _c(v.get("on", v.get(True, v.get("true", on)))),
+                "off": _c(v.get("off", v.get(False, v.get("false", off))))}
     return {"on": _c(v if v is not None else on), "off": _c(off)}
 
 

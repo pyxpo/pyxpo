@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from typing import Any, Dict, List, Optional
 
+from ._keys import alias_props
 from .style import normalize_shared
 
 
@@ -102,6 +103,11 @@ def _text_spans(children: Any, inherited: Dict[str, Any], spans: List[Dict[str, 
 
 
 def _text_factory(*children: Any, key: Any = None, **props: Any) -> Element:
+    if props and not "".join(props).islower():
+        props = alias_props(props)
+    if "number_of_lines" in props or "allow_font_scaling" in props:  # native reads these from style
+        extra = {k: props.pop(k) for k in ("number_of_lines", "allow_font_scaling") if k in props}
+        props["style"] = [props.get("style"), extra]
     single = len(children) == 1 and children[0].__class__ is str  # Text("label"): skip the generic walk
     nested = not single and _has_element(children)
     base = normalize_shared(props.get("style"))
@@ -129,6 +135,8 @@ def _has_element(seq: Any) -> bool:
 
 def _host(name: str, text_prop: Optional[str] = None):
     def factory(*children: Any, key: Any = None, **props: Any) -> Element:
+        if props and not "".join(props).islower():
+            props = alias_props(props)
         if text_prop:
             text = _join_text(children)
             if text or text_prop not in props:
@@ -142,6 +150,8 @@ def _host(name: str, text_prop: Optional[str] = None):
 
 def ScrollView(*children: Any, key: Any = None, **props: Any) -> Element:
     """Scrollable container. `content_container_style` styles the inner content box."""
+    if props and not "".join(props).islower():
+        props = alias_props(props)
     kids = flatten(children)
     ccs = props.pop("content_container_style", None)
     if ccs is not None:
@@ -155,6 +165,10 @@ def Path(*children: Any, key: Any = None, d: Any = None, stroke: Any = None, fil
     `viewbox` x `viewbox` square to the view size (set width/height in `style`)."""
     from .icons import parse_path
     from .style import parse_color
+    if props and not "".join(props).islower():
+        props = alias_props(props)
+        stroke_width = props.pop("stroke_width", stroke_width)
+        viewbox = props.pop("viewbox", viewbox)
     props["path"] = parse_path(d) if isinstance(d, str) else (d or [])
     props["viewbox"] = float(viewbox)
     props["stroke_width"] = float(stroke_width)
@@ -167,6 +181,8 @@ def Path(*children: Any, key: Any = None, d: Any = None, stroke: Any = None, fil
 
 def Image(*children: Any, key: Any = None, **props: Any) -> Element:
     """Image from `source`: a path, an http(s) URL, a data: URI, `asset:name`, or `{"uri": ...}`."""
+    if props and not "".join(props).islower():
+        props = alias_props(props)
     src = props.get("source")
     if isinstance(src, str):
         src = {"uri": src}
