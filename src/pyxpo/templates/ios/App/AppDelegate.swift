@@ -29,6 +29,11 @@ class SceneDelegate: UIResponder, UIWindowSceneDelegate {
         window = w
 
         let rt = PyxpoRuntime.shared()
+        vc.view.layoutIfNeeded()
+        let size = vc.view.safeAreaLayoutGuide.layoutFrame.size
+        let env = OpApplier.envJson(window: size, screen: UIScreen.main.bounds.size,
+                                    dark: vc.traitCollection.userInterfaceStyle == .dark)
+        if let d = try? JSONSerialization.data(withJSONObject: env) { rt.envJSON = String(data: d, encoding: .utf8) }
         let ap = OpApplier(container: vc.view) { rt.dispatchEvent($0) }
         applier = ap
         rt.onOps = { [weak ap] json in ap?.apply(json) }

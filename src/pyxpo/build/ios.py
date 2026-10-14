@@ -61,7 +61,7 @@ def render_shell(dest: Path, values: Dict[str, str]) -> None:
     (dest / "scripts").mkdir(exist_ok=True)
     shutil.copy2(str(WRAP_SCRIPT), str(dest / "scripts" / "ios_wrap.py"))
     (dest / "native").mkdir(exist_ok=True)
-    for f in ("pyxpo_bridge.c", "pyxpo_bridge.h"):
+    for f in ("pyxpo_bridge.c", "pyxpo_bridge.h", "pyxpo_layout.c", "pyxpo_layout.h"):
         shutil.copy2(str(COMMON / f), str(dest / "native" / f))
     (dest / "Python.xcframework").symlink_to(DIST / "Python.xcframework")
 

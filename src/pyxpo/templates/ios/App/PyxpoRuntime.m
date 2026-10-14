@@ -2,6 +2,10 @@
 #include <Python.h>
 #include "pyxpo_bridge.h"
 
+@interface PyxpoRuntime ()
+- (void)markReady;
+@end
+
 static PyxpoRuntime *g_runtime;
 
 /* Called on the Python thread. Copies the batch and hops to the main queue; never blocks. */
@@ -9,6 +13,7 @@ static void post_to_main(const char *json) {
     NSString *s = [NSString stringWithUTF8String:json];
     if (!s) return;
     dispatch_async(dispatch_get_main_queue(), ^{
+        [g_runtime markReady];
         void (^cb)(NSString *) = g_runtime.onOps;
         if (cb) cb(s);
     });
@@ -16,6 +21,8 @@ static void post_to_main(const char *json) {
 
 @implementation PyxpoRuntime {
     dispatch_queue_t _eventQueue;
+    BOOL _ready;                       /* guarded by @synchronized(self) */
+    NSMutableArray<NSString *> *_pending;
 }
 
 + (instancetype)shared {
@@ -40,6 +47,8 @@ static void post_to_main(const char *json) {
 
 - (void)runWithHome:(NSString *)home paths:(NSArray<NSString *> *)paths module:(NSString *)module {
     setenv("PYXPO_TARGET", "ios", 1);
+    setenv("PYXPO_WIRE", "2", 1);
+    if (self.envJSON) setenv("PYXPO_ENV", self.envJSON.UTF8String, 1);
     setenv("HOME", NSHomeDirectory().UTF8String, 1);
     setenv("TMPDIR", NSTemporaryDirectory().UTF8String, 1);
 
@@ -93,7 +102,26 @@ fail_nocfg:
     NSLog(@"pyxpo: python init failed: %s", status.err_msg ? status.err_msg : "?");
 }
 
+/* Events before the first ops batch would hit an uninitialised interpreter: hold them until Python is up. */
+- (void)markReady {
+    NSArray<NSString *> *q;
+    @synchronized (self) {
+        if (_ready) return;
+        _ready = YES;
+        q = _pending;
+        _pending = nil;
+    }
+    for (NSString *j in q) [self dispatchEvent:j];
+}
+
 - (void)dispatchEvent:(NSString *)json {
+    @synchronized (self) {
+        if (!_ready) {
+            if (!_pending) _pending = [NSMutableArray new];
+            [_pending addObject:json];
+            return;
+        }
+    }
     dispatch_async(_eventQueue, ^{
         pyxpo_bridge_dispatch_event(json.UTF8String);
     });
