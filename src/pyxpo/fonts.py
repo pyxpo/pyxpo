@@ -13,12 +13,14 @@ from typing import Dict, Optional
 _EXTS = (".ttf", ".otf")
 _files: Dict[str, str] = {}
 _scanned: set = set()
+_scanned_paths: tuple = ()
 
 
 def register_font(family: str, path: str) -> None:
     if not os.path.isfile(path):
         raise FileNotFoundError("font file not found: %s" % path)
     _files[family] = os.path.abspath(path)
+    _changed()
 
 
 def register_font_dir(directory: str) -> None:
@@ -28,10 +30,21 @@ def register_font_dir(directory: str) -> None:
         stem, ext = os.path.splitext(name)
         if ext.lower() in _EXTS:
             _files.setdefault(stem, os.path.abspath(os.path.join(directory, name)))
+    _changed()
+
+
+def _changed() -> None:
+    from . import style
+    style.clear_cache()
 
 
 def resolve(family: str) -> Optional[str]:
-    for p in sys.path:
+    global _scanned_paths
+    paths = tuple(sys.path)
+    if paths == _scanned_paths:
+        return _files.get(family)
+    _scanned_paths = paths
+    for p in paths:
         for sub in ("fonts", os.path.join("app", "fonts"), os.path.join("assets", "fonts")):
             d = os.path.join(p or ".", sub)
             if d not in _scanned:

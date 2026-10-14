@@ -74,3 +74,24 @@ def test_sync_large_list_append_and_reorder_fast():
     app.flush() if hasattr(app, "flush") else None
     assert [n.props["text"] for n in r.root.children[0].children][:2] == ["2000", "1999"]
     assert time.time() - t < 5
+
+
+def test_normalize_cache_returns_independent_dicts():
+    from pyxpo.style import normalize
+    a = normalize([{"color": "#fff"}, {"padding": 2}])
+    a["color"] = 0
+    b = normalize([{"color": "#fff"}, {"padding": 2}])
+    assert b["color"] == 0xFFFFFFFF and b["padding_left"] == 2
+
+
+def test_dispatch_handler_arity_and_inner_type_error():
+    from pyxpo.reconciler import _takes_value
+    assert _takes_value(lambda v: None) and not _takes_value(lambda: None)
+
+    def bad(v):
+        raise TypeError("wrong argument inside handler")
+    calls = []
+
+    def count():
+        calls.append(1)
+    assert _takes_value(bad) and not _takes_value(count)

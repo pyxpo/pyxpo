@@ -47,6 +47,14 @@ class StyleError(ValueError):
     pass
 
 
+_COLORS: Dict[str, int] = {}
+_NORMALIZED: Dict[Any, Dict[str, Any]] = {}
+
+
+def clear_cache() -> None:
+    _NORMALIZED.clear()
+
+
 def parse_color(value: Any) -> int:
     """Return color as 0xAARRGGBB int. Accepts int, #rgb, #rgba, #rrggbb, #rrggbbaa, rgb(), rgba(), names."""
     if isinstance(value, bool):
@@ -61,6 +69,17 @@ def parse_color(value: Any) -> int:
         return (a << 24) | (r << 16) | (g << 8) | b
     if not isinstance(value, str):
         raise StyleError("bad color %r" % (value,))
+    hit = _COLORS.get(value)
+    if hit is not None:
+        return hit
+    out = _parse_color_str(value)
+    if len(_COLORS) > 4096:
+        _COLORS.clear()
+    _COLORS[value] = out
+    return out
+
+
+def _parse_color_str(value: str) -> int:
     s = value.strip().lower()
     if s in NAMED_COLORS:
         return NAMED_COLORS[s]
@@ -164,7 +183,47 @@ def expand(style: Dict[str, Any]) -> Dict[str, Any]:
 
 
 def normalize(style: Any, *, warn: bool = False) -> Dict[str, Any]:
-    """flatten + expand + colors to ARGB ints. Returns a plain dict ready for the wire (protocol v2)."""
+    """flatten + expand + colors to ARGB ints. Returns a plain dict ready for the wire (protocol v2).
+    Results are cached by style content, so re-rendering unchanged styles costs one hash."""
+    key = None if warn else _cache_key(style)
+    if key is not None:
+        hit = _NORMALIZED.get(key)
+        if hit is not None:
+            return dict(hit)
+    out = _normalize(style, warn)
+    if key is not None:
+        if len(_NORMALIZED) > 2048:
+            _NORMALIZED.clear()
+        _NORMALIZED[key] = out
+        return dict(out)
+    return out
+
+
+def _cache_key(style: Any) -> Any:
+    """Hashable content key, or None for styles holding unhashable or animated values."""
+    if style is None or style is False or style == "":
+        return ()
+    try:
+        if isinstance(style, dict):
+            for v in style.values():
+                if getattr(v, "_is_animated", False):
+                    return None
+            return tuple(style.items()) if hash(tuple(style.items())) is not None else None
+        if isinstance(style, (list, tuple)):
+            parts = []
+            for s in style:
+                k = _cache_key(s)
+                if k is None:
+                    return None
+                if k:
+                    parts.append(k)
+            return ("L", tuple(parts))
+    except TypeError:
+        return None
+    return None
+
+
+def _normalize(style: Any, warn: bool) -> Dict[str, Any]:
     flat = expand(flatten(style))
     out: Dict[str, Any] = {}
     for k, v in flat.items():

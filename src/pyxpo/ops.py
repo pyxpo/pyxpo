@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import json
-from dataclasses import asdict, dataclass, field
+from dataclasses import dataclass, field
 from typing import Any, Dict, List
 
 
@@ -9,8 +9,9 @@ class Op:
     op = ""
 
     def to_dict(self) -> Dict[str, Any]:
-        d = {"op": self.op}
-        d.update(asdict(self))
+        d: Dict[str, Any] = {"op": self.op}
+        for name in self.__dataclass_fields__:  # type: ignore[attr-defined]
+            d[name] = getattr(self, name)
         if self.op == "update" and not d["removed"]:
             del d["removed"]
         return d

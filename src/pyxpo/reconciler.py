@@ -40,6 +40,27 @@ def _host_children(fiber: Fiber) -> List[Fiber]:
     return out
 
 
+_ARITY: Dict[Any, bool] = {}
+
+
+def _takes_value(fn: Callable[..., Any]) -> bool:
+    """True when `fn` can be called with one positional argument. Cached per code object."""
+    code = getattr(fn, "__code__", None)
+    key = (code, getattr(fn, "__self__", None) is not None) if code is not None else None
+    if key is not None and key in _ARITY:
+        return _ARITY[key]
+    try:
+        inspect.signature(fn).bind(None)
+        ok = True
+    except TypeError:
+        ok = False
+    except ValueError:
+        ok = False
+    if key is not None:
+        _ARITY[key] = ok
+    return ok
+
+
 class Reconciler:
     """Diffs element trees into a flat list of native ops. One commit = one ops list."""
 
@@ -95,20 +116,10 @@ class Reconciler:
         fn = self.handlers.get((node_id, event))
         if fn is None:
             return False
-        payload = payload or {}
-        try:
-            sig = inspect.signature(fn)
-        except (TypeError, ValueError):
-            sig = None
-        if sig is not None and payload:
-            try:
-                sig.bind(payload.get("value"))
-                fn(payload.get("value"))
-                return True
-            except TypeError as e:
-                if "argument" not in str(e):
-                    raise
-        fn()
+        if payload and _takes_value(fn):
+            fn(payload.get("value"))
+        else:
+            fn()
         return True
 
     # -- internals -----------------------------------------------------

@@ -45,6 +45,7 @@ class App:
         self.channel = channel
         self.loop = loop
         self.dirty: List[Fiber] = []
+        self._dirty_set: set = set()
         self.flushing = False
         self._flush_requested = False
         self.on_error: Callable[[BaseException], None] = lambda e: traceback.print_exception(
@@ -96,6 +97,7 @@ class App:
                     break
                 batch = sorted(self.dirty, key=lambda f: f.depth)
                 self.dirty = []
+                self._dirty_set = set()
                 for f in batch:
                     self.rec.update(f)
                 self._send(self.rec.take_ops())
@@ -154,7 +156,8 @@ class App:
         self._request_flush()
 
     def _schedule(self, fiber: Fiber) -> None:
-        if fiber not in self.dirty:
+        if fiber not in self._dirty_set:
+            self._dirty_set.add(fiber)
             self.dirty.append(fiber)
         if not self.flushing:
             self._request_flush()
@@ -216,6 +219,7 @@ class App:
             for f in _walk(self.rec.root):
                 reset_deps(f)
             self.dirty = []
+            self._dirty_set = set()
             try:
                 self.rec.render(self._root_element)
                 self._send(self.rec.take_ops())
@@ -246,6 +250,7 @@ class App:
         ops += [Delete(n) for n in self._committed]
         self._send(ops)
         self.dirty = []
+        self._dirty_set = set()
         for c in old.root.children:
             try:
                 old._unmount(c)  # runs effect cleanups; its ops are discarded
