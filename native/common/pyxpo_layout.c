@@ -336,10 +336,17 @@ int px_node_set_num(PxTree *t, int id, int prop, float value) {
     if (!n || prop < 0 || prop >= P_COUNT) return -1;
     PxVal *d = dim_slot(&n->s, prop);
     float *f = num_slot(&n->s, prop);
-    if (d) { d->v = value; d->unit = U_POINT; }
-    else if (f) *f = value;
-    else if (PROPS[prop].kind == K_ENUM) { *enum_slot(&n->s, prop) = (int)value; }
-    else return -1;
+    if (d) {
+        if (d->unit == U_POINT && d->v == value) return 0;  /* unchanged: no relayout */
+        d->v = value; d->unit = U_POINT;
+    } else if (f) {
+        if (*f == value) return 0;
+        *f = value;
+    } else if (PROPS[prop].kind == K_ENUM) {
+        int *e = enum_slot(&n->s, prop);
+        if (*e == (int)value) return 0;
+        *e = (int)value;
+    } else return -1;
     mark(n);
     return 0;
 }
@@ -442,7 +449,7 @@ static void layout(PxTree *t, PxNode *n, float aw, int wm, float ah, int hm, flo
                    float *out_w, float *out_h) {
     if (perform) {
         PxCache *p = &n->perf;
-        if (!n->dirty && n->perf_valid && p->wm == wm && p->hm == hm && p->ow == p->ow + 0 &&
+        if (!n->dirty && n->perf_valid && p->wm == wm && p->hm == hm &&
             (wm == M_UNDEF || p->aw == aw) && (hm == M_UNDEF || p->ah == ah) &&
             (!DEF(ow) ? !DEF(p->ow) : (DEF(p->ow) && p->ow == ow))) {
             *out_w = p->rw;
