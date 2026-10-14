@@ -516,6 +516,10 @@ class OpApplier(
                         .addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK))
                     null
                 }
+                "Toast.show" -> {
+                    android.widget.Toast.makeText(ctx, args.optString(0),
+                        if (args.optBoolean(1)) android.widget.Toast.LENGTH_LONG else android.widget.Toast.LENGTH_SHORT).show()
+                }
                 "Vibration.vibrate" -> {
                     val ms = args.optLong(0, 50)
                     if (Build.VERSION.SDK_INT >= 31) {

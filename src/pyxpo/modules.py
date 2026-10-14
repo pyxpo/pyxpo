@@ -100,6 +100,13 @@ class Alert:
         return int(v or 0)
 
 
+class Toast:
+    @staticmethod
+    def show(message: str, long: bool = False) -> None:
+        """Shows the platform toast (android.widget.Toast)."""
+        call("Toast", "show", str(message), bool(long))
+
+
 def spawn(coro: Any) -> None:
     """Runs a coroutine on the app loop from a sync callback (errors go to the app's error handler)."""
     loop = getattr(_app, "loop", None)
