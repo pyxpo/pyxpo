@@ -3,11 +3,16 @@ from __future__ import annotations
 import inspect
 from typing import Any, Callable, Dict, List, Optional, Set, Tuple
 
+from .animated import runtime as _anim
 from .element import Element, flatten
 from . import env as _env_mod
 from .hooks import _same, render_with_hooks
-from .style import normalize as normalize_style
+from .style import normalize_shared as normalize_style
 from .ops import Create, Delete, Insert, Op, Remove, Update
+
+_MISSING = object()
+# prop value types that go to the wire as is: never callable, never an animated event
+_PLAIN_PROP_TYPES = frozenset((str, int, float, bool, type(None), dict, list, tuple))
 
 
 class Fiber:
@@ -30,13 +35,13 @@ class Fiber:
         self.ctx_below = False  # this fiber or a descendant reads context: memo must not skip it
 
 
-def _host_children(fiber: Fiber) -> List[Fiber]:
-    out: List[Fiber] = []
+def _host_ids(fiber: Fiber, out: List[int]) -> List[int]:
+    """Append the native ids of fiber's nearest host descendants (components are transparent), in order."""
     for c in fiber.children:
         if c.kind == "comp":
-            out.extend(_host_children(c))
+            _host_ids(c, out)
         else:
-            out.append(c)
+            out.append(c.id)
     return out
 
 
@@ -98,9 +103,9 @@ class Reconciler:
         self._sync(host)
 
     def take_ops(self) -> List[Op]:
-        from .animated import runtime as _anim
-        ops = _anim.drain() + self.ops
-        ops.extend(Delete(i) for i in self._deletes)
+        ops = _anim.drain()
+        ops.extend(self.ops)
+        ops.extend([Delete(i) for i in self._deletes])
         self.ops, self._deletes = [], []
         return ops
 
@@ -132,14 +137,18 @@ class Reconciler:
         for k, v in props.items():
             if k == "ref":
                 continue
+            if k == "style":
+                wire[k] = normalize_style(v)
+                continue
+            if v.__class__ in _PLAIN_PROP_TYPES:
+                wire[k] = v
+                continue
             if getattr(v, "_is_animated_event", False):
                 if v.native:
                     wire[k] = v._wire()
                     if v.listener is not None:
                         events[k[3:]] = v.listener
                     continue
-            if k == "style":
-                v = normalize_style(v)
             if callable(v):
                 events[k[3:] if k.startswith("on_") else k] = v
                 wire[k] = True
@@ -148,10 +157,17 @@ class Reconciler:
         return wire, events
 
     def _set_handlers(self, f: Fiber, events: Dict[str, Callable[..., Any]]) -> None:
-        for ev in f.events - set(events):
-            self.handlers.pop((f.id, ev), None)
+        handlers = self.handlers
+        fid = f.id
+        if f.events == events.keys():
+            for ev, fn in events.items():
+                handlers[(fid, ev)] = fn
+            return
+        for ev in f.events:
+            if ev not in events:
+                handlers.pop((fid, ev), None)
         for ev, fn in events.items():
-            self.handlers[(f.id, ev)] = fn
+            handlers[(fid, ev)] = fn
         f.events = set(events)
 
     def _mount(self, e: Element, parent: Fiber) -> Fiber:
@@ -162,10 +178,11 @@ class Reconciler:
             wire, events = self._wire(e.props)
             f.sent = wire
             self._bind_ref(f, e)
-            self.ops.append(Create(f.id, e.type, dict(wire)))
+            self.ops.append(Create(f.id, e.type, wire))  # wire is never mutated after this (f.sent is replaced)
             self._set_handlers(f, events)
-            self._reconcile_children(f, e.children)
-            self._sync(f)
+            if e.children:
+                self._reconcile_children(f, e.children)
+                self._sync(f)
         else:
             f = Fiber("comp", e, parent, self)
             self._render_comp(f)
@@ -173,21 +190,29 @@ class Reconciler:
 
     def _update(self, f: Fiber, e: Element) -> None:
         old = f.element
-        old_ref = old.props.get("ref") if old is not None else None
         if f.kind == "host":
             f.element = e
-            if old_ref is not None and old_ref is not e.props.get("ref") and hasattr(old_ref, "_unbind"):
+            ref = e.props.get("ref")
+            old_ref = old.props.get("ref") if old is not None else None
+            if old_ref is not None and old_ref is not ref and hasattr(old_ref, "_unbind"):
                 old_ref._unbind(f.id)  # ref prop swapped or removed: the old ref must not keep this view
             wire, events = self._wire(e.props)
-            self._bind_ref(f, e)
-            changed = {k: v for k, v in wire.items() if k not in f.sent or not _same(f.sent[k], v)}
-            removed = [k for k in f.sent if k not in wire]
+            if ref is not None and hasattr(ref, "_bind"):
+                ref._bind(f.id)
+            sent = f.sent
+            changed = {}
+            for k, v in wire.items():
+                o = sent.get(k, _MISSING)
+                if o is not v and (o is _MISSING or not _same(o, v)):
+                    changed[k] = v
+            removed = [] if sent.keys() == wire.keys() else [k for k in sent if k not in wire]
             if changed or removed:
                 self.ops.append(Update(f.id, changed, removed))
             f.sent = wire
             self._set_handlers(f, events)
-            self._reconcile_children(f, e.children)
-            self._sync(f)
+            if e.children or f.children:  # leaf stays a leaf: nothing to reconcile or reorder
+                self._reconcile_children(f, e.children)
+                self._sync(f)
         elif e.type.memo is not None and not f.ctx_below and e.type.memo(old, e):
             f.element = e  # memo hit: props unchanged, keep the rendered subtree as is
         else:
@@ -203,30 +228,46 @@ class Reconciler:
     def _render_comp(self, f: Fiber) -> None:
         e = f.element
         out = render_with_hooks(f, e.type.fn, e.children, e.props)
-        self._reconcile_children(f, flatten([out]))
+        self._reconcile_children(f, [out] if out.__class__ is Element else flatten([out]))
 
     def _reconcile_children(self, parent: Fiber, elements: List[Element]) -> None:
         old = parent.children
+        mount = self._mount
+        if not old:
+            parent.children = [mount(e, parent) for e in elements]
+            return
+        n_old = len(old)
+        if n_old == 1 and len(elements) == 1:  # single child (most component renders): no key map needed
+            o, e = old[0], elements[0]
+            if o.key == e.key and o.element.type == e.type:
+                self._update(o, e)
+                return
         old_keyed = {o.key: o for o in old if o.key is not None}
-        used: Set[int] = set()
+        used: Set[Fiber] = set()  # Fiber hashes by identity
         new: List[Fiber] = []
+        update = self._update
         for i, e in enumerate(elements):
-            cand = None
-            if e.key is not None:
-                c = old_keyed.get(e.key)
-                if c is not None and c.element.type == e.type:
-                    cand = c
-            elif i < len(old) and old[i].key is None and old[i].element.type == e.type:
+            k = e.key
+            if k is not None:
+                cand = old_keyed.get(k)
+                if cand is not None and cand.element.type != e.type:
+                    cand = None
+            elif i < n_old:
                 cand = old[i]
-            if cand is not None and id(cand) not in used:
-                used.add(id(cand))
-                self._update(cand, e)
+                if cand.key is not None or cand.element.type != e.type:
+                    cand = None
             else:
-                cand = self._mount(e, parent)
+                cand = None
+            if cand is not None and cand not in used:
+                used.add(cand)
+                update(cand, e)
+            else:
+                cand = mount(e, parent)
             new.append(cand)
-        for o in old:
-            if id(o) not in used:
-                self._unmount(o)
+        if len(used) != n_old:
+            for o in old:
+                if o not in used:
+                    self._unmount(o)
         parent.children = new
 
     def _unmount(self, f: Fiber) -> None:
@@ -247,7 +288,7 @@ class Reconciler:
 
     def _sync(self, host: Fiber) -> None:
         """Make host.native match the desired host-children order using remove/insert ops."""
-        want = [c.id for c in _host_children(host)]
+        want = _host_ids(host, [])
         native = host.native
         if native == want:
             return

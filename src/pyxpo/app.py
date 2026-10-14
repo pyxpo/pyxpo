@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import asyncio
+import contextlib
+import gc
 import json
 import os
 import sys
@@ -29,6 +31,19 @@ class _HotState:
 
 
 _hot = _HotState()
+
+
+@contextlib.contextmanager
+def _gc_paused():
+    """Pause the cyclic GC while a commit allocates thousands of short-lived objects (elements, wire dicts):
+    a big mount otherwise triggers several full collections mid-render. Garbage is collected right after."""
+    was = gc.isenabled()
+    gc.disable()
+    try:
+        yield
+    finally:
+        if was:
+            gc.enable()
 
 
 def _walk(fiber: Fiber):
@@ -80,8 +95,9 @@ class App:
     def start(self) -> None:
         self.flushing = True
         try:
-            self.rec.render(self._root_element)
-            self._send(self.rec.take_ops())
+            with _gc_paused():
+                self.rec.render(self._root_element)
+                self._send(self.rec.take_ops())
             self.rec.run_effects()
         finally:
             self.flushing = False
@@ -98,9 +114,10 @@ class App:
                 batch = sorted(self.dirty, key=lambda f: f.depth)
                 self.dirty = []
                 self._dirty_set = set()
-                for f in batch:
-                    self.rec.update(f)
-                self._send(self.rec.take_ops())
+                with _gc_paused():
+                    for f in batch:
+                        self.rec.update(f)
+                    self._send(self.rec.take_ops())
                 self.rec.run_effects()
             else:
                 raise RuntimeError("too many consecutive updates (state set on every render?)")

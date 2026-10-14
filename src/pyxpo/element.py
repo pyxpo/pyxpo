@@ -2,6 +2,8 @@ from __future__ import annotations
 
 from typing import Any, Dict, List, Optional
 
+from .style import normalize_shared
+
 
 class Element:
     """Immutable-by-convention description of a UI node. `type` is a host name (str) or a Component."""
@@ -27,6 +29,9 @@ def flatten(children: Any) -> List[Element]:
     """Flatten nested lists, drop None/bool, turn bare scalars into Text elements."""
     out: List[Element] = []
     for c in children:
+        if c.__class__ is Element:  # common case first: one identity check instead of four isinstance calls
+            out.append(c)
+            continue
         if c is None or isinstance(c, bool):
             continue
         if isinstance(c, (list, tuple)):
@@ -71,7 +76,6 @@ _TEXT_STYLE_KEYS = ("color", "background_color", "font_size", "font_weight", "fo
 
 def _text_spans(children: Any, inherited: Dict[str, Any], spans: List[Dict[str, Any]]) -> None:
     """Flatten Text children into spans [{text, style}] where style is the full inherited text style."""
-    from .style import normalize
     for c in children:
         if c is None or isinstance(c, bool):
             continue
@@ -87,7 +91,7 @@ def _text_spans(children: Any, inherited: Dict[str, Any], spans: List[Dict[str, 
                     spans.append({"text": _transform(sp["text"], st.get("text_transform")), "style": st})
                 continue
             st = dict(inherited)
-            own = normalize(c.props.get("style"))
+            own = normalize_shared(c.props.get("style"))
             st.update({k: v for k, v in own.items() if k in _TEXT_STYLE_KEYS})
             if "text" in c.props:
                 spans.append({"text": _transform(str(c.props["text"]), st.get("text_transform")), "style": st})
@@ -98,12 +102,12 @@ def _text_spans(children: Any, inherited: Dict[str, Any], spans: List[Dict[str, 
 
 
 def _text_factory(*children: Any, key: Any = None, **props: Any) -> Element:
-    from .style import normalize
-    nested = any(isinstance(c, Element) or (isinstance(c, (list, tuple)) and _has_element(c)) for c in children)
-    base = normalize(props.get("style"))
+    single = len(children) == 1 and children[0].__class__ is str  # Text("label"): skip the generic walk
+    nested = not single and _has_element(children)
+    base = normalize_shared(props.get("style"))
     mode = base.get("text_transform")
     if not nested:
-        text = _join_text(children)
+        text = children[0] if single else _join_text(children)
         if text or "text" not in props:
             props["text"] = text
         if "text" in props and mode:
@@ -117,7 +121,10 @@ def _text_factory(*children: Any, key: Any = None, **props: Any) -> Element:
 
 
 def _has_element(seq: Any) -> bool:
-    return any(isinstance(c, Element) or (isinstance(c, (list, tuple)) and _has_element(c)) for c in seq)
+    for c in seq:
+        if isinstance(c, Element) or (isinstance(c, (list, tuple)) and _has_element(c)):
+            return True
+    return False
 
 
 def _host(name: str, text_prop: Optional[str] = None):

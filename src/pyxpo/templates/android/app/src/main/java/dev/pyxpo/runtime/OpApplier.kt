@@ -94,8 +94,8 @@ class OpApplier(
                 "insert" -> insert(o.getInt("parent"), o.getInt("id"), o.getInt("index"))
                 "remove" -> remove(o.getInt("parent"), o.getInt("id"))
                 "delete" -> delete(o.getInt("id"))
-                "anode" -> { anim.anode(o.getInt("id"), o.getJSONObject("node")); depCache.clear() }
-                "anode_del" -> { anim.anodeDel(o.getInt("id")); depCache.clear() }
+                "anode" -> { anim.anode(o.getInt("id"), o.getJSONObject("node")); depsStale = true }
+                "anode_del" -> { anim.anodeDel(o.getInt("id")); depsStale = true }
                 "alisten" -> anim.alisten(o.getInt("id"), o.getBoolean("on"))
                 "animate" -> anim.animate(o.getInt("id"), o.getJSONObject("anim"))
                 "astop" -> anim.astop(o.getInt("id"))
@@ -185,6 +185,7 @@ class OpApplier(
         if ("style" in r) applyStyle(id, v, JSONObject())
         var textDirty = false
         var a11yDirty = r.any { it.startsWith("accessib") }
+        var imgDirty = "source" in r || "resize_mode" in r || "tint_color" in r
         if ("spans" in r) { spans.remove(id); textDirty = true }
         val keys = props.keys()
         while (keys.hasNext()) {
@@ -193,8 +194,9 @@ class OpApplier(
                 "text" -> if (v is TextView && v !is EditText) { texts[id] = props.optString(k); textDirty = true }
                 "spans" -> if (v is TextView && v !is EditText) { spans[id] = props.optJSONArray(k); textDirty = true }
                 "value" -> (v as? EditText)?.let {
-                    if (it.text.toString() != props.optString(k)) {
-                        suppress.add(it); it.setText(props.optString(k)); it.setSelection(it.text.length)
+                    val nv = props.optString(k)
+                    if (it.text.toString() != nv) {
+                        suppress.add(it); it.setText(nv); it.setSelection(it.text.length)
                         suppress.remove(it)
                         layout.markDirty(id)
                     }
@@ -211,7 +213,7 @@ class OpApplier(
                 "on_layout" -> layoutListeners.add(id)
                 "animated" -> (v as? PxNav)?.animated = props.optBoolean(k, true)
                 "gesture" -> (v as? PxNav)?.gesture = props.optBoolean(k, true)
-                "source", "resize_mode", "tint_color" -> if (v is ImageView) applyImage(id, v, props, r)
+                "source", "resize_mode", "tint_color" -> imgDirty = true
                 else -> if (v is PxScrollable) scrollProp(id, v as FrameLayout, k, props)
             }
         }
@@ -224,8 +226,8 @@ class OpApplier(
                 if (left == null || left.none { it.startsWith("on_press") || it == "on_long_press" }) pressy.remove(id)
             }
             if (v is PxScrollable) scrollProp(id, v as FrameLayout, k, null)
-            if (v is ImageView && !props.has(k) && (k == "source" || k == "resize_mode" || k == "tint_color")) applyImage(id, v, JSONObject(), r)
         }
+        if (imgDirty && v is ImageView) applyImage(id, v, props, r)  // once: it handles all three keys, set and removed
         if (v is EditText) applyInput(id, v, props, r)
         if (types[id] in PxControls.TYPES) controls.update(id, v, props, r)
         if (v is PxPath) {
@@ -244,7 +246,8 @@ class OpApplier(
     private class ScrollCfg {
         var paging = false
         var throttle = 16L
-        var ae: JSONObject? = null
+        var aeKeys: Array<String>? = null  // on_scroll animated event: scroll info key -> value node, parsed once
+        var aeNodes = IntArray(0)
         var emit = false
         var onScroll = false
         var begin = false; var end = false; var momentum = false
@@ -272,7 +275,15 @@ class OpApplier(
             "bounces" -> v.overScrollMode = if (props?.optBoolean(k, true) ?: true) View.OVER_SCROLL_IF_CONTENT_SCROLLS else View.OVER_SCROLL_NEVER
             "scroll_event_throttle" -> c.throttle = props?.optLong(k, 16) ?: 16
             "on_scroll" -> {
-                c.ae = (on as? JSONObject)?.optJSONObject("\$ae")
+                val ae = (on as? JSONObject)?.optJSONObject("\$ae")
+                val keys = ArrayList<String>()
+                val nodes = ArrayList<Int>()
+                if (ae != null) {
+                    val ks = ae.keys()
+                    while (ks.hasNext()) { val key = ks.next(); if (key in SCROLL_KEYS) { keys.add(key); nodes.add(ae.getInt(key)) } }
+                }
+                c.aeKeys = if (ae != null) keys.toTypedArray() else null
+                c.aeNodes = nodes.toIntArray()
                 c.emit = if (on is JSONObject) on.optBoolean("emit") else on == true
                 c.onScroll = on != null
             }
@@ -280,6 +291,18 @@ class OpApplier(
             "on_scroll_end_drag" -> c.end = props != null
             "on_momentum_scroll_end" -> c.momentum = props != null
         }
+    }
+
+    private val SCROLL_KEYS = setOf("x", "y", "width", "height", "content_width", "content_height")
+
+    /** One scrollInfo() field, without building the JSONObject. */
+    private fun scrollVal(id: Int, v: FrameLayout, key: String): Double = when (key) {
+        "x" -> v.scrollX / d.toDouble()
+        "y" -> v.scrollY / d.toDouble()
+        "width" -> v.width / d.toDouble()
+        "height" -> v.height / d.toDouble()
+        "content_width" -> (frames[id or CONTENT]?.get(2) ?: 0f).toDouble()
+        else -> (frames[id or CONTENT]?.get(3) ?: 0f).toDouble()
     }
 
     private fun scrollInfo(id: Int, v: FrameLayout): JSONObject {
@@ -315,12 +338,10 @@ class OpApplier(
             if (c.momentum) event("momentum_scroll_end", id, JSONObject().put("value", scrollInfo(id, v)))
         }
         v.setOnScrollChangeListener { _, _, _, _, _ ->
-            val ae = c.ae
-            if (ae != null) {
-                val info = scrollInfo(id, v)
-                val vals = JSONObject()
-                val it = ae.keys()
-                while (it.hasNext()) { val key = it.next(); if (info.has(key)) vals.put(ae.getInt(key).toString(), info.getDouble(key)) }
+            val keys = c.aeKeys
+            if (keys != null) {
+                val vals = HashMap<Int, Double>(keys.size * 2)
+                for (i in keys.indices) vals[c.aeNodes[i]] = scrollVal(id, v, keys[i])
                 anim.aset(vals)
             }
             val now = android.os.SystemClock.uptimeMillis()
@@ -669,15 +690,24 @@ class OpApplier(
     @android.annotation.SuppressLint("ClickableViewAccessibility")
     private fun attachTouch(id: Int, v: View) {
         if (!touching.add(id)) return
-        val handler = android.os.Handler(android.os.Looper.getMainLooper())
+        val handler = ui  // shared main-thread handler: runnables are removed by identity
         var down = false
         var long = false
         val longRun = Runnable { if (down) { long = true; event("long_press", id) } }
         val dens = ctx.resources.displayMetrics.density
-        fun raw(name: String, e: android.view.MotionEvent) {
+        fun send(name: String, x: Float, y: Float, px: Float, py: Float) {
             if (!rawTouch.contains(id)) return
-            event(name, id, JSONObject().put("value", JSONObject().put("x", e.x / dens).put("y", e.y / dens)
-                .put("page_x", e.rawX / dens).put("page_y", e.rawY / dens)))
+            event(name, id, JSONObject().put("value", JSONObject().put("x", x / dens).put("y", y / dens)
+                .put("page_x", px / dens).put("page_y", py / dens)))
+        }
+        // touch_move is coalesced: moves that arrive in the same looper turn send only the latest position.
+        val mv = FloatArray(4)
+        var movePending = false
+        val moveRun = Runnable { if (movePending) { movePending = false; send("touch_move", mv[0], mv[1], mv[2], mv[3]) } }
+        fun flushMove() { if (movePending) { handler.removeCallbacks(moveRun); moveRun.run() } }
+        fun raw(name: String, e: android.view.MotionEvent) {
+            flushMove()  // keep order: a pending move goes out before start/end
+            send(name, e.x, e.y, e.rawX, e.rawY)
         }
         v.setOnTouchListener { view, e ->
             // Handlers were removed later (e.g. a disabled Slider): stop consuming touches.
@@ -694,8 +724,11 @@ class OpApplier(
                     true
                 }
                 android.view.MotionEvent.ACTION_MOVE -> {
-                    raw("touch_move", e)
-                    if (down && !inside) { down = false; handler.removeCallbacks(longRun); if (pressy.contains(id)) event("press_out", id) }
+                    if (rawTouch.contains(id)) {
+                        mv[0] = e.x; mv[1] = e.y; mv[2] = e.rawX; mv[3] = e.rawY
+                        if (!movePending) { movePending = true; handler.post(moveRun) }
+                    }
+                    if (down && !inside) { down = false; handler.removeCallbacks(longRun); flushMove(); if (pressy.contains(id)) event("press_out", id) }
                     true
                 }
                 android.view.MotionEvent.ACTION_UP -> {
@@ -859,7 +892,13 @@ class OpApplier(
         return out
     }
 
-    private fun depsOf(node: Int): Set<Int> = depCache.getOrPut(node) { anim.deps(node) }
+    /** Node graph changed since the cache was filled: drop it on next use (once per batch, not once per op). */
+    private var depsStale = false
+
+    private fun depsOf(node: Int): Set<Int> {
+        if (depsStale) { depCache.clear(); depsStale = false }
+        return depCache.getOrPut(node) { anim.deps(node) }
+    }
 
     private val TRANSFORM = setOf("opacity", "rotate", "scale", "scale_x", "scale_y", "translate_x", "translate_y")
 
@@ -871,7 +910,8 @@ class OpApplier(
             val s = styles[id] ?: continue
             var tr = false; var box = false; var txt = false; var shadow = false
             for ((k, n) in b) {
-                if (touched.none { it in depsOf(n) }) continue
+                val deps = depsOf(n)
+                if (touched.none { it in deps }) continue
                 val nv = animVal(k, n)
                 s.put(k, nv)
                 when {
@@ -899,7 +939,7 @@ class OpApplier(
         while (it.hasNext()) {
             val k = it.next()
             val nv = s.get(k)
-            if (old.opt(k)?.toString() != nv.toString()) pushLayout(id, k, nv)
+            if ((nv is Number || nv is String) && !sameVal(old.opt(k), nv)) pushLayout(id, k, nv)  // pushLayout ignores other types
         }
         val ok = old.keys()
         while (ok.hasNext()) {
@@ -910,6 +950,13 @@ class OpApplier(
         v.visibility = if (s.optString("display") == "none") View.GONE else View.VISIBLE
         paint(id, v, s)
         layout.markDirty(id)
+    }
+
+    /** Same result as comparing toString() forms, without building strings for the common same-type case. */
+    private fun sameVal(a: Any?, b: Any): Boolean = when {
+        a == null -> false
+        a.javaClass === b.javaClass -> a == b
+        else -> a.toString() == b.toString()
     }
 
     private fun pushLayout(id: Int, k: String, v: Any) {

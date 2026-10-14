@@ -92,8 +92,6 @@ class _Nav:
         self._n = 0
         self.parent: Optional[Navigation] = None
         self.animate = False
-        self.transitioning = False
-        self.leaving: List[Route] = []
         self.stack: List[Route] = []
         self.stack.append(self._route(initial, {}))
 
@@ -117,24 +115,16 @@ class _Nav:
         if self._bubble(name, params):
             return
         self.stack.append(self._route(name, params, self.animate))
-        self.transitioning = self.animate
         self._changed()
-
-    def _leave(self, routes: List[Route]) -> None:
-        self.transitioning = False
-        if self.animate and routes:
-            self.leaving.append(routes[-1])
 
     def go_back(self) -> None:
         if len(self.stack) > 1:
-            self._leave([self.stack.pop()])
+            self.stack.pop()
             self._changed()
 
     def pop_to_top(self) -> None:
         if len(self.stack) > 1:
-            gone = self.stack[1:]
             del self.stack[1:]
-            self._leave(gone)
             self._changed()
 
     def replace(self, name: str, params: Dict[str, Any]) -> None:
@@ -143,8 +133,6 @@ class _Nav:
 
     def reset(self, name: str, params: Dict[str, Any]) -> None:
         self.stack[:] = [self._route(name, params)]
-        self.leaving.clear()
-        self.transitioning = False
         self._changed()
 
     def set_params(self, key: int, params: Dict[str, Any]) -> None:
@@ -155,17 +143,6 @@ class _Nav:
 
     def can_go_back(self) -> bool:
         return len(self.stack) > 1
-
-    def enter_done(self, key: int) -> None:
-        if self.transitioning and self.stack[-1].key == key:
-            self.transitioning = False
-            self._changed()
-
-    def exit_done(self, key: int) -> None:
-        n = len(self.leaving)
-        self.leaving[:] = [r for r in self.leaving if r.key != key]
-        if len(self.leaving) != n:
-            self._changed()
 
     def open_drawer(self) -> None:
         if self.parent is not None:
@@ -313,7 +290,6 @@ def Stack(screens: Optional[Dict[str, Any]] = None, initial: Optional[str] = Non
         live = [nav._route(initial if initial in screens else names[0], {})]
     if len(live) != len(nav.stack):
         nav.stack[:] = live
-    nav.leaving[:] = [r for r in nav.leaving if r.name in screens]
     top = nav.stack[-1]
     below = nav.stack[-2] if len(nav.stack) > 1 else None  # stays laid out: native slides/drags over it
 

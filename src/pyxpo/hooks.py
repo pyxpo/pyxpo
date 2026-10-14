@@ -34,15 +34,17 @@ def _current(name: str) -> Any:
 
 
 def _use(kind: str, init: Callable[[Any], Any]):
-    f = _current(kind)
+    f = _stack[-1] if _stack else _current(kind)
     i = f.hook_index
-    f.hook_index += 1
+    f.hook_index = i + 1
     if f.hooks_ready:
-        if i >= len(f.hooks):
+        hooks = f.hooks
+        if i >= len(hooks):
             raise HookError("rendered more hooks than previous render (%s)" % kind)
-        if f.hooks[i][0] != kind:
-            raise HookError("hook order changed: expected %s, got %s" % (f.hooks[i][0], kind))
-        return f.hooks[i][1], False
+        k, data = hooks[i]
+        if k != kind:
+            raise HookError("hook order changed: expected %s, got %s" % (k, kind))
+        return data, False
     data = init(f)
     f.hooks.append((kind, data))
     return data, True

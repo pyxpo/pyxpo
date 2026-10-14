@@ -185,18 +185,31 @@ def expand(style: Dict[str, Any]) -> Dict[str, Any]:
 def normalize(style: Any, *, warn: bool = False) -> Dict[str, Any]:
     """flatten + expand + colors to ARGB ints. Returns a plain dict ready for the wire (protocol v2).
     Results are cached by style content, so re-rendering unchanged styles costs one hash."""
-    key = None if warn else _cache_key(style)
-    if key is not None:
-        hit = _NORMALIZED.get(key)
-        if hit is not None:
-            return dict(hit)
-    out = _normalize(style, warn)
-    if key is not None:
-        if len(_NORMALIZED) > 2048:
-            _NORMALIZED.clear()
-        _NORMALIZED[key] = out
-        return dict(out)
+    if warn:
+        return _normalize(style, True)
+    out = normalize_shared(style)
+    return dict(out)
+
+
+def normalize_shared(style: Any) -> Dict[str, Any]:
+    """Like `normalize` but may return the cached dict itself: callers must treat it as read-only.
+    The reconciler relies on the shared identity so unchanged styles diff with one `is` check."""
+    key = _cache_key(style)
+    if key is None:
+        return _normalize(style, False)
+    hit = _NORMALIZED.get(key)
+    if hit is not None:
+        return hit
+    out = _normalize(style, False)
+    if len(_NORMALIZED) > 2048:
+        _NORMALIZED.clear()
+    _NORMALIZED[key] = out
     return out
+
+
+# value types that are hashable, never animated and normalize by value: a style dict holding only these
+# keys on (items, types) without a per-value attribute probe
+_PLAIN_TYPES = frozenset((str, int, float, bool, type(None)))
 
 
 def _cache_key(style: Any) -> Any:
@@ -205,17 +218,11 @@ def _cache_key(style: Any) -> Any:
         return ()
     try:
         if isinstance(style, dict):
-            for v in style.values():
-                if getattr(v, "_is_animated", False):
-                    return None
-            # value type is part of the key: 1, 1.0 and True hash and compare equal but normalize differently
-            key = tuple((k, v.__class__, v) for k, v in style.items())
-            hash(key)
-            return key
+            return _dict_key(style)
         if isinstance(style, (list, tuple)):
             parts = []
             for s in style:
-                k = _cache_key(s)
+                k = _dict_key(s) if s.__class__ is dict else _cache_key(s)
                 if k is None:
                     return None
                 if k:
@@ -224,6 +231,19 @@ def _cache_key(style: Any) -> Any:
     except TypeError:
         return None
     return None
+
+
+def _dict_key(style: Dict[str, Any]) -> Any:
+    """Key for one style dict (see `_cache_key`). Raises TypeError for unhashable values."""
+    # value type is part of the key: 1, 1.0 and True hash and compare equal but normalize differently
+    types = tuple(map(type, style.values()))
+    if not _PLAIN_TYPES.issuperset(types):
+        for v in style.values():
+            if getattr(v, "_is_animated", False):
+                return None
+    key = (tuple(style.items()), types)
+    hash(key)
+    return key
 
 
 def _normalize(style: Any, warn: bool) -> Dict[str, Any]:

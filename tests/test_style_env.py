@@ -108,3 +108,17 @@ def test_linear_gradient_normalized():
     import pytest
     with pytest.raises(StyleError):
         normalize({"linear_gradient": {"colors": ["red"]}})
+
+
+def test_normalize_cache_shared_vs_copy():
+    from pyxpo.style import normalize_shared
+    s = {"padding": 4, "opacity": 1}
+    a, b = normalize_shared(s), normalize_shared(dict(s))
+    assert a is b  # equal content hits one cached dict
+    c = normalize(s)
+    assert c == a and c is not a  # public normalize hands out a private copy
+    c["padding_left"] = 99
+    assert normalize_shared(s)["padding_left"] == 4
+    # 1, 1.0 and True compare equal but must not share a cache entry
+    assert normalize_shared({"flex": 1}) is not normalize_shared({"flex": 1.0})
+    assert normalize_shared({"flex": True}) is not normalize_shared({"flex": 1})

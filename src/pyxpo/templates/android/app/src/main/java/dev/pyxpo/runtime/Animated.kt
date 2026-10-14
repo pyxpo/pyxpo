@@ -113,11 +113,17 @@ class Animated(
     fun astop(aid: Int) { anims.remove(aid)?.let { emitEnd(aid, false, it.nodes) } }
 
     fun aset(vals: JSONObject) {
-        val ids = HashSet<Int>()
+        val m = HashMap<Int, Double>()
         val it = vals.keys()
-        while (it.hasNext()) ids.add(it.next().toInt())
+        while (it.hasNext()) { val k = it.next(); m[k.toInt()] = vals.getDouble(k) }
+        aset(m)
+    }
+
+    /** Same as the JSON form, without building a JSONObject (scroll-driven values, every scroll event). */
+    fun aset(vals: HashMap<Int, Double>) {
+        val ids = vals.keys
         stopTouching(ids, false)
-        for (id in ids) { values[id] = vals.getDouble(id.toString()); vel[id] = 0.0; prev.remove(id) }
+        for ((id, v) in vals) { values[id] = v; vel[id] = 0.0; prev.remove(id) }
         valueEvents(ids)
         onFrame(ids)
     }
@@ -328,6 +334,7 @@ class Animated(
     }
 
     private fun stopTouching(ns: Set<Int>, finished: Boolean) {
+        if (anims.isEmpty()) return  // the common case on every aset (scroll events): no filter copy
         val hit = anims.filter { (_, r) -> r.nodes.any { it in ns } }
         for ((aid, r) in hit) { anims.remove(aid); emitEnd(aid, finished, r.nodes) }
     }
