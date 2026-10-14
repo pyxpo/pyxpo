@@ -27,11 +27,6 @@ def test_run_desktop_smoke(tmp_path, monkeypatch):
     assert cli.main(["run", "desktop", "--dir", str(proj)]) == 0
 
 
-def test_not_implemented_targets():
-    assert cli.main(["build", "ios"]) == 2
-    assert cli.main(["run", "ios"]) == 2
-
-
 def test_add_lib(tmp_path, monkeypatch):
     cli.main(["create", "demo", "--dir", str(tmp_path)])
     proj = tmp_path / "demo"

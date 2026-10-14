@@ -1,0 +1,43 @@
+name: PyxpoApp
+options:
+  bundleIdPrefix: dev.pyxpo
+  deploymentTarget:
+    iOS: "15.0"
+  createIntermediateGroups: true
+settings:
+  base:
+    PRODUCT_BUNDLE_IDENTIFIER: "{{app_id}}"
+    PRODUCT_NAME: "{{product_name}}"
+    SWIFT_VERSION: "5.0"
+    ENABLE_USER_SCRIPT_SANDBOXING: NO
+    SWIFT_OBJC_BRIDGING_HEADER: App/Pyxpo-Bridging-Header.h
+    GENERATE_INFOPLIST_FILE: NO
+    INFOPLIST_FILE: App/Info.plist
+    CODE_SIGN_STYLE: Automatic
+    "CODE_SIGN_IDENTITY[sdk=iphonesimulator*]": "-"
+    HEADER_SEARCH_PATHS:
+      - "$(PROJECT_DIR)/native"
+    "HEADER_SEARCH_PATHS[sdk=iphonesimulator*]":
+      - "$(inherited)"
+      - "$(PROJECT_DIR)/native"
+      - "$(PROJECT_DIR)/Python.xcframework/ios-arm64-simulator/Python.framework/Headers"
+    "HEADER_SEARCH_PATHS[sdk=iphoneos*]":
+      - "$(inherited)"
+      - "$(PROJECT_DIR)/native"
+      - "$(PROJECT_DIR)/Python.xcframework/ios-arm64/Python.framework/Headers"
+targets:
+  PyxpoApp:
+    type: application
+    platform: iOS
+    sources:
+      - path: App
+        excludes: ["dylib-Info-template.plist"]
+      - path: native
+    dependencies:
+      - framework: Python.xcframework
+        embed: true
+        codeSign: true
+    postCompileScripts:
+      - script: bash "$PROJECT_DIR/scripts/install_python.sh"
+        name: Install Python
+        basedOnDependencyAnalysis: false

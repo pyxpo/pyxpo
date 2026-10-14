@@ -6,7 +6,7 @@ __pycache__/
 .venv/
 
 # Build outputs and caches (CPython source, toolchains, emulator logs, screenshots)
-build/
+/build/
 dist/
 .cache/
 

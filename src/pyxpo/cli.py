@@ -40,6 +40,8 @@ def cmd_create(args: argparse.Namespace) -> int:
 def cmd_run(args: argparse.Namespace) -> int:
     if args.target == "android":
         return _android(args, run=True)
+    if args.target == "ios":
+        return _ios(args, run=True)
     if args.target != "desktop":
         print("pyxpo run %s: not yet implemented (milestone 3)" % args.target, file=sys.stderr)
         return 2
@@ -109,9 +111,44 @@ def _android_dev(droid, project: Path, args: argparse.Namespace) -> None:
         droid._run([adb, "reverse", "--remove", "tcp:" + port])
 
 
+def _ios(args: argparse.Namespace, run: bool) -> int:
+    from .build import ios
+
+    project = Path(args.dir or ".").resolve()
+    try:
+        cfg = load_config(project)
+        app_id = cfg.get("bundle_id", "com.example.app")
+        app = ios.build(project, release=getattr(args, "release", False))
+        if not run:
+            return 0
+        extras = {}
+        dev = None
+        if not getattr(args, "no_reload", False):
+            from .dev.server import DevServer
+
+            token = secrets.token_hex(16)
+            dev = DevServer(str(project), _dev_port(args, project), token)
+            extras = {"PYXPO_DEV_URL": dev.url, "PYXPO_DEV_TOKEN": token}
+        proc = ios.install_and_run(app, app_id, extras)
+        try:
+            if dev:
+                print("hot reload on %s; edit app/ files, Ctrl-C to stop" % dev.url)
+                dev.serve_forever()
+            else:
+                proc.wait()
+        finally:
+            proc.terminate()
+    except (ios.BuildError, FileNotFoundError, ValueError) as e:
+        print("error: %s" % e, file=sys.stderr)
+        return 1
+    return 0
+
+
 def cmd_build(args: argparse.Namespace) -> int:
     if args.target == "android":
         return _android(args, run=False)
+    if args.target == "ios":
+        return _ios(args, run=False)
     print("pyxpo build %s: not yet implemented (milestone 3)" % args.target, file=sys.stderr)
     return 2
 
@@ -122,7 +159,7 @@ def cmd_doctor(args: argparse.Namespace) -> int:
 
     print("python      %s" % sys.version.split()[0])
     print("toolchains:")
-    for tool in ("adb", "java", "gradle", "cmake", "xcodebuild", "xcrun"):
+    for tool in ("adb", "java", "gradle", "cmake", "xcodebuild", "xcrun", "xcodegen"):
         row(tool, shutil.which(tool))
     for var in ("ANDROID_HOME", "ANDROID_NDK_HOME"):
         row(var, os.environ.get(var))
