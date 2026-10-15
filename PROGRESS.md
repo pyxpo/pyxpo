@@ -13,23 +13,25 @@
 - Verified (Oct 15): light+dark splash Android API 35 + iOS sim; hidden status/nav bars on splash + app (fix 346c2ed: applyStatusBar in onCreate); iOS AppIcon light/dark/tinted in Assets.car; entitlements: sim binary has associated-domains, device build (iphoneos) ad-hoc codesigned keeps them, Release settings point CODE_SIGN_ENTITLEMENTS.
 - Release APK without keystore now debug-signed (834180f), fixes "App not installed" on phone; user must re-prebuild (edited build.gradle.kts gets .pyxpo-new) and uninstall old app.
 - dist/ios now has ios-arm64 device slice too (build_cpython.py --host both); old sim-only copy in scratchpad.
-- Not verified: Android pre-31 system splash (API 30 image downloading, slow), iOS dark/tinted icon on home screen (simctl cannot toggle), team-signed device install (needs user's Apple team).
-- configdemo pyproject.toml temporarily modified (automatic style, bars hidden); original in scratchpad configdemo.pyproject.orig.
+- Android API 30 (pre-31 layer-list) splash verified light+dark, bars hidden, app renders (AVD pyxpo30).
+- Release APK without keystore debug-signed (834180f).
+- Not verified: iOS dark/tinted icon on home screen (simctl cannot toggle), team-signed device install (needs user's Apple team).
 - Test app: test-apps/configdemo (gitignored): splash+dark+landscape, demo plugin plugins/demo.py, build_properties minify on. Android pkg com.example.configdemo.droid, iOS com.example.configdemo.
 
 ## Storage packages (done)
-- packages/storage (pure Python, SQLite, MMKV shape + AsyncStorage names, sync; hooks), file-system (expo File/Directory/Paths + legacy; native download), secure-store (Keychain / Keystore AES-GCM). All in autolink.OFFICIAL.
-- E2E: test-apps/storagekit (gitignored) tools/android_selftest.sh + tools/ios_selftest.sh: ALL OK both runs (persistence) on emulator + simulator; hook tap persists after restart (Android).
-- Fixes found by e2e: iOS empty AppIcon set when no icon (actool failed); iOS requireAuthentication without enrolled biometrics now errors like Android.
-- Biometric flow verified: Face ID enrolled on simulator, fingerprint on emulator (PIN 1111). Selftest answers prompts via cache/sk_prompt marker (match/cancel); set+get+cancel ALL OK both OS. iOS fix: get now runs LAContext.evaluatePolicy itself (simulator keychain ignored ACL, never prompted).
-- testID wired like React Native: iOS accessibilityIdentifier, Android view.tag + viewIdResourceName (uiautomator resource-id). Verified: XCUITest finds "tap-button" (taps persist after relaunch); Android tap by resource-id 3->6.
-- Review fixes: folder copy onto/into itself now raises ValueError (was deleting source); delete of symlink-to-folder removes link only.
-- Not verified: real devices.
+- packages/storage, file-system, secure-store; e2e selftests ALL OK both OS incl. biometrics; testID wired. Real devices not verified.
 
 ## Prebuild parity (d00f2e8)
-- prebuild ships gradlew (8.10.2) + makes ios/PyxpoApp.xcodeproj; `pyxpo stage` runs from Gradle task / Xcode pre-build script (PYXPO_PYTHON, skip via PYXPO_STAGED); pyxpo-gen synced not rmtree'd; app.zip per build type.
-- Verified on test-apps/prebuilddemo: ./gradlew assembleRelease+assembleDebug, release APK runs + tap; code edit picked by incremental assembleDebug; plain xcodebuild sim build runs; pyxpo build android skips stage task.
-- Host quirk: Java here cannot download Gradle (timeout); wrapper dist seeded from .cache/gradle-8.10.2.
+- prebuild ships gradlew + ios xcodeproj; Gradle task / Xcode script run `pyxpo stage`. Verified on test-apps/prebuilddemo. Gradle dist seeded from .cache/gradle-8.10.2.
+
+## Release 0.1.0a1 (done)
+- All 8 packages on PyPI (pyxpo + 7 pyxpo-*), sharing confirmed Oct 16. Runbook: RELEASING.md.
+- Repo now lives in pyxpo/ subfolder; website is sibling repo ../pyxpo-web (Next.js, local commit only, see its PROGRESS.md).
+
+## Release history notes
+- Decided: version 0.1.0a1 (core + 7 packages), MIT, home = github.com/pyxpo/pyxpo (user account pyxpo, email pyxpo.com@gmail.com), PyPI account pyxpo.
+- Done local: runtime tarballs in out/ (gitignored, iOS 111 MB with device slice, manifest updated), wheels build + twine ok, fresh-venv dry run builds APK, pyxpo --version. Commits 69b2b30 a1c6f96 d09a1ab (not pushed).
+- Waiting on user: gh auth login as pyxpo; PyPI pending trusted publishers (pyxpo + 7 pyxpo-*). Then: create public repo pyxpo/pyxpo, push, runtime-3.13.7-1 release, pypi environment, tag v0.1.0a1, then pkg/<name>/v0.1.0a1 tags.
 
 ## Next apps
 PDF Utility, Last Done, Keep Until, My Measurements (spec apps-list.pdf).

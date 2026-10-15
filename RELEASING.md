@@ -1,13 +1,129 @@
 # Releasing pyxpo
 
-pyxpo ships as two pieces:
+This is the full release runbook. Follow the steps in order.
 
-1. **The wheel on PyPI** (about 250 KB): Python code, project templates, the C bridge sources, and `runtime_manifest.json`.
-2. **CPython runtime tarballs on GitHub Releases** (about 95 MB total): the prebuilt CPython for iOS and each Android ABI.
-   `pyxpo build` downloads what it needs on first use into `~/.cache/pyxpo/runtime/<runtime-version>/` and checks the
-   sha256 pinned in the wheel. The runtime version (for example `3.13.7-1`) is separate from the pyxpo version.
+## What gets released
 
-## Publish a new runtime (only when CPython or its build changes)
+| Piece | Where | Tag that triggers it | Workflow |
+|---|---|---|---|
+| Core `pyxpo` | PyPI project `pyxpo` | `vX.Y.Z` (for example `v0.1.0a2`) | `.github/workflows/release.yml` |
+| Each module package | PyPI project `pyxpo-<name>` | `pkg/<name>/vX.Y.Z` (for example `pkg/image-picker/v0.1.1`) | `.github/workflows/release-packages.yml` |
+| CPython runtime tarballs | GitHub Release `runtime-<python>-<n>` | none (manual `gh release create`) | none |
+
+Module packages live in `packages/`: `file-system`, `image-manipulator`, `image-picker`, `media-library`,
+`secure-store`, `sharing`, `storage`. Each one has its own version and is released on its own.
+
+Where the versions live:
+
+- Core: `__version__` in `src/pyxpo/__init__.py`
+- Package: `__version__` in `packages/<name>/pyxpo_<name>/__init__.py`
+- Runtime: `runtime` in `src/pyxpo/build/runtime_manifest.json` (separate from the pyxpo version)
+
+The core wheel is small (about 250 KB). The CPython runtimes (about 150 MB) are not in the wheel. `pyxpo build`
+downloads them on first use into `~/.cache/pyxpo/runtime/<runtime-version>/` and checks the sha256 pinned in
+`runtime_manifest.json`.
+
+## Rules that never change
+
+- A version on PyPI can be uploaded only once. Even after you delete it, you cannot upload the same version again.
+  If a release is broken, bump the version and release again.
+- Never run `python -m build` without `--outdir wheelhouse/`. The default folder `dist/` holds the CPython runtimes.
+- Run local checks with the project venv (`.venv/bin/python`), not the system `python3`. The system Python does not
+  have the `build` module, so the check fails with `No module named build.__main__`.
+- Publishing always waits for a manual approval in GitHub (environment `pypi`). Nothing reaches PyPI without it.
+- The tag must match the version in the code. The workflows fail the release if they differ.
+
+## One-time setup (already done for 0.1.0a1)
+
+1. GitHub repo `pyxpo/pyxpo` is public.
+2. GitHub environment `pypi` exists (repo Settings > Environments) with you as required reviewer.
+3. Each PyPI project has a Trusted Publisher. Once a project is published, its publisher is active and stays active.
+   You only need to add a publisher again for a brand-new package (see "Add a new package" below).
+
+## Release the core `pyxpo`
+
+1. Bump `__version__` in `src/pyxpo/__init__.py`.
+2. Run the tests: `.venv/bin/python -m pytest -q`
+3. Commit and push to `main`.
+4. Tag and push:
+   ```
+   git tag v0.1.0a2
+   git push origin v0.1.0a2
+   ```
+5. Watch the run: `gh run list --workflow release.yml -L1`, then `gh run watch <id>`.
+   It runs tests on Python 3.9, 3.11, 3.13, builds into `wheelhouse/`, then runs `tools/check_release.py`. That script
+   checks the tag, the wheel size and contents, and that every runtime URL answers 200.
+6. When the `publish` job shows **Waiting**, approve it:
+   open the run page > **Review deployments** > tick `pypi` > **Approve and deploy**.
+7. Check it is live: https://pypi.org/project/pyxpo/ (or
+   `curl -s -o /dev/null -w "%{http_code}" https://pypi.org/pypi/pyxpo/<version>/json` prints `200`).
+
+## Release a module package
+
+1. Bump `__version__` in `packages/<name>/pyxpo_<name>/__init__.py`.
+   If the package needs a newer core, raise its `pyxpo>=` dependency in `packages/<name>/pyproject.toml` and release
+   the core first.
+2. Commit and push to `main`.
+3. Check locally (must print `ok`):
+   ```
+   .venv/bin/python tools/build_packages.py --tag pkg/<name>/v<version>
+   ```
+4. Tag and push:
+   ```
+   git tag pkg/<name>/v<version>
+   git push origin pkg/<name>/v<version>
+   ```
+5. Watch the run: `gh run list --workflow release-packages.yml -L1`.
+6. When `publish` shows **Waiting**, approve it (Review deployments > `pypi` > Approve and deploy).
+7. Check it is live: `https://pypi.org/project/pyxpo-<name>/`.
+
+You can release several packages one after another this way. Each tag starts its own run.
+
+## Add a new package (first release of a new PyPI project)
+
+PyPI calls a publisher for a project that does not exist yet a **pending publisher**. PyPI has one limit here:
+two pending publishers cannot have the same settings (same owner, repo, workflow and environment). All our packages
+use the same settings, so **only one new package can be pending at a time**. If you try to add a second one, PyPI
+shows: "A pending trusted publisher matching this configuration has already been registered for a different project
+name".
+
+So release new packages one at a time:
+
+1. On pypi.org: Account > **Publishing** > "Add a new pending publisher" > GitHub, and fill in:
+   - PyPI Project Name: `pyxpo-<name>`
+   - Owner: `pyxpo`
+   - Repository name: `pyxpo`
+   - Workflow name: `release-packages.yml`
+   - Environment name: `pypi`
+2. Push the package tag and approve the run (steps 3 to 7 of "Release a module package").
+3. When the first upload succeeds, the pending publisher becomes active. Only now can you add the next new package.
+
+The core `pyxpo` uses `release.yml`, so its pending publisher never clashes with the packages.
+
+## When something goes wrong
+
+**A test or build job fails before publish.** Nothing was uploaded. Fix the problem, commit, push to `main`, then
+move the tag to the new commit:
+```
+git tag -d v0.1.0a2
+git push origin :refs/tags/v0.1.0a2
+git tag v0.1.0a2
+git push origin v0.1.0a2
+```
+Use the same steps with `pkg/<name>/v<version>` for a package. Move a tag only if its publish job did not run.
+
+**The publish job fails or the upload was wrong.** That version is used up on PyPI. Bump the version and release
+again. To hide a broken version from installs, "yank" it on the PyPI project page (Manage > Releases).
+
+**PyPI says the publisher is not trusted / `invalid-publisher`.** The publisher settings on PyPI do not match the run.
+Check the owner, repo, workflow file name and environment name for typos.
+
+**Publish job never starts.** It is waiting for approval. Open the run page and click Review deployments.
+
+**A release was pushed by mistake.** Go to the run page and click Cancel workflow, or reject the deployment instead of
+approving it. Nothing is uploaded until you approve.
+
+## Publish a new CPython runtime (only when CPython or its build changes)
 
 ```
 python tools/package_runtime.py ios dist/ios out/ --host-python .cache/Python-3.13.7/cross-build/build/python.exe
@@ -16,44 +132,22 @@ python tools/package_runtime.py android-x86_64 dist/android/x86_64 out/
 gh release create runtime-3.13.7-1 out/*.tar.gz --title "pyxpo runtime 3.13.7-1"
 ```
 
-Copy each printed entry into `assets` of `src/pyxpo/build/runtime_manifest.json` and set `runtime` and `base_url` to match.
+Copy each printed entry into `assets` of `src/pyxpo/build/runtime_manifest.json` and set `runtime` and `base_url` to
+match. Then release a new core version, because the manifest is inside the core wheel. Never delete an old runtime
+release: older pyxpo versions still download from it.
 
-## Publish pyxpo
-
-1. Bump `__version__` in `src/pyxpo/__init__.py`, commit, and tag `vX.Y.Z`.
-2. One-time setup: on pypi.org (and test.pypi.org) add a Trusted Publisher for this repository, workflow `release.yml`,
-   environment `pypi`. In GitHub, create the `pypi` environment and add yourself as required reviewer.
-3. `git push --tags` runs tests, builds into `wheelhouse/`, runs `tools/check_release.py` (tag, wheel size and contents,
-   every runtime URL answers 200) and publishes after you approve the `pypi` environment.
-
-Never run `python -m build` without `--outdir wheelhouse/`: the default output folder `dist/` holds the CPython runtimes.
-
-The core wheel and sdist never contain the native module packages: `MANIFEST.in` prunes `packages/`, and
-`tools/check_release.py` fails if `pyxpo/modules/` or any `pyxpo_*` package shows up.
-
-## Publish a native module package
-
-Each folder in `packages/` (`file-system`, `image-manipulator`, `image-picker`, `media-library`, `secure-store`, `sharing`, `storage`) is its own PyPI project
-(`pyxpo-<name>`) with its own version (`__version__` in `packages/<name>/pyxpo_<name>/__init__.py`).
-
-1. Bump that `__version__`, commit, and tag `pkg/<name>/v<version>` (for example `pkg/image-picker/v0.1.1`).
-   If the package needs a newer core, raise its `pyxpo>=` dependency and release the core first.
-2. One-time setup per project: on pypi.org add a Trusted Publisher for `pyxpo-<name>`, this repository, workflow
-   `release-packages.yml`, environment `pypi`.
-3. Pushing the tag runs `.github/workflows/release-packages.yml`: tests, then
-   `python tools/build_packages.py --tag pkg/<name>/v<version>` (the tag must match the version; the wheel and sdist
-   must carry `pyxpo-module.json`, the iOS and Android sources and the `pyxpo.modules` entry point), `twine check`, and
-   publish after you approve the `pypi` environment.
-
-Local check of every package: `python tools/build_packages.py` (output in `wheelhouse-packages/`).
-
-## Dry run before the first release
+## Local dry run (before a big release)
 
 ```
-python -m build --outdir wheelhouse/ && twine check wheelhouse/*
-python -m venv /tmp/v && /tmp/v/bin/pip install wheelhouse/*.whl
+.venv/bin/python -m build --outdir wheelhouse/ && .venv/bin/twine check wheelhouse/*
+python3 -m venv /tmp/v && /tmp/v/bin/pip install wheelhouse/*.whl
 PYXPO_CACHE_DIR=/tmp/c /tmp/v/bin/pyxpo create demo && cd demo && /tmp/v/bin/pyxpo build android
+.venv/bin/python tools/build_packages.py          # every package, output in wheelhouse-packages/
 ```
 
 Offline or mirrored use: `PYXPO_RUNTIME_ARCHIVES=<dir with the tarballs>`, `PYXPO_RUNTIME_BASE_URL=<https or file URL>`,
 `PYXPO_OFFLINE=1`, `pyxpo runtime fetch|path|clean`.
+
+## Release history
+
+- 0.1.0a1 (2026-10-16): core `pyxpo` and all 7 packages, runtime `3.13.7-1`.
