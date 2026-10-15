@@ -46,7 +46,9 @@ android {
     }
     buildTypes {
         release {
-            if (px.containsKey("keystore")) signingConfig = signingConfigs.getByName("pyxpo")
+            // Without a keystore in [tool.pyxpo.android] the release APK is signed with the debug key (as in
+            // React Native) so it installs on a phone. Set a keystore before uploading to Google Play.
+            signingConfig = signingConfigs.getByName(if (px.containsKey("keystore")) "pyxpo" else "debug")
         }
     }
     packaging {

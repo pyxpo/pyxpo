@@ -317,13 +317,14 @@ def build(project: Path, release: bool = False, install: bool = False, run: bool
     _run([find_gradle(native), "-p", native, "--console=plain", "assembleRelease" if release else "assembleDebug"],
          env=dict(os.environ, ANDROID_HOME=str(sdk), PYXPO_STAGED="1"))
     outdir = native / "app" / "build" / "outputs" / "apk" / ("release" if release else "debug")
-    if release:
-        apk = outdir / ("app-release.apk" if nc["keystore"] else "app-release-unsigned.apk")
-    else:
-        apk = outdir / "app-debug.apk"
+    apk = outdir / ("app-release.apk" if release else "app-debug.apk")
+    if release and not apk.is_file() and (outdir / "app-release-unsigned.apk").is_file():
+        apk = outdir / "app-release-unsigned.apk"  # an ejected build.gradle.kts from before debug-key signing
     if not apk.is_file():
         raise BuildError("apk not produced: %s" % apk)
     print("built %s" % apk)
+    if release and not nc["keystore"]:
+        term.warn("signed with the debug key: fine for testing on a phone; set keystore in [tool.pyxpo.android] for Google Play")
     if install or run:
         _run([adb_path(), "install", "-r", apk])
         if run:
