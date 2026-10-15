@@ -447,10 +447,10 @@ class OpApplier(
         if (typeDirty) {
             val multi = cfg.optBoolean("multiline")
             var t = when (cfg.optString("keyboard_type", "default")) {
-                "number" -> android.text.InputType.TYPE_CLASS_NUMBER
-                "decimal" -> android.text.InputType.TYPE_CLASS_NUMBER or android.text.InputType.TYPE_NUMBER_FLAG_DECIMAL
-                "phone" -> android.text.InputType.TYPE_CLASS_PHONE
-                "email" -> android.text.InputType.TYPE_CLASS_TEXT or android.text.InputType.TYPE_TEXT_VARIATION_EMAIL_ADDRESS
+                "number", "number-pad", "numeric" -> android.text.InputType.TYPE_CLASS_NUMBER
+                "decimal", "decimal-pad" -> android.text.InputType.TYPE_CLASS_NUMBER or android.text.InputType.TYPE_NUMBER_FLAG_DECIMAL
+                "phone", "phone-pad" -> android.text.InputType.TYPE_CLASS_PHONE
+                "email", "email-address" -> android.text.InputType.TYPE_CLASS_TEXT or android.text.InputType.TYPE_TEXT_VARIATION_EMAIL_ADDRESS
                 "url" -> android.text.InputType.TYPE_CLASS_TEXT or android.text.InputType.TYPE_TEXT_VARIATION_URI
                 else -> android.text.InputType.TYPE_CLASS_TEXT
             }

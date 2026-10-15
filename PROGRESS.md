@@ -29,3 +29,6 @@
 - Left: 8 picker camera+permissions, 9 media-library permissions/createAssetAsync/video, 10 sharing, 11 docs, 12 device matrix + opus diff review; then ImageKit UI e2e, PDF Utility, etc.
 - Steps 8-10 DONE+committed: picker camera+permissions (PxCameraFileProvider), media-library permissions/createAssetAsync/video (saveToLibraryAsync(localUri), writeOnly default False), sharing expo shape. 316 tests, iOS 25/25, Android ALL OK. Camera capture/cancel not run on a real device. Known: NSMicrophoneUsageDescription always added with image-picker.
 - Left: 11 docs, 12 device matrix + opus full-diff review, then ImageKit UI e2e.
+- ImageKit E2E (Android emu, dev mode) VERIFIED: pick, Compress (preset+custom KB), Resize, Convert, Crop, Info, Optimize, Metadata, Save, Share. 316 tests, iOS selftest 25/25.
+  - Findings: native keyboard_type now accepts RN names (number-pad etc, both OS); apps need KeyboardAvoidingView for footers; call Keyboard.dismiss() before navigating; flex:1 child in column Card collapses height (use only in rows); @component positional args become children (ImageKit _ui.py `widget` helper); tools/host_render.py = host render smoke test.
+  - Open: Metadata strip re-encodes (can grow file; lossless EXIF strip needs native); Result preview loads late; long UUID filenames in tool info card. iOS UI not tapped (no idb).

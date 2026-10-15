@@ -444,10 +444,10 @@ final class OpApplier {
         switch k {
         case "keyboard_type":
             switch val as? String ?? "default" {
-            case "number": t.keyboardType = .numberPad
-            case "decimal": t.keyboardType = .decimalPad
-            case "phone": t.keyboardType = .phonePad
-            case "email": t.keyboardType = .emailAddress
+            case "number", "number-pad", "numeric": t.keyboardType = .numberPad
+            case "decimal", "decimal-pad": t.keyboardType = .decimalPad
+            case "phone", "phone-pad": t.keyboardType = .phonePad
+            case "email", "email-address": t.keyboardType = .emailAddress
             case "url": t.keyboardType = .URL
             default: t.keyboardType = .default
             }
