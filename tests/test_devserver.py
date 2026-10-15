@@ -102,3 +102,21 @@ def test_polled_set_only_by_authorised_poll(server):
     assert not s.polled.is_set()
     get(s, "/poll?since=0&session=")
     assert s.polled.is_set()
+
+
+def test_native_config_change_warns(tmp_path, capsys):
+    (tmp_path / "app").mkdir()
+    (tmp_path / "pyproject.toml").write_text('[tool.pyxpo]\nname = "A"\n')
+    s = srv.DevServer(str(tmp_path), port=0, token="tok")
+    try:
+        s._tick()
+        assert "native config changed" not in capsys.readouterr().err
+        (tmp_path / "pyproject.toml").write_text('[tool.pyxpo]\nname = "B"\n')
+        (tmp_path / "app_config.py").write_text("def config(c): return c\n")
+        s._tick()
+        err = capsys.readouterr().err
+        assert "native config changed (app_config.py, pyproject.toml)" in err
+        s._tick()
+        assert "native config changed" not in capsys.readouterr().err  # warned once per change
+    finally:
+        s.httpd.server_close()

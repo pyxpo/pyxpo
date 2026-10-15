@@ -10,12 +10,13 @@ import sys
 import threading
 import time
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
-from typing import Any, Dict, Tuple
+from typing import Any, Dict, Optional, Tuple
 from urllib.parse import parse_qs, urlparse
 
 POLL_TIMEOUT = 25.0
 SCAN_INTERVAL = 0.3
 TOKEN_HEADER = "X-Pyxpo-Token"
+NATIVE_FILES = ("pyproject.toml", "app_config.py")  # [tool.pyxpo] sources baked into the native build
 
 
 def scan(app_dir: str) -> Dict[str, Tuple[int, int]]:
@@ -53,6 +54,7 @@ class DevServer:
         self._started = False
         self._sigs: Dict[str, Tuple[int, int]] = {}
         self._pending: Dict[str, Tuple[int, int]] = {}
+        self._native = self._native_stamp()
         self._load_initial()
         server = self
 
@@ -166,7 +168,27 @@ class DevServer:
             return {"session": self.session, "version": self.version, "files": files, "deleted": deleted,
                     "reload": self.reload_at}
 
+    def _native_stamp(self) -> Dict[str, Optional[str]]:
+        """Content hash of the files that feed native config; hot reload cannot apply changes to them."""
+        out: Dict[str, Optional[str]] = {}
+        for name in NATIVE_FILES:
+            try:
+                with open(os.path.join(self.project, name), "rb") as f:
+                    out[name] = hashlib.sha1(f.read()).hexdigest()
+            except OSError:
+                out[name] = None
+        return out
+
+    def _check_native(self) -> None:
+        cur = self._native_stamp()
+        if cur != self._native:
+            changed = sorted(n for n in cur if cur[n] != self._native.get(n))
+            self._native = cur
+            sys.stderr.write("[pyxpo dev] native config changed (%s): hot reload cannot apply it. "
+                             "Stop and re-run `pyxpo run` to rebuild the app.\n" % ", ".join(changed))
+
     def _tick(self) -> None:
+        self._check_native()
         cur = scan(self.app_dir)
         if cur != self._sigs:
             if cur != self._pending:  # debounce: publish after two identical scans
