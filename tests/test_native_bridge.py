@@ -167,8 +167,13 @@ def _embed_flags():
         pytest.skip("no Python headers")
     fw = sysconfig.get_config_var("PYTHONFRAMEWORK")
     if fw:
-        prefix = sysconfig.get_config_var("PYTHONFRAMEWORKPREFIX")
-        return ["-I" + inc], ["-F" + prefix, "-Wl,-rpath," + prefix, "-framework", fw]
+        # Link this exact version: `-framework Python` follows Versions/Current, which can be another installed
+        # Python (CI runners have several), and then PyConfig's layout does not match these headers.
+        lib = Path(sys.base_prefix) / fw
+        if not lib.exists():
+            pytest.skip("no framework library at " + str(lib))
+        prefix = sysconfig.get_config_var("PYTHONFRAMEWORKPREFIX")  # for @rpath install names (Xcode's Python3)
+        return ["-I" + inc], [str(lib), "-Wl,-rpath," + prefix]
     libdir = sysconfig.get_config_var("LIBDIR")
     ver = sysconfig.get_config_var("LDVERSION") or sysconfig.get_config_var("VERSION")
     return ["-I" + inc], ["-L" + libdir, "-Wl,-rpath," + libdir, "-lpython" + ver, "-lpthread"]
