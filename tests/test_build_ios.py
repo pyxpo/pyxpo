@@ -97,7 +97,7 @@ def test_stage_keeps_user_files_and_leaves_no_placeholders(tmp_path, monkeypatch
     monkeypatch.setattr(ios, "_run", lambda *a, **k: None)
     proj = _project(tmp_path, 'modules = ["sharing"]\n')
     native = ios.prebuild(proj)
-    (native / "project.yml").write_text("# edited\nGENERATE_INFOPLIST_FILE: YES\n")
+    (native / "project.yml").write_text("# edited\nGENERATE_INFOPLIST_FILE: YES\nINFOPLIST_FILE: $(PYXPO_INFOPLIST)\n")
     ios.stage(native, proj, ios.load_config(proj), False, "simulator")
     assert (native / "project.yml").read_text().startswith("# edited")
     root = native / "pyxpo-gen" / "stage" / "app_root"

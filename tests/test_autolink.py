@@ -176,6 +176,9 @@ def test_check_ios_wiring(tmp_path):
         autolink.check_ios_wiring(tmp_path)
     assert "GENERATE_INFOPLIST_FILE: YES" in str(e.value)
     (tmp_path / "project.yml").write_text("settings:\n  base:\n    GENERATE_INFOPLIST_FILE: YES\n")
+    with pytest.raises(BuildError, match="predates the app config"):
+        autolink.check_ios_wiring(tmp_path)
+    (tmp_path / "project.yml").write_text("settings:\n  base:\n    GENERATE_INFOPLIST_FILE: YES\n    INFOPLIST_FILE: $(PYXPO_INFOPLIST)\n")
     autolink.check_ios_wiring(tmp_path)
 
 

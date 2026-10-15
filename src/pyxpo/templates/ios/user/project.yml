@@ -3,8 +3,6 @@
 name: PyxpoApp
 options:
   bundleIdPrefix: dev.pyxpo
-  deploymentTarget:
-    iOS: "15.0"
   createIntermediateGroups: true
 configFiles:
   Debug: pyxpo-gen/Pyxpo.xcconfig
@@ -15,15 +13,22 @@ settings:
     ENABLE_USER_SCRIPT_SANDBOXING: NO
     SWIFT_OBJC_BRIDGING_HEADER: App/Pyxpo-Bridging-Header.h
     GENERATE_INFOPLIST_FILE: YES
-    INFOPLIST_FILE: App/Info.plist
     CODE_SIGN_STYLE: Automatic
     "CODE_SIGN_IDENTITY[sdk=iphonesimulator*]": "-"
 targets:
   PyxpoApp:
     type: application
     platform: iOS
+    settings:
+      base:
+        # Values below come from [tool.pyxpo] (supports_tablet, ...) through pyxpo-gen/Pyxpo.xcconfig.
+        # Target-level presets beat the xcconfig, so these point at its variables.
+        INFOPLIST_FILE: $(PYXPO_INFOPLIST)
+        TARGETED_DEVICE_FAMILY: $(PYXPO_DEVICE_FAMILY)
     sources:
       - path: App
+        excludes:
+          - Info.plist  # the built plist is pyxpo-gen/Info.plist (this file + [tool.pyxpo])
       - path: pyxpo-gen/runtime
       - path: pyxpo-gen/native
     dependencies:

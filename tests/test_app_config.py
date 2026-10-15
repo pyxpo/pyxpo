@@ -106,3 +106,23 @@ def test_json_schema_valid():
     s = app_config.json_schema()
     json.dumps(s)
     assert "splash" in s["properties"] and s["properties"]["orientation"]["enum"]
+
+
+def test_ios_plist_entitlements_xcconfig(tmp_path):
+    import plistlib
+
+    from pyxpo.build import ios_config
+    p = project(tmp_path, 'name = "A"\nscheme = ["a", "b"]\norientation = "landscape"\nuser_interface_style = "dark"',
+                '[tool.pyxpo.ios]\nsupports_tablet = false\nassociated_domains = ["applinks:acme.com"]\n'
+                'config = { uses_non_exempt_encryption = false }\ninfo_plist = { NSCameraUsageDescription = "scan", LSApplicationQueriesSchemes = ["x"] }\n')
+    nc = native_config.resolve(load_config(p), p)
+    from pyxpo.build import ios
+    base = plistlib.loads((ios.TEMPLATE / "user" / "App" / "Info.plist").read_bytes())
+    pl = ios_config.info_plist(base, nc)
+    assert pl["CFBundleURLTypes"][0]["CFBundleURLSchemes"] == ["a", "b"] and len(pl["CFBundleURLTypes"]) == 1
+    assert pl["UISupportedInterfaceOrientations"] == ios_config.LANDSCAPE and "UISupportedInterfaceOrientations~ipad" not in pl
+    assert pl["UIUserInterfaceStyle"] == "Dark" and pl["ITSAppUsesNonExemptEncryption"] is False
+    assert pl["NSCameraUsageDescription"] == "scan" and pl["LSApplicationQueriesSchemes"] == ["x"]
+    assert ios_config.entitlements(nc) == {"com.apple.developer.associated-domains": ["applinks:acme.com"]}
+    xc = ios_config.xcconfig_lines(nc, True)
+    assert "PYXPO_DEVICE_FAMILY = 1" in xc and "CODE_SIGN_ENTITLEMENTS = pyxpo-gen/App.entitlements" in xc

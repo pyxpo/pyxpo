@@ -319,5 +319,14 @@ def check_android_wiring(native: Path) -> None:
 def check_ios_wiring(native: Path) -> None:
     """An ejected project predating autolinking sets GENERATE_INFOPLIST_FILE to NO, which drops module Info.plist keys."""
     f = Path(native) / "project.yml"
-    if f.is_file() and not re.search(r"GENERATE_INFOPLIST_FILE:\s*[\"']?YES", f.read_text()):
+    if not f.is_file():
+        return
+    text = f.read_text()
+    if not re.search(r"GENERATE_INFOPLIST_FILE:\s*[\"']?YES", text):
         raise BuildError("%s must set GENERATE_INFOPLIST_FILE: YES (under settings.base) so native-module Info.plist keys are applied" % f)
+    if "PYXPO_INFOPLIST" not in text or "deploymentTarget" in text:
+        raise BuildError("%s predates the app config. Update it (or delete it and run `pyxpo prebuild ios`): remove "
+                         "options.deploymentTarget and settings.base.INFOPLIST_FILE, and add under targets.PyxpoApp:\n"
+                         "    settings:\n      base:\n        INFOPLIST_FILE: $(PYXPO_INFOPLIST)\n"
+                         "        TARGETED_DEVICE_FAMILY: $(PYXPO_DEVICE_FAMILY)\n"
+                         "and exclude Info.plist from the App source: `- path: App` with `excludes: [Info.plist]`" % f)
