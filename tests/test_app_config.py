@@ -256,3 +256,21 @@ def test_constants_app_json(tmp_path, monkeypatch):
     assert C.extra == {"api": "x"}
     monkeypatch.setattr(constants, "_cache", {})
     assert C.native_app_version is None and C.native_build_version is None and C.execution_environment == "unknown"
+
+
+def test_android_build_properties(tmp_path):
+    from pyxpo.build import android_config
+    p = project(tmp_path, 'name = "A"',
+                '[tool.pyxpo.build_properties.android]\nenable_minify_in_release_builds = true\nenable_shrink_resources_in_release_builds = true\n'
+                'extra_proguard_rules = "-keep class com.acme.** { *; }"\n'
+                'packaging_options = { pick_first = ["**/libc++_shared.so"], exclude = ["META-INF/it\'s.txt"] }\n')
+    nc = native_config.resolve(load_config(p), p)
+    g = android_config.gradle(nc)
+    assert "minifyEnabled true" in g and "shrinkResources true" in g and "proguard-pyxpo.pro" in g
+    assert "resources.pickFirsts.add('**/libc++_shared.so')" in g and "it\\'s.txt" in g
+    android_config.write(tmp_path / "gen", nc, tmp_path)
+    pro = (tmp_path / "gen" / "proguard-pyxpo.pro").read_text()
+    assert "-keep class dev.pyxpo.**" in pro and "-keep class com.acme.**" in pro
+    (tmp_path / "b").mkdir()
+    q = project(tmp_path / "b", 'name = "B"')
+    assert "minifyEnabled" not in android_config.gradle(native_config.resolve(load_config(q), q))
