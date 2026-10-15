@@ -36,3 +36,9 @@
   - Not verified: iOS UI taps (Simulator.app unavailable, cliclick cannot reach headless sim), real device.
 - Button loading fix: ActivityIndicator no longer forces align_self flex-start (dc60767). ImageKit Button busy = centered spinner only, label hidden, disabled. Android verified; iOS not screenshotted.
 - iOS had NO native Switch/Slider/ActivityIndicator (rendered empty PxGroup). Added in OpApplier.swift (d261d63). Spinner verified iOS sim (button busy: centered, label hidden). Switch/Slider iOS: compiled, NOT visually/interaction tested.
+
+## App config (Expo app.json equivalent) — [tool.pyxpo] + app_config.py
+- Committed: core (2ed5d7c), iOS wiring (b625d66), Android wiring, icons (f70a4d3), bg/status/nav bar/appearance runtime (96933bb), splash (ad0bce4). 337 tests.
+- Splash verified e2e iOS sim + Android emu (static theme, overlay, prevent_auto_hide/hide). Not verified: light-mode splash on device, Android pre-31 layer-list/v31 system splash, hidden-bar paths, iOS home-screen icon shots, entitlements in signed iOS app, imagekit Android rebuild+selftest after manifest/gradle changes.
+- TODO: step 4 image toolkit tests; 8 pyxpo.Constants; 9 config plugins + module_options; 10 build_properties (minify/proguard/packaging), tools/e2e_app_config.sh, DESIGN/README, dev-mode config-changed rebuild stamp; opus full-diff review at end.
+- Test app: test-apps/configdemo (gitignored) has splash+dark+landscape; Android pkg com.example.configdemo.droid, iOS com.example.configdemo.
