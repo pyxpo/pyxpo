@@ -235,3 +235,24 @@ def test_splash_ios_and_android(tmp_path):
     m = android_config.manifest(nc, False, False, True)
     assert 'android:theme="@style/PyxpoSplash"' in m and "android:theme" in m.split("tools:replace=")[-1]
     assert '"pyxpo.splash_image_width" android:value="100"' in m
+
+
+def test_constants_app_json(tmp_path, monkeypatch):
+    import json
+    from pyxpo.apis import constants
+    from pyxpo.build import app_json
+    nc = native_config.resolve({"name": "Demo", "version": "2.3.4", "build_number": 7, "extra": {"api": "x"},
+                                "ios": {"team_id": "TEAM123"}, "android": {"keystore": "k.jks"}}, tmp_path)
+    app_json.write(tmp_path, nc)
+    data = json.loads((tmp_path / "_app_config.json").read_text())
+    assert data["version"] == "2.3.4" and data["extra"] == {"api": "x"} and data["android"]["version_code"] == 7
+    assert "TEAM123" not in json.dumps(data) and "k.jks" not in json.dumps(data)
+    monkeypatch.setattr(constants, "_cache", data)
+    C = constants.Constants
+    assert C.native_app_version == C.nativeAppVersion == "2.3.4"
+    assert C.expo_config["name"] == "Demo" and C.extra == {"api": "x"}
+    assert C.execution_environment == "bare" and C.session_id == C.sessionId
+    C.extra["api"] = "mutated"
+    assert C.extra == {"api": "x"}
+    monkeypatch.setattr(constants, "_cache", {})
+    assert C.native_app_version is None and C.native_build_version is None and C.execution_environment == "unknown"

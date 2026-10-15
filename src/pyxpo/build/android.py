@@ -12,7 +12,7 @@ from typing import Dict, List, Optional
 from .. import native_config
 from ..config import load_config, pip_index_args
 from . import prebuild as prebuild_mod
-from . import android_config, autolink, elfcheck, runtime
+from . import android_config, app_json, autolink, elfcheck, runtime
 from .runtime import BuildError  # noqa: F401  (re-exported)
 
 DIST = runtime.dist_path("android")
@@ -237,6 +237,7 @@ def stage(native: Path, project: Path, cfg: Dict[str, object], release: bool, ab
             z.write(str(p), "pyxpo/" + str(rel))
         for src, arc in autolink.python_files(linked.modules):  # linked module packages live outside pyxpo
             z.write(str(src), arc)
+        z.writestr("pyxpo/" + app_json.NAME, app_json.dumps(nc))
     h = hashlib.sha256()
     for p in sorted(assets.glob("*.zip")):
         h.update(p.name.encode())

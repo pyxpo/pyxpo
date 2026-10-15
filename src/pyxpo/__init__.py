@@ -52,6 +52,7 @@ from .apis.pixel_ratio import PixelRatio
 from .apis.platform import Platform
 from .apis.toast_android import ToastAndroid
 from .apis.splash_screen import SplashScreen
+from .apis.constants import Constants
 from .apis.vibration import Vibration
 
 from .style import StyleSheet, processColor
@@ -78,7 +79,7 @@ __all__ = [
     # apis
     "Alert", "Animated", "Easing", "Appearance", "AppState", "BackHandler", "Clipboard", "Dimensions",
     "I18nManager", "Keyboard", "Linking", "PanResponder", "PixelRatio", "Platform", "StyleSheet", "ToastAndroid",
-    "SplashScreen", "Vibration", "processColor",
+    "SplashScreen", "Constants", "Vibration", "processColor",
     # hooks
     "HookError", "createContext", "create_context", "use_async", "use_callback", "use_context", "use_debug_value",
     "use_deferred_value", "use_effect", "use_id", "use_imperative_handle", "use_layout_effect", "use_memo",

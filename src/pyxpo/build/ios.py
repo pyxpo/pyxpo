@@ -12,7 +12,7 @@ from typing import Dict, List, Optional
 from .. import native_config
 from ..config import load_config, pip_index_args
 from . import prebuild as prebuild_mod
-from . import autolink, icons, ios_config, runtime, splash
+from . import app_json, autolink, icons, ios_config, runtime, splash
 from .android import BuildError, _run, _skip_runtime_file  # noqa: F401  (shared helpers)
 
 DIST = runtime.dist_path("ios")
@@ -141,6 +141,7 @@ def stage(native: Path, project: Path, cfg: Dict[str, object], release: bool, ki
     st = gen / "stage"
     _stage_stdlib(slice_dir, st / ("python-" + kind), host_python())
     _stage_app(project, st / "app_root", release, linked.modules)
+    app_json.write(st / "app_root" / "pyxpo", nc)
     install_requires(list(cfg.get("requires", [])), kind, st / ("site-" + kind), pip_index_args(cfg, project))
 
 

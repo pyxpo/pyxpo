@@ -137,7 +137,7 @@ def test_android_prebuild_and_stage(tmp_path, monkeypatch):
     assert gradle.read_text().startswith("// mine\n")
     names = zipfile.ZipFile(str(dest / "pyxpo-gen" / "assets" / "pyxpo" / "app.zip")).namelist()
     assert "pyxpo_sharing/__init__.py" in names and "pyxpo/modules.py" in names
-    assert not [n for n in names if n.startswith("pyxpo_image_manipulator/") or n.endswith((".kt", ".swift", ".json"))]
+    assert not [n for n in names if (n.startswith("pyxpo_image_manipulator/") or n.endswith((".kt", ".swift", ".json"))) and n != "pyxpo/_app_config.json"]
     assert (dest / "pyxpo-gen" / "modules" / "sharing" / "src" / "main" / "AndroidManifest.xml").is_file()
     assert (dest / "pyxpo-gen" / "jniLibs" / "arm64-v8a" / "libpython3.13.so").is_file()
     for p in dest.rglob("*"):
