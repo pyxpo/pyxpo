@@ -6,6 +6,8 @@ import AudioToolbox
 final class OpApplier {
     private static let content = 0x40000000  // id bit for a ScrollView's synthetic content node
     private static let leaves: Set<String> = ["Text", "Button", "TextInput", "Image"]
+    /// UIKit controls hosted for Switch / Slider / ActivityIndicator; they report an intrinsic size like leaves.
+    private static let controls: Set<String> = ["NativeSwitch", "NativeSlider", "NativeSpinner"]
 
     private var views: [Int: UIView] = [:]
     private var types: [Int: String] = [:]
@@ -13,6 +15,7 @@ final class OpApplier {
     private var pads: [Int: UIEdgeInsets] = [:]
     private var boxes: [Int: BoxLayer] = [:]
     private var texts: [Int: String] = [:]
+    private var ctl: [Int: [String: Any]] = [:]   // merged props of native controls
     private var spans: [Int: [[String: Any]]] = [:]
     private static var fontCache: [String: String] = [:]
     private var propIds: [String: Int32] = [:]
@@ -157,6 +160,29 @@ final class OpApplier {
             v = t
         case "Image":
             let i = UIImageView(); i.clipsToBounds = true; i.contentMode = .scaleAspectFill; v = i
+        case "NativeSwitch":
+            let sw = UISwitch()
+            sw.addAction(UIAction { [weak self, weak sw] _ in
+                guard let sw = sw else { return }
+                self?.event("value_change", id, ["value": sw.isOn])
+            }, for: .valueChanged)
+            v = sw
+        case "NativeSlider":
+            let sl = UISlider()
+            sl.addAction(UIAction { [weak self, weak sl] _ in
+                guard let sl = sl, let self = self else { return }
+                self.event("value_change", id, ["value": self.sliderValue(id, sl)])
+            }, for: .valueChanged)
+            sl.addAction(UIAction { [weak self, weak sl] _ in
+                guard let sl = sl, let self = self else { return }
+                self.event("sliding_complete", id, ["value": self.sliderValue(id, sl)])
+            }, for: [.touchUpInside, .touchUpOutside, .touchCancel])
+            v = sl
+        case "NativeSpinner":
+            let ind = UIActivityIndicatorView(style: .medium)
+            ind.hidesWhenStopped = false
+            ind.startAnimating()
+            v = ind
         case "Path": v = PxPath()
         case "ScrollView": v = ScrollHost()
         case "NavStack":
@@ -166,7 +192,7 @@ final class OpApplier {
         views[id] = v
         types[id] = type
         px_node_create(tree, Int32(id))
-        if Self.leaves.contains(type) { px_node_set_measured(tree, Int32(id), 1) }
+        if Self.leaves.contains(type) || Self.controls.contains(type) { px_node_set_measured(tree, Int32(id), 1) }
         if type == "ScrollView" {
             let c = Int32(id | Self.content)
             px_node_create(tree, c)
@@ -248,6 +274,7 @@ final class OpApplier {
             default: if let sh = v as? ScrollHost { scrollProp(sh, k, props[k]) }
             }
         }
+        if Self.controls.contains(types[id] ?? "") { applyControl(id, v, props, removed) }
         for k in removed {
             if k == "on_layout" { layoutListeners.remove(id) }
             if k.hasPrefix("on_touch_") || k.hasPrefix("on_press") || k == "on_long_press" {
@@ -310,6 +337,47 @@ final class OpApplier {
         case "on_scroll_begin_drag": s.onBegin = val != nil
         case "on_scroll_end_drag": s.onEnd = val != nil
         case "on_momentum_scroll_end": s.onMomentum = val != nil
+        default: break
+        }
+    }
+
+    private func sliderValue(_ id: Int, _ s: UISlider) -> Double {
+        var v = Double(s.value)
+        let lo = Double(s.minimumValue)
+        let step = (ctl[id]?["step"] as? NSNumber)?.doubleValue ?? 0
+        if step > 0 { v = lo + ((v - lo) / step).rounded() * step }
+        return min(max(v, lo), Double(s.maximumValue))
+    }
+
+    /// Merges props into the control's config and applies it (same prop contract as Android PxControls).
+    private func applyControl(_ id: Int, _ v: UIView, _ props: [String: Any], _ removed: [String]) {
+        var c = ctl[id] ?? [:]
+        for k in removed { c.removeValue(forKey: k) }
+        for (k, val) in props { c[k] = val }
+        ctl[id] = c
+        func color(_ k: String) -> UIColor? { (c[k] as? NSNumber).map { Self.color($0.uint32Value) } }
+        func dbl(_ k: String, _ d: Double) -> Double { (c[k] as? NSNumber)?.doubleValue ?? d }
+        if props["disabled"] != nil || removed.contains("disabled") {
+            (v as? UIControl)?.isEnabled = !((c["disabled"] as? Bool) ?? false)
+        }
+        switch v {
+        case let sw as UISwitch:
+            let on = (c["value"] as? Bool) ?? false
+            if sw.isOn != on { sw.setOn(on, animated: true) }
+            sw.onTintColor = color("track_on")
+            sw.thumbTintColor = color("thumb_on") ?? color("thumb_off")
+            sw.backgroundColor = color("track_off")
+            sw.layer.cornerRadius = 15.5
+        case let sl as UISlider:
+            sl.minimumValue = Float(dbl("minimum", 0))
+            sl.maximumValue = Float(dbl("maximum", 1))
+            if !sl.isTracking { sl.value = Float(dbl("value", Double(sl.minimumValue))) }
+            sl.minimumTrackTintColor = color("min_track_color")
+            sl.maximumTrackTintColor = color("max_track_color")
+            sl.thumbTintColor = color("thumb_color")
+        case let ind as UIActivityIndicatorView:
+            ind.color = color("color")
+            if (c["animating"] as? Bool) == false { ind.stopAnimating() } else { ind.startAnimating() }
         default: break
         }
     }
@@ -426,6 +494,7 @@ final class OpApplier {
         pads.removeValue(forKey: id)
         boxes.removeValue(forKey: id)
         texts.removeValue(forKey: id)
+        ctl.removeValue(forKey: id)
         spans.removeValue(forKey: id)
         a11y.removeValue(forKey: id)
     }
@@ -828,6 +897,9 @@ final class OpApplier {
         else if let b = v as? UIButton { s = b.titleLabel?.sizeThatFits(CGSize(width: lw, height: lh)) ?? .zero }
         else if let t = v as? UITextField { s = CGSize(width: 0, height: t.font?.lineHeight ?? 17) }
         else if let i = v as? UIImageView { s = i.image?.size ?? .zero }
+        else if v is UISwitch { s = v.sizeThatFits(.zero) }
+        else if v is UISlider { s = CGSize(width: 0, height: 31) }
+        else if let a = v as? UIActivityIndicatorView { s = a.intrinsicContentSize }
         if wm == 0 { s.width = lw }
         if hm == 0 { s.height = lh }
         let sc = scale
