@@ -74,9 +74,20 @@ final class SecureStoreModule: PxModule {
             q[kSecMatchLimit as String] = kSecMatchLimitOne
             q[kSecReturnData as String] = true
             if auth {
+                // Reading attributes needs no authentication, so this finds out whether the item exists first.
+                var probe = base(key, opts, auth: true)
+                probe[kSecMatchLimit as String] = kSecMatchLimitOne
+                probe[kSecReturnAttributes as String] = true
+                if SecItemCopyMatching(probe as CFDictionary, nil) == errSecItemNotFound { continue }
+                // Show the prompt ourselves, then hand the unlocked context to the Keychain so it does not ask again.
+                // (The simulator Keychain does not enforce biometric access control, so without this it never asks.)
                 let la = LAContext()
+                la.localizedFallbackTitle = ""
                 let prompt = (opts["authenticationPrompt"] as? String) ?? ""
-                la.localizedReason = prompt.isEmpty ? "Authenticate to continue" : prompt
+                if let error = evaluate(la, prompt.isEmpty ? "Authenticate to continue" : prompt) {
+                    reply(nil, error)
+                    return
+                }
                 q[kSecUseAuthenticationContext as String] = la
             }
             var out: AnyObject?
@@ -122,6 +133,22 @@ final class SecureStoreModule: PxModule {
         delete(key, opts)
         let status = SecItemAdd(q as CFDictionary, nil)
         reply(nil, status == errSecSuccess ? nil : message(status))
+    }
+
+    /// Shows the biometric prompt and waits for it (this runs on `queue`, never the main thread). nil on success.
+    private func evaluate(_ la: LAContext, _ reason: String) -> String? {
+        let done = DispatchSemaphore(value: 0)
+        var failure: Error?
+        la.evaluatePolicy(.deviceOwnerAuthenticationWithBiometrics, localizedReason: reason) { ok, error in
+            if !ok { failure = error ?? LAError(.authenticationFailed) }
+            done.signal()
+        }
+        done.wait()
+        guard let error = failure else { return nil }
+        switch (error as? LAError)?.code {
+        case .userCancel?, .appCancel?, .systemCancel?, .userFallback?: return "User canceled the operation"
+        default: return "Authentication failed: \(error.localizedDescription)"
+        }
     }
 
     private func delete(_ key: String, _ opts: [String: Any]) {
