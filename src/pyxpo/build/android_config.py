@@ -8,6 +8,8 @@ from pathlib import Path
 from typing import Any, Dict, List
 from xml.sax.saxutils import quoteattr
 
+from . import icons
+
 ORIENT = {"default": None, "portrait": "portrait", "landscape": "landscape"}
 KEYBOARD = {"resize": "adjustResize", "pan": "adjustPan"}
 NS = ('xmlns:android="http://schemas.android.com/apk/res/android" '
@@ -60,7 +62,7 @@ def scheme_filter_xml(schemes: List[str]) -> str:
     return "\n".join(out)
 
 
-def manifest(nc: Dict[str, Any], debug: bool) -> str:
+def manifest(nc: Dict[str, Any], debug: bool, icon: bool = False) -> str:
     a = nc["android"]
     cleartext = a["uses_cleartext_traffic"]
     if cleartext is None:
@@ -70,6 +72,8 @@ def manifest(nc: Dict[str, Any], debug: bool) -> str:
     app = ['android:allowBackup="%s"' % str(bool(a["allow_backup"])).lower(),
            'android:usesCleartextTraffic="%s"' % str(bool(cleartext)).lower()]
     replace = ["android:allowBackup", "android:usesCleartextTraffic"]
+    if icon:
+        app += ['android:icon="@mipmap/ic_launcher"', 'android:roundIcon="@mipmap/ic_launcher_round"']
     if a["predictive_back_gesture_enabled"]:
         app.append('android:enableOnBackInvokedCallback="true"')
     act = ['android:name="%s"' % ACTIVITY, 'android:windowSoftInputMode="%s"' % KEYBOARD[a["software_keyboard_layout_mode"]]]
@@ -85,7 +89,7 @@ def manifest(nc: Dict[str, Any], debug: bool) -> str:
     return "\n".join(lines)
 
 
-def gradle(nc: Dict[str, Any]) -> str:
+def gradle(nc: Dict[str, Any], res: bool = False) -> str:
     """Groovy script applied from the user's app/build.gradle.kts (overrides what it set)."""
     a = nc["android"]
     return "\n".join([
@@ -97,16 +101,18 @@ def gradle(nc: Dict[str, Any]) -> str:
         "        targetSdk %d" % a["target_sdk"],
         "    }",
         "    sourceSets {",
+        ] + (['        main.res.srcDir "${rootDir}/pyxpo-gen/res"'] if res else []) + [
         "        debug.manifest.srcFile \"${rootDir}/pyxpo-gen/manifest/debug/AndroidManifest.xml\"",
         "        release.manifest.srcFile \"${rootDir}/pyxpo-gen/manifest/release/AndroidManifest.xml\"",
         "    }",
         "}", ""])
 
 
-def write(gen: Path, nc: Dict[str, Any]) -> None:
+def write(gen: Path, nc: Dict[str, Any], project: Path) -> None:
     gen = Path(gen)
+    icon = icons.android(project, nc, gen)
     for kind in ("debug", "release"):
         d = gen / "manifest" / kind
         d.mkdir(parents=True, exist_ok=True)
-        (d / "AndroidManifest.xml").write_text(manifest(nc, kind == "debug"))
-    (gen / "pyxpo.app.gradle").write_text(gradle(nc))
+        (d / "AndroidManifest.xml").write_text(manifest(nc, kind == "debug", icon))
+    (gen / "pyxpo.app.gradle").write_text(gradle(nc, icon))

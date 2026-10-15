@@ -144,5 +144,42 @@ def test_android_manifest_and_gradle(tmp_path):
     assert 'adjustPan' in dbg and 'enableOnBackInvokedCallback' in dbg and 'android:autoVerify="true"' in dbg
     assert dbg.count('android:scheme="a"') == 1 and 'android:host="a.com"' in dbg
     assert "minSdk 26" in android_config.gradle(nc)
-    android_config.write(tmp_path / "gen", nc)
+    android_config.write(tmp_path / "gen", nc, tmp_path)
     assert (tmp_path / "gen" / "manifest" / "release" / "AndroidManifest.xml").is_file()
+
+
+def _icon_project(tmp_path, ios="", android=""):
+    for n, px in (("l.png", 1024), ("d.png", 1024), ("t.png", 512), ("fg.png", 432), ("mono.png", 432)):
+        (tmp_path / n).write_bytes(images.solid_png(px, px, (200, 30, 60, 255)))
+    p = project(tmp_path, 'name = "A"', ios + android)
+    return p, native_config.resolve(load_config(p), p)
+
+
+def test_icons_ios(tmp_path):
+    from pyxpo.build import icons
+    p, nc = _icon_project(tmp_path, '[tool.pyxpo.ios]\nicon = { light = "l.png", dark = "d.png", tinted = "t.png" }\n')
+    gen = tmp_path / "gen"
+    assert icons.ios(p, nc, gen) is True
+    d = gen / "runtime/Resources/Assets.xcassets/AppIcon.appiconset"
+    c = json.loads((d / "Contents.json").read_text())["images"]
+    assert [e.get("appearances", [{}])[0].get("value") for e in c] == [None, "dark", "tinted"]
+    assert all(images.info(d / e["filename"])["width"] == 1024 for e in c)  # 512 tinted was scaled up
+    nc["ios"]["icon"] = {}
+    assert icons.ios(p, nc, tmp_path / "gen2") is False and not (tmp_path / "gen2").exists()
+
+
+def test_icons_android(tmp_path):
+    from pyxpo.build import android_config, icons
+    p, nc = _icon_project(tmp_path, android='[tool.pyxpo.android]\nadaptive_icon = { foreground_image = "fg.png", background_color = "#112233", monochrome_image = "mono.png" }\n')
+    gen = tmp_path / "gen"
+    assert icons.android(p, nc, gen) is True
+    res = gen / "res"
+    for dpi, px in icons.LEGACY_DPI.items():
+        assert images.info(res / ("mipmap-%s/ic_launcher.png" % dpi))["width"] == px
+    xml = (res / "mipmap-anydpi-v26/ic_launcher.xml").read_text()
+    assert "@color/ic_launcher_background" in xml and "monochrome" in xml
+    assert "#ff112233" in (res / "values/ic_launcher_background.xml").read_text()
+    assert 'android:icon="@mipmap/ic_launcher"' in android_config.manifest(nc, True, True)
+    assert "pyxpo-gen/res" in android_config.gradle(nc, True)
+    nc["android"]["adaptive_icon"] = {}
+    assert icons.android(p, nc, tmp_path / "gen2") is False

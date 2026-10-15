@@ -12,7 +12,7 @@ from typing import Dict, List, Optional
 from .. import native_config
 from ..config import load_config, pip_index_args
 from . import prebuild as prebuild_mod
-from . import autolink, ios_config, runtime
+from . import autolink, icons, ios_config, runtime
 from .android import BuildError, _run, _skip_runtime_file  # noqa: F401  (shared helpers)
 
 DIST = runtime.dist_path("ios")
@@ -76,7 +76,7 @@ def xcconfig_text(nc: Dict[str, object], has_entitlements: bool = False) -> str:
     return "\n".join(lines) + "\n"
 
 
-def render_gen(native: Path, nc: Dict[str, object], linked: Optional[autolink.Linked] = None) -> Path:
+def render_gen(native: Path, nc: Dict[str, object], linked: Optional[autolink.Linked] = None, project: Optional[Path] = None) -> Path:
     """Recreates the framework-owned `pyxpo-gen/` folder. Never touches anything outside it."""
     runtime.ensure("ios", path=DIST)
     gen = native / GEN
@@ -100,6 +100,8 @@ def render_gen(native: Path, nc: Dict[str, object], linked: Optional[autolink.Li
                                     for k, v in sorted(autolink.info_plist(mods, opts).items()))
     (gen / "Pyxpo.xcconfig").write_text(xc)
     autolink.render_ios(gen, mods, opts)
+    if project is not None:
+        icons.ios(project, nc, gen)
     return gen
 
 
@@ -119,7 +121,7 @@ def prebuild(project: Path, clean: bool = False) -> Path:
     for action, rel in actions:
         if action == "conflict":
             print("kept your edited %s; new version saved as %s.pyxpo-new" % (rel, rel))
-    render_gen(dest, nc, linked)
+    render_gen(dest, nc, linked, project)
     return dest
 
 
@@ -134,7 +136,7 @@ def stage(native: Path, project: Path, cfg: Dict[str, object], release: bool, ki
     if prebuild_mod.is_ejected(native):
         autolink.check_ios_wiring(native)
     linked = autolink.link(cfg, project)
-    gen = render_gen(native, nc, linked)
+    gen = render_gen(native, nc, linked, project)
     st = gen / "stage"
     _stage_stdlib(slice_dir, st / ("python-" + kind), host_python())
     _stage_app(project, st / "app_root", release, linked.modules)

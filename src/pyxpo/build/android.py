@@ -94,7 +94,7 @@ def render_gen(native: Path, nc: Dict[str, object], project: Path, abis: List[st
         out.write_bytes(data)
     (gen / "pyxpo.properties").write_text(properties_text(nc, project, abis))
     autolink.render_android(gen, linked.modules if linked else [])
-    android_config.write(gen, nc)
+    android_config.write(gen, nc, project)
     try:
         (native / "local.properties").write_text("sdk.dir=%s\n" % find_sdk())
     except BuildError:
