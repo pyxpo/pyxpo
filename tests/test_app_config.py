@@ -126,3 +126,23 @@ def test_ios_plist_entitlements_xcconfig(tmp_path):
     assert ios_config.entitlements(nc) == {"com.apple.developer.associated-domains": ["applinks:acme.com"]}
     xc = ios_config.xcconfig_lines(nc, True)
     assert "PYXPO_DEVICE_FAMILY = 1" in xc and "CODE_SIGN_ENTITLEMENTS = pyxpo-gen/App.entitlements" in xc
+
+
+def test_android_manifest_and_gradle(tmp_path):
+    import xml.etree.ElementTree as ET
+
+    from pyxpo.build import android_config
+    p = project(tmp_path, 'name = "A"\nscheme = ["a", "b"]\norientation = "portrait"',
+                '[tool.pyxpo.android]\nmin_sdk = 26\npermissions = ["CAMERA"]\nblocked_permissions = ["VIBRATE"]\n'
+                'software_keyboard_layout_mode = "pan"\npredictive_back_gesture_enabled = true\n'
+                'intent_filters = [{ action = "VIEW", autoVerify = true, data = [{ scheme = "https", host = "a.com" }], category = ["BROWSABLE"] }]\n')
+    nc = native_config.resolve(load_config(p), p)
+    dbg, rel = android_config.manifest(nc, True), android_config.manifest(nc, False)
+    ET.fromstring(dbg)  # well-formed
+    assert 'android:usesCleartextTraffic="true"' in dbg and 'android:usesCleartextTraffic="false"' in rel
+    assert 'android.permission.CAMERA' in dbg and 'tools:node="remove"' in dbg and 'android:screenOrientation="portrait"' in dbg
+    assert 'adjustPan' in dbg and 'enableOnBackInvokedCallback' in dbg and 'android:autoVerify="true"' in dbg
+    assert dbg.count('android:scheme="a"') == 1 and 'android:host="a.com"' in dbg
+    assert "minSdk 26" in android_config.gradle(nc)
+    android_config.write(tmp_path / "gen", nc)
+    assert (tmp_path / "gen" / "manifest" / "release" / "AndroidManifest.xml").is_file()

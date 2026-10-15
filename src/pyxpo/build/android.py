@@ -12,7 +12,7 @@ from typing import Dict, List, Optional
 from .. import native_config
 from ..config import load_config, pip_index_args
 from . import prebuild as prebuild_mod
-from . import autolink, elfcheck, runtime
+from . import android_config, autolink, elfcheck, runtime
 from .runtime import BuildError  # noqa: F401  (re-exported)
 
 DIST = runtime.dist_path("android")
@@ -94,6 +94,7 @@ def render_gen(native: Path, nc: Dict[str, object], project: Path, abis: List[st
         out.write_bytes(data)
     (gen / "pyxpo.properties").write_text(properties_text(nc, project, abis))
     autolink.render_android(gen, linked.modules if linked else [])
+    android_config.write(gen, nc)
     try:
         (native / "local.properties").write_text("sdk.dir=%s\n" % find_sdk())
     except BuildError:
