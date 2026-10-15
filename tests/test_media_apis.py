@@ -206,12 +206,29 @@ def test_compress_to_size_uses_search_and_closes(tmp_path):
         run(h, lambda: ImageManipulator.compressToSizeAsync("/a.jpg", 0))
 
 
+def test_picker_media_types_and_limit_normalization():
+    h = {("ImagePicker", "pick"): lambda m, l, k: {"assets": [{"uri": "/v.mov", "type": "video"}]}}
+    cases = [
+        (dict(mediaTypes=["images", "videos"], allowsMultipleSelection=True), (True, 0, "all")),
+        (dict(mediaTypes="videos"), (False, 0, "videos")),
+        (dict(allowsMultipleSelection=True, selectionLimit=1), (False, 0, "images")),  # a limit of 1 is a single pick
+        (dict(selectionLimit=5), (False, 0, "images")),  # limit means nothing without multiple selection
+    ]
+    for kw, want in cases:
+        _, app = run(h, lambda: ImagePicker.launchImageLibraryAsync(**kw))
+        assert app.calls[0][2] == want
+    for kw, exc in ((dict(mediaTypes="audio"), ValueError), (dict(mediaTypes=[]), ValueError),
+                    (dict(mediaTypes="livePhotos"), NotSupportedError), (dict(selectionLimit=-1), ValueError)):
+        with pytest.raises(exc):
+            run(h, lambda: ImagePicker.launchImageLibraryAsync(**kw))
+
+
 def test_picker_share_and_library_shapes():
-    out, app = run({("ImagePicker", "pick"): lambda multi, limit: {"assets": [{"uri": "/x.jpg"}]}},
+    out, app = run({("ImagePicker", "pick"): lambda multi, limit, kinds: {"assets": [{"uri": "/x.jpg"}]}},
                    lambda: ImagePicker.launch_image_library_async(allowsMultipleSelection=True, selectionLimit=3))
     assert out == {"canceled": False, "assets": [{"uri": "/x.jpg"}]}
-    assert app.calls[0][2] == (True, 3)
-    out, _ = run({("ImagePicker", "pick"): lambda m, l: {"assets": []}}, lambda: ImagePicker.launchImageLibraryAsync())
+    assert app.calls[0][2] == (True, 3, "images")
+    out, _ = run({("ImagePicker", "pick"): lambda m, l, k: {"assets": []}}, lambda: ImagePicker.launchImageLibraryAsync())
     assert out == {"canceled": True, "assets": []}
 
     out, app = run({("Share", "share"): lambda urls, msg: {"action": "sharedAction"}},
