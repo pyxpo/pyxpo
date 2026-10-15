@@ -93,10 +93,25 @@ myapp/
 
 Anything beyond the core (image tools, picker, media library, sharing, later camera and documents) is a separate module, as in Expo.
 An app lists what it uses in `[tool.pyxpo] modules = [...]`; only those are compiled in (Swift copied into the Xcode project, one Gradle
-library per module on Android). Unlisted modules add no code, no permissions and no Info.plist keys. Each module ships `pyxpo-module.json`
-(Swift classes, Android classes, dependencies, usage-description keys), and third-party modules are pip packages exposing the
-`pyxpo.modules` entry point. Importing a module that is not listed fails the build with a hint, and calling one that is not linked raises
-`ModuleNotLinkedError`. `python tools/module_size_report.py` prints each first-party module's source footprint.
+library per module on Android). Unlisted modules add no code, no permissions and no Info.plist keys.
+
+Every module, first-party included, is its own pip package, released separately from core (like `expo-image-picker`). First-party
+ones live in `packages/<name>/` in this repo: distribution `pyxpo-<name>`, import package `pyxpo_<name_with_underscores>`, autolink
+name `<name>` (the string apps put in `modules`). The import package holds the Python API plus its native side as package data:
+`pyxpo-module.json` (bridge name, Swift and Kotlin classes, Android namespace and dependencies, usage-description keys), `ios/*.swift`
+and `android/src/main/**`. Each package registers itself under the `pyxpo.modules` entry point group (`image-picker = "pyxpo_image_picker"`),
+which is the only way `pyxpo build` discovers modules; third-party modules work exactly the same way.
+
+At build time autolinking (`pyxpo/build/autolink.py`) resolves the listed names against the installed entry points, copies the
+native sources into the generated project, and copies the linked packages' Python files into the app next to the `pyxpo` runtime
+package (they live in the host's site-packages, so nothing else would bundle them). A module that is listed but not installed fails
+the build with `pip install pyxpo-<name>`; importing `pyxpo_<name>` without listing it fails the build with a hint; calling a module
+whose native side is not linked raises `ModuleNotLinkedError` naming the pip package and the `modules` entry. Core keeps only the
+module host helpers (`pyxpo.modules`: `require_linked`, `ModuleNotLinkedError`, `on_event`).
+
+Monorepo development: `tools/dev_install.sh` installs core and every package in `packages/` editable into `.venv`.
+`python tools/build_packages.py` builds and checks every package's wheel and sdist (native files and entry point present);
+`python tools/module_size_report.py` prints each first-party module's source footprint.
 
 ## 5. Milestones
 1. **Pure-Python core**, no mobile toolchains: elements, hooks, reconciler, scheduler, ops, `MockRenderer`, optional Tk preview, CLI skeleton (`create`, `run desktop`, `add-lib` check), pytest. Python 3.9+.

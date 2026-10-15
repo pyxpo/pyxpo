@@ -28,6 +28,25 @@ Copy each printed entry into `assets` of `src/pyxpo/build/runtime_manifest.json`
 
 Never run `python -m build` without `--outdir wheelhouse/`: the default output folder `dist/` holds the CPython runtimes.
 
+The core wheel and sdist never contain the native module packages: `MANIFEST.in` prunes `packages/`, and
+`tools/check_release.py` fails if `pyxpo/modules/` or any `pyxpo_*` package shows up.
+
+## Publish a native module package
+
+Each folder in `packages/` (`image-tools`, `image-picker`, `media-library`, `sharing`) is its own PyPI project
+(`pyxpo-<name>`) with its own version (`__version__` in `packages/<name>/pyxpo_<name>/__init__.py`).
+
+1. Bump that `__version__`, commit, and tag `pkg/<name>/v<version>` (for example `pkg/image-picker/v0.1.1`).
+   If the package needs a newer core, raise its `pyxpo>=` dependency and release the core first.
+2. One-time setup per project: on pypi.org add a Trusted Publisher for `pyxpo-<name>`, this repository, workflow
+   `release-packages.yml`, environment `pypi`.
+3. Pushing the tag runs `.github/workflows/release-packages.yml`: tests, then
+   `python tools/build_packages.py --tag pkg/<name>/v<version>` (the tag must match the version; the wheel and sdist
+   must carry `pyxpo-module.json`, the iOS and Android sources and the `pyxpo.modules` entry point), `twine check`, and
+   publish after you approve the `pypi` environment.
+
+Local check of every package: `python tools/build_packages.py` (output in `wheelhouse-packages/`).
+
 ## Dry run before the first release
 
 ```

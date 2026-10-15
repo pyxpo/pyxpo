@@ -14,7 +14,7 @@ The first mobile build downloads the prebuilt CPython runtime (about 20-60 MB pe
 
 ## Develop pyxpo itself
 ```
-python3 -m venv .venv && .venv/bin/pip install -e '.[dev]'
+tools/dev_install.sh    # .venv with core + every module package in packages/, all editable
 .venv/bin/pyxpo create demo && cd demo && ../.venv/bin/pyxpo run desktop   # type 1 + Enter to press the button, q to quit
 .venv/bin/pytest
 ```
@@ -44,6 +44,28 @@ default = Index
 
 Hooks: use_state, use_effect, use_ref, use_memo, use_callback, use_context, use_async. Lists need `key=`.
 `pyxpo add-lib <pkg>` checks mobile wheel availability (note: full tensorflow/torch cannot run on mobile).
+
+## Native modules
+
+Features beyond the core are optional native modules, each its own pip package (like Expo's `expo-image-picker`).
+Only the modules an app lists are compiled into it.
+
+| Package | Import | `modules` entry |
+|---|---|---|
+| `pyxpo-image-tools` | `from pyxpo_image_tools import ImageTools` | `image-tools` |
+| `pyxpo-image-picker` | `from pyxpo_image_picker import ImagePicker` | `image-picker` |
+| `pyxpo-media-library` | `from pyxpo_media_library import MediaLibrary` | `media-library` |
+| `pyxpo-sharing` | `from pyxpo_sharing import Share` | `sharing` |
+
+```
+pip install pyxpo-image-picker
+```
+```toml
+[tool.pyxpo]
+modules = ["image-picker"]
+```
+Their sources live in `packages/`; see each package's README. Third-party modules are pip packages that register a
+`pyxpo.modules` entry point the same way.
 
 ## React Native style API
 Every RN spelling is an alias; the snake_case API keeps working. No JSX (not valid Python), so children are call arguments.
