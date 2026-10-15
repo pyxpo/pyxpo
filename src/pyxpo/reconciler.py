@@ -163,6 +163,9 @@ class Reconciler:
     def _run_async_effect(self, aw: Any) -> None:
         warnings.warn("async effect: it runs as a task and cannot return a cleanup; use use_async for that",
                       RuntimeWarning, stacklevel=3)
+        self._spawn(aw, "async effect")
+
+    def _spawn(self, aw: Any, what: str) -> None:
         loop = self.loop
         if loop is None:
             try:
@@ -172,7 +175,7 @@ class Reconciler:
         if loop is None:
             if inspect.iscoroutine(aw):
                 aw.close()
-            self._report(RuntimeError("async effect needs an app running on an asyncio loop"))
+            self._report(RuntimeError("%s needs an app running on an asyncio loop" % what))
             return
 
         async def run() -> None:
@@ -192,9 +195,11 @@ class Reconciler:
         if fn is None:
             return False
         if payload and _takes_value(fn):
-            fn(payload.get("value"))
+            result = fn(payload.get("value"))
         else:
-            fn()
+            result = fn()
+        if inspect.isawaitable(result):  # `async def` handler: run it as a task on the app loop
+            self._spawn(result, "async event handler")
         return True
 
     # -- internals -----------------------------------------------------
