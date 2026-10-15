@@ -6,12 +6,21 @@
   "ios": {
     "classes": ["MediaLibraryModule"],
     "infoPlist": {
-      "NSPhotoLibraryAddUsageDescription": { "option": "addUsageDescription", "default": "Save processed photos to your photo library." }
+      "NSPhotoLibraryAddUsageDescription": {
+        "option": "addUsageDescription",
+        "default": "Save photos and videos to your photo library."
+      },
+      "NSPhotoLibraryUsageDescription": {
+        "option": "usageDescription",
+        "default": "Access the photos and videos in your library."
+      }
     }
   },
   "android": {
     "namespace": "dev.pyxpo.modules.medialibrary",
-    "classes": ["dev.pyxpo.modules.medialibrary.MediaLibraryModule"],
+    "classes": [
+      "dev.pyxpo.modules.medialibrary.MediaLibraryModule"
+    ],
     "dependencies": [],
     "minSdk": 24
   }

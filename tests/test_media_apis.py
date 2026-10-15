@@ -288,8 +288,66 @@ def test_picker_share_and_library_shapes():
     with pytest.raises(ValueError):
         run({}, lambda: Share.share({}))
 
-    out, _ = run({("MediaLibrary", "request_permission"): lambda w: {"granted": True}},
-                 lambda: MediaLibrary.requestPermissionsAsync())
-    assert out == {"granted": True, "status": "granted"}
     _, app = run({("MediaLibrary", "save"): lambda p: None}, lambda: MediaLibrary.saveToLibraryAsync("/a.jpg"))
     assert app.calls[0][:2] == ("MediaLibrary", "save")
+
+
+def test_library_permissions_expo_shape_and_default_is_read_write():
+    h = {("MediaLibrary", "request_permission"): lambda w: {"status": "granted", "canAskAgain": True, "accessPrivileges": "limited"},
+         ("MediaLibrary", "get_permission"): lambda w: {"status": "undetermined", "canAskAgain": True}}
+    out, app = run(h, lambda: MediaLibrary.requestPermissionsAsync())
+    assert out == {"status": "granted", "granted": True, "canAskAgain": True, "expires": "never", "accessPrivileges": "limited"}
+    assert app.calls[0][2] == (False,)
+    out, app = run(h, lambda: MediaLibrary.get_permissions_async(writeOnly=True))
+    assert out == {"status": "undetermined", "granted": False, "canAskAgain": True, "expires": "never", "accessPrivileges": "none"}
+    assert app.calls[0][:3] == ("MediaLibrary", "get_permission", (True,))
+    out, _ = run({("MediaLibrary", "get_permission"): lambda w: {"status": "denied", "canAskAgain": False}},
+                 lambda: MediaLibrary.getPermissionsAsync())
+    assert out["granted"] is False and out["canAskAgain"] is False and out["accessPrivileges"] == "none"
+    with pytest.raises(ValueError):  # a bad native status is not passed through
+        run({("MediaLibrary", "get_permission"): lambda w: {"status": "maybe"}}, lambda: MediaLibrary.getPermissionsAsync())
+
+
+def test_library_create_asset_validates_before_native_call():
+    asset = {"id": "1", "uri": "content://media/1", "mediaType": "video", "width": 1920, "height": 1080,
+             "duration": 2.5, "filename": "clip.mp4"}
+    out, app = run({("MediaLibrary", "create"): lambda p: asset}, lambda: MediaLibrary.createAssetAsync("file:///c/clip.mp4"))
+    assert out == asset and app.calls[0][2] == ("file:///c/clip.mp4",)
+    for bad in ("", None, "https://x.dev/a.jpg", "content://media/1"):
+        with pytest.raises(ValueError):
+            run({}, lambda: MediaLibrary.createAssetAsync(bad))
+        with pytest.raises(ValueError):
+            run({}, lambda: MediaLibrary.saveToLibraryAsync(bad))
+
+
+def test_camera_launch_args_and_shape(monkeypatch):
+    from pyxpo.apis import _env
+    h = {("ImagePicker", "camera"): lambda kinds, secs: {"assets": [{"uri": "/c.jpg", "type": "image"}]}}
+    out, app = run(h, lambda: ImagePicker.launchCameraAsync())
+    assert out == {"canceled": False, "assets": [{"uri": "/c.jpg", "type": "image"}]}
+    assert app.calls[0][:3] == ("ImagePicker", "camera", ("images", 0.0))
+    _, app = run(h, lambda: ImagePicker.launch_camera_async(mediaTypes="videos", videoMaxDuration=15))
+    assert app.calls[0][2] == ("videos", 15.0)
+    out, _ = run({("ImagePicker", "camera"): lambda k, s: {"assets": []}}, lambda: ImagePicker.launchCameraAsync())
+    assert out == {"canceled": True, "assets": []}
+    for kw, exc in ((dict(mediaTypes="audio"), ValueError), (dict(videoMaxDuration=-1), ValueError),
+                    (dict(videoMaxDuration="10"), ValueError), (dict(videoMaxDuration=True), ValueError)):
+        with pytest.raises(exc):
+            run({}, lambda: ImagePicker.launchCameraAsync(**kw))
+    # photo and video in one capture: iOS only, refused on Android before the native call
+    monkeypatch.setattr(_env, "current", _env.Env({"os": "android", "modules": ["ImagePicker"]}))
+    with pytest.raises(NotSupportedError):
+        run({}, lambda: ImagePicker.launchCameraAsync(mediaTypes=["images", "videos"]))
+    monkeypatch.setattr(_env, "current", _env.Env({"os": "ios", "modules": ["ImagePicker"]}))
+    _, app = run(h, lambda: ImagePicker.launchCameraAsync(mediaTypes=["images", "videos"]))
+    assert app.calls[0][2] == ("all", 0.0)
+
+
+def test_camera_permissions_expo_shape():
+    h = {("ImagePicker", "camera_permission"): lambda ask: {"status": "granted" if ask else "undetermined", "canAskAgain": True}}
+    out, app = run(h, lambda: ImagePicker.getCameraPermissionsAsync())
+    assert out == {"status": "undetermined", "granted": False, "canAskAgain": True, "expires": "never"}
+    assert app.calls[0][2] == (False,)
+    out, app = run(h, lambda: ImagePicker.request_camera_permissions_async())
+    assert out == {"status": "granted", "granted": True, "canAskAgain": True, "expires": "never"}
+    assert app.calls[0][2] == (True,)
