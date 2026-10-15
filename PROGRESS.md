@@ -32,3 +32,5 @@
 - ImageKit E2E (Android emu, dev mode) VERIFIED: pick, Compress (preset+custom KB), Resize, Convert, Crop, Info, Optimize, Metadata, Save, Share. 316 tests, iOS selftest 25/25.
   - Findings: native keyboard_type now accepts RN names (number-pad etc, both OS); apps need KeyboardAvoidingView for footers; call Keyboard.dismiss() before navigating; flex:1 child in column Card collapses height (use only in rows); @component positional args become children (ImageKit _ui.py `widget` helper); tools/host_render.py = host render smoke test.
   - Open: Metadata strip re-encodes (can grow file; lossless EXIF strip needs native); Result preview loads late; long UUID filenames in tool info card. iOS UI not tapped (no idb).
+- ImageKit client-ready check (2026-10-15): fresh standalone Android APK (no dev server) verified: pick 1 and 3 photos, Compress, Convert PNG (3024x4032, lossless so bigger), Quick Optimize batch (12.14 MB to 1.50 MB), Save 3, Share 3. iOS rebuilt, selftest 25/25, Home renders. 316 tests pass.
+  - Not verified: iOS UI taps (Simulator.app unavailable, cliclick cannot reach headless sim), real device.
