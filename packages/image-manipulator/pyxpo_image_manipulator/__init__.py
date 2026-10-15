@@ -9,9 +9,7 @@ import math
 import os
 from typing import Any, Awaitable, Callable, Dict, Optional, Tuple, Union
 
-from pyxpo._keys import snake_aliases
-from pyxpo.apis._bridge import call as _call
-from pyxpo.modules import require_linked
+from pyxpo.module_api import call as _call, require_linked, snake_aliases
 
 __version__ = "0.1.0"
 
@@ -25,8 +23,8 @@ class ImageTooLargeError(RuntimeError):
 
 
 def call(method: str, *args: Any) -> Any:
-    require_linked("ImageTools", "image-tools", package="pyxpo-image-tools")
-    return _call("ImageTools", method, *args, reply=True)
+    require_linked("ImageManipulator", "image-manipulator", package="pyxpo-image-manipulator")
+    return _call("ImageManipulator", method, *args, reply=True)
 
 
 def parse_ratio(text: str) -> float:
@@ -110,7 +108,7 @@ def _discard(info: Info) -> None:
 
 
 @snake_aliases
-class ImageTools:
+class ImageManipulator:
     @staticmethod
     async def getInfo(uri: str) -> Info:
         """`{uri, width, height, fileSize, format, mimeType, hasExif, hasGps}` (width/height after EXIF orientation)."""
@@ -161,4 +159,4 @@ class ImageTools:
     @staticmethod
     async def optimize(uri: str) -> Info:
         """Quick Optimize: long edge <= 2560 px, JPEG quality 0.8."""
-        return await ImageTools.process(uri, format="jpeg", quality=0.8, maxEdge=2560)
+        return await ImageManipulator.process(uri, format="jpeg", quality=0.8, maxEdge=2560)

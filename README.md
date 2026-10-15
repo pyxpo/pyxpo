@@ -52,7 +52,7 @@ Only the modules an app lists are compiled into it.
 
 | Package | Import | `modules` entry |
 |---|---|---|
-| `pyxpo-image-tools` | `from pyxpo_image_tools import ImageTools` | `image-tools` |
+| `pyxpo-image-manipulator` | `from pyxpo_image_manipulator import ImageManipulator` | `image-manipulator` |
 | `pyxpo-image-picker` | `from pyxpo_image_picker import ImagePicker` | `image-picker` |
 | `pyxpo-media-library` | `from pyxpo_media_library import MediaLibrary` | `media-library` |
 | `pyxpo-sharing` | `from pyxpo_sharing import Share` | `sharing` |

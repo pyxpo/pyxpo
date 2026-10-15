@@ -89,8 +89,8 @@ __all__ = [
 ]
 
 
-_MOVED = {"Share": "sharing", "MediaLibrary": "media-library", "ImagePicker": "image-picker", "ImageTools": "image-tools",
-          "ImageTooLargeError": "image-tools"}
+_MOVED = {"Share": "sharing", "MediaLibrary": "media-library", "ImagePicker": "image-picker", "ImageManipulator": "image-manipulator",
+          "ImageTooLargeError": "image-manipulator"}
 
 
 def __getattr__(name: str):

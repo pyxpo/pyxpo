@@ -115,7 +115,7 @@ def test_first_party_modules_found_via_entry_points():
         m = mods[name]
         assert m.pkg == autolink.import_name(name) and m.root.name == m.pkg
         assert list((m.root / "ios").glob("*.swift")) and (m.root / "android" / "src" / "main" / "AndroidManifest.xml").is_file()
-    assert mods["image-tools"].native == "ImageTools"
+    assert mods["image-manipulator"].native == "ImageManipulator"
 
 
 def test_listed_but_not_installed_says_which_package(tmp_path):
@@ -161,13 +161,13 @@ def test_require_linked(monkeypatch):
     env = _env.Env({"os": "ios", "modules": []})
     monkeypatch.setattr(_env, "current", env)
     with pytest.raises(modules.ModuleNotLinkedError) as e:
-        modules.require_linked("ImageTools", "image-tools")
-    assert "add 'image-tools'" in str(e.value).lower() or "Add 'image-tools'" in str(e.value)
+        modules.require_linked("ImageManipulator", "image-manipulator")
+    assert "add 'image-manipulator'" in str(e.value).lower() or "Add 'image-manipulator'" in str(e.value)
     with pytest.raises(modules.ModuleNotLinkedError) as e:
-        modules.require_linked("ImageTools", "image-tools", package="pyxpo-image-tools")
-    assert "pip install pyxpo-image-tools" in str(e.value)
-    env.update({"modules": ["ImageTools"]})
-    modules.require_linked("ImageTools", "image-tools")
+        modules.require_linked("ImageManipulator", "image-manipulator", package="pyxpo-image-manipulator")
+    assert "pip install pyxpo-image-manipulator" in str(e.value)
+    env.update({"modules": ["ImageManipulator"]})
+    modules.require_linked("ImageManipulator", "image-manipulator")
 
 
 def test_check_ios_wiring(tmp_path):

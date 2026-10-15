@@ -8,9 +8,9 @@ import pytest
 from pyxpo_sharing import Share
 from pyxpo_media_library import MediaLibrary
 from pyxpo_image_picker import ImagePicker
-from pyxpo_image_tools import ImageTools, ImageTooLargeError
+from pyxpo_image_manipulator import ImageManipulator, ImageTooLargeError
 from pyxpo.apis import _bridge
-from pyxpo_image_tools import centered_crop, fit_size, parse_ratio, search_under
+from pyxpo_image_manipulator import centered_crop, fit_size, parse_ratio, search_under
 
 
 class FakeApp:
@@ -127,12 +127,12 @@ def _tools(log):
     def close(h):
         log.append(("close", h))
 
-    return {("ImageTools", "open"): open_, ("ImageTools", "render"): render, ("ImageTools", "close"): close}
+    return {("ImageManipulator", "open"): open_, ("ImageManipulator", "render"): render, ("ImageManipulator", "close"): close}
 
 
 def test_process_builds_spec_and_always_closes():
     log = []
-    out, _ = run(_tools(log), lambda: ImageTools.process("/a.heic", crop="1:1", resize={"width": 1080, "height": 1080},
+    out, _ = run(_tools(log), lambda: ImageManipulator.process("/a.heic", crop="1:1", resize={"width": 1080, "height": 1080},
                                                          format="jpeg", quality=0.8, maxEdge=4000))
     assert out["uri"] == "/o.jpg"
     assert log[0] == ("open", "/a.heic", 4000)
@@ -144,16 +144,16 @@ def test_process_builds_spec_and_always_closes():
 
 def test_process_scales_pixel_crop_to_downsampled_bitmap():
     log = []
-    run(_tools(log), lambda: ImageTools.process("/a.jpg", crop={"x": 1000, "y": 2000, "width": 4000, "height": 2000}))
+    run(_tools(log), lambda: ImageManipulator.process("/a.jpg", crop={"x": 1000, "y": 2000, "width": 4000, "height": 2000}))
     assert log[1][2]["crop"] == {"x": 500, "y": 1000, "width": 2000, "height": 1000}
 
 
 def test_process_closes_handle_on_native_error():
     log = []
     h = _tools(log)
-    h[("ImageTools", "render")] = lambda hh, spec: RuntimeError("boom")
+    h[("ImageManipulator", "render")] = lambda hh, spec: RuntimeError("boom")
     with pytest.raises(RuntimeError, match="boom"):
-        run(h, lambda: ImageTools.process("/a.jpg"))
+        run(h, lambda: ImageManipulator.process("/a.jpg"))
     assert ("close", 7) in log
 
 
@@ -168,12 +168,12 @@ def test_compress_to_size_uses_search_and_closes(tmp_path):
         n.append(p)
         return {"uri": str(p), "fileSize": int(4_000_000 * spec["quality"] ** 2)}
 
-    h[("ImageTools", "render")] = render
-    out, _ = run(h, lambda: ImageTools.compressToSize("/a.jpg", 1_000_000))
+    h[("ImageManipulator", "render")] = render
+    out, _ = run(h, lambda: ImageManipulator.compressToSize("/a.jpg", 1_000_000))
     assert out["fileSize"] <= 1_000_000
     assert log[0] == ("open", "/a.jpg", 4096) and log[-1] == ("close", 7)
     with pytest.raises(ValueError):
-        run(h, lambda: ImageTools.compressToSize("/a.jpg", 0))
+        run(h, lambda: ImageManipulator.compressToSize("/a.jpg", 0))
 
 
 def test_picker_share_and_library_shapes():

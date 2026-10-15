@@ -104,7 +104,7 @@ def test_stage_keeps_user_files_and_leaves_no_placeholders(tmp_path, monkeypatch
     assert (root / "app" / "index.py").is_file()
     # the linked module's Python (an installed pip package) ships with the app; unlinked ones and native sources do not
     assert (root / "pyxpo_sharing" / "__init__.py").is_file() and (root / "pyxpo" / "modules.py").is_file()
-    assert not (root / "pyxpo_sharing" / "ios").exists() and not (root / "pyxpo_image_tools").exists()
+    assert not (root / "pyxpo_sharing" / "ios").exists() and not (root / "pyxpo_image_manipulator").exists()
     for p in native.rglob("*"):
         if p.is_file() and not p.is_symlink() and p.suffix in (".yml", ".plist", ".swift", ".sh", ".h", ".m", ".xcconfig"):
             text = p.read_text()
@@ -137,7 +137,7 @@ def test_android_prebuild_and_stage(tmp_path, monkeypatch):
     assert gradle.read_text().startswith("// mine\n")
     names = zipfile.ZipFile(str(dest / "pyxpo-gen" / "assets" / "pyxpo" / "app.zip")).namelist()
     assert "pyxpo_sharing/__init__.py" in names and "pyxpo/modules.py" in names
-    assert not [n for n in names if n.startswith("pyxpo_image_tools/") or n.endswith((".kt", ".swift", ".json"))]
+    assert not [n for n in names if n.startswith("pyxpo_image_manipulator/") or n.endswith((".kt", ".swift", ".json"))]
     assert (dest / "pyxpo-gen" / "modules" / "sharing" / "src" / "main" / "AndroidManifest.xml").is_file()
     assert (dest / "pyxpo-gen" / "jniLibs" / "arm64-v8a" / "libpython3.13.so").is_file()
     for p in dest.rglob("*"):
