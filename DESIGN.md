@@ -89,6 +89,15 @@ myapp/
 - `.py` files are compiled to `.pyc` with the target interpreter's magic number.
 - When a wheel is missing, the tool prints a cibuildwheel recipe hint.
 
+## 4b. Optional native modules (autolinking)
+
+Anything beyond the core (image tools, picker, media library, sharing, later camera and documents) is a separate module, as in Expo.
+An app lists what it uses in `[tool.pyxpo] modules = [...]`; only those are compiled in (Swift copied into the Xcode project, one Gradle
+library per module on Android). Unlisted modules add no code, no permissions and no Info.plist keys. Each module ships `pyxpo-module.json`
+(Swift classes, Android classes, dependencies, usage-description keys), and third-party modules are pip packages exposing the
+`pyxpo.modules` entry point. Importing a module that is not listed fails the build with a hint, and calling one that is not linked raises
+`ModuleNotLinkedError`. `python tools/module_size_report.py` prints each first-party module's source footprint.
+
 ## 5. Milestones
 1. **Pure-Python core**, no mobile toolchains: elements, hooks, reconciler, scheduler, ops, `MockRenderer`, optional Tk preview, CLI skeleton (`create`, `run desktop`, `add-lib` check), pytest. Python 3.9+.
 2. **CPython cross-build for Android** plus the Kotlin shell, JNI loader, bridge, and View applier. Counter runs on an emulator, then numpy runs.
