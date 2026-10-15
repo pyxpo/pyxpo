@@ -49,6 +49,8 @@ class DevServer:
         self.deleted: Dict[str, int] = {}
         self.cond = threading.Condition()
         self._stop = threading.Event()
+        self.polled = threading.Event()  # set once any device has polled (i.e. a dev client is connected)
+        self._started = False
         self._sigs: Dict[str, Tuple[int, int]] = {}
         self._pending: Dict[str, Tuple[int, int]] = {}
         self._load_initial()
@@ -145,6 +147,7 @@ class DevServer:
             self.cond.notify_all()
 
     def poll(self, since: int, session: str) -> Dict[str, Any]:
+        self.polled.set()
         deadline = time.monotonic() + POLL_TIMEOUT
         with self.cond:
             if session == self.session and since:
@@ -196,6 +199,9 @@ class DevServer:
 
     # -- lifecycle -----------------------------------------------------
     def start(self) -> None:
+        if self._started:
+            return
+        self._started = True
         threading.Thread(target=self.httpd.serve_forever, daemon=True, name="pyxpo-dev-http").start()
         threading.Thread(target=self._watch, daemon=True, name="pyxpo-dev-watch").start()
 

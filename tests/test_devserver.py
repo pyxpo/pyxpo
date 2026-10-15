@@ -92,3 +92,13 @@ def test_post_reload_triggers_full_reload(server):
     assert urllib.request.urlopen(req, timeout=5).status == 204
     c.poll_once()
     assert calls == ["reload"]
+
+
+def test_polled_set_only_by_authorised_poll(server):
+    s, _ = server
+    assert not s.polled.is_set()
+    with pytest.raises(urllib.error.HTTPError):
+        get(s, "/poll?since=0&session=", token="bad")
+    assert not s.polled.is_set()
+    get(s, "/poll?since=0&session=")
+    assert s.polled.is_set()

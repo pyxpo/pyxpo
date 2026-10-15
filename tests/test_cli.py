@@ -55,3 +55,41 @@ def test_prebuild_cli(tmp_path, monkeypatch):
     assert cli.main(["prebuild", "--clean", "--yes", "--dir", str(tmp_path)]) == 0
     assert seen == [("ios", False), ("android", True), ("ios", True)]
     assert cli.main(["prebuild", "ios", "--clean", "--dir", str(tmp_path)]) == 2  # needs --yes when not a tty
+
+
+def test_android_dev_relaunches_until_client_connects(tmp_path, monkeypatch):
+    # Android's package-update flow can relaunch the app without our extras; the CLI must relaunch it.
+    import argparse
+    import json
+    import urllib.request
+
+    from pyxpo.dev.server import DevServer
+
+    (tmp_path / "app").mkdir()
+    (tmp_path / "app" / "index.py").write_text("x = 1\n")
+    (tmp_path / "pyproject.toml").write_text('[tool.pyxpo]\nname = "demo"\nbundle_id = "com.example.demo"\n')
+    launches = []
+
+    class FakeDroid:
+        @staticmethod
+        def adb_path():
+            return "adb"
+
+        @staticmethod
+        def _run(cmd):
+            pass
+
+        @staticmethod
+        def launch(app_id, extras):
+            launches.append(app_id)
+            if len(launches) == 2:  # second launch keeps its extras: the client polls the server
+                req = urllib.request.Request(extras["pyxpo_dev_url"] + "/poll?since=0&session=",
+                                             headers={"X-Pyxpo-Token": extras["pyxpo_dev_token"]})
+                with urllib.request.urlopen(req, timeout=5) as r:
+                    json.loads(r.read())
+
+    monkeypatch.setattr(cli, "_dev_port", lambda args, project: 0)
+    monkeypatch.setattr(cli, "ANDROID_DEV_CONNECT_TIMEOUT", 0.2)
+    monkeypatch.setattr(DevServer, "serve_forever", lambda self: self.stop())
+    cli._android_dev(FakeDroid, tmp_path, argparse.Namespace())
+    assert launches == ["com.example.demo", "com.example.demo"]

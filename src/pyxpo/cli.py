@@ -95,6 +95,10 @@ def _android(args: argparse.Namespace, run: bool) -> int:
     return 0
 
 
+ANDROID_DEV_CONNECT_TIMEOUT = 30.0
+ANDROID_DEV_RELAUNCHES = 2
+
+
 def _android_dev(droid, project: Path, args: argparse.Namespace) -> None:
     """Start the dev server, reverse the port to the device, launch with dev extras, serve until Ctrl-C."""
     from .dev.server import DevServer
@@ -105,10 +109,19 @@ def _android_dev(droid, project: Path, args: argparse.Namespace) -> None:
     adb = droid.adb_path()
     port = str(dev.port)
     droid._run([adb, "reverse", "tcp:" + port, "tcp:" + port])
+    app_id = cfg.get("bundle_id", "com.example.app")
+    extras = {"pyxpo_dev_url": dev.url, "pyxpo_dev_token": token}
     try:
-        droid.launch(cfg.get("bundle_id", "com.example.app"),
-                     {"pyxpo_dev_url": dev.url, "pyxpo_dev_token": token})
+        dev.start()
+        droid.launch(app_id, extras)
         print("hot reload on %s; edit app/ files, Ctrl-C to stop" % dev.url, flush=True)
+        # Android 14+ relaunches an app that was updated while open (System UI's package-update flow), and that
+        # relaunch carries no extras, so the app starts without the dev URL. Relaunch until the client connects.
+        for _ in range(ANDROID_DEV_RELAUNCHES):
+            if dev.polled.wait(ANDROID_DEV_CONNECT_TIMEOUT):
+                break
+            print("app has not connected to the dev server; relaunching it with hot reload", file=sys.stderr, flush=True)
+            droid.launch(app_id, extras)
         dev.serve_forever()
     finally:
         droid._run([adb, "reverse", "--remove", "tcp:" + port])
