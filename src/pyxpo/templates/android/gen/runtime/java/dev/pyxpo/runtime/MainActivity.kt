@@ -71,6 +71,8 @@ class MainActivity : Activity() {
         lateinit var rt: PyxpoRuntime
         val applier = OpApplier(this, root) { json -> rt.sendEvent(json) }
         this.applier = applier
+        // Hidden bars and bar styles hold from the first frame (splash too), not only after window focus.
+        applier.applyStatusBar()
         rt = PyxpoRuntime(this, applier)
         runtime = rt
         // Hot-reload endpoint is honoured in debuggable builds only.
