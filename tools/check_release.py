@@ -1,9 +1,13 @@
-"""Release gate: tag matches __version__, wheel is small and complete, every runtime asset URL resolves."""
+"""Release gate: tag matches __version__, wheel is small and complete, every runtime asset URL resolves.
+
+Core only: the native module packages in packages/ are released separately (tools/build_packages.py --tag).
+"""
 from __future__ import annotations
 
 import json
 import re
 import sys
+import tarfile
 import urllib.request
 import zipfile
 from pathlib import Path
@@ -29,6 +33,14 @@ def main(tag: str, wheelhouse: str) -> int:
                      "pyxpo/templates/ios/user/project.yml"):
             if need not in names:
                 errors.append("wheel is missing %s" % need)
+        modules = [n for n in names if n.startswith(("pyxpo/modules/", "pyxpo_"))]
+        if modules:
+            errors.append("core wheel must not contain native module packages: %s" % ", ".join(modules[:5]))
+    for sd in sorted(Path(wheelhouse).glob("*.tar.gz")):
+        with tarfile.open(str(sd)) as t:
+            leaked = [n for n in t.getnames() if "/packages/" in n or "/pyxpo/modules/" in n]
+        if leaked:
+            errors.append("%s must not contain packages/: %s" % (sd.name, ", ".join(leaked[:5])))
     m = json.loads((root / "src/pyxpo/build/runtime_manifest.json").read_text())
     if not m["assets"]:
         errors.append("runtime manifest has no assets")
