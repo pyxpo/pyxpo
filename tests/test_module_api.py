@@ -41,3 +41,17 @@ def test_fake_bridge_roundtrip():
         api.require_linked("Demo", "demo")
         assert asyncio.run(go()) == {"v": 5}
         assert fb.calls == [("Demo", "echo", (5,))]
+
+
+def test_packages_follow_packaging_hygiene():
+    import pathlib
+    import re
+    root = pathlib.Path(__file__).resolve().parents[1] / "packages"
+    for pyproj in root.glob("*/pyproject.toml"):
+        pkg = pyproj.parent
+        imp = "pyxpo_" + pkg.name.replace("-", "_")
+        text = pyproj.read_text()
+        assert (pkg / imp / "py.typed").is_file(), pkg.name
+        assert (pkg / "CHANGELOG.md").is_file(), pkg.name
+        assert re.search(r'"pyxpo>=\d+\.\d+\.\d+,<\d+\.\d+"', text), pkg.name
+        assert '"py.typed"' in text, pkg.name
