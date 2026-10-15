@@ -8,7 +8,8 @@ import pytest
 from pyxpo_sharing import Share
 from pyxpo_media_library import MediaLibrary
 from pyxpo_image_picker import ImagePicker
-from pyxpo_image_manipulator import ImageManipulator, ImageTooLargeError
+from pyxpo.module_api import NotSupportedError
+from pyxpo_image_manipulator import FlipType, ImageManipulator, ImageTooLargeError, SaveFormat
 from pyxpo.apis import _bridge
 from pyxpo_image_manipulator import centered_crop, fit_size, parse_ratio, search_under
 
@@ -130,30 +131,59 @@ def _tools(log):
     return {("ImageManipulator", "open"): open_, ("ImageManipulator", "render"): render, ("ImageManipulator", "close"): close}
 
 
-def test_process_builds_spec_and_always_closes():
+def test_manipulate_plans_ops_in_order_and_always_closes():
     log = []
-    out, _ = run(_tools(log), lambda: ImageManipulator.process("/a.heic", crop="1:1", resize={"width": 1080, "height": 1080},
-                                                         format="jpeg", quality=0.8, maxEdge=4000))
+    out, _ = run(_tools(log), lambda: ImageManipulator.manipulateAsync(
+        "/a.heic", [{"rotate": 90}, {"resize": {"width": 1500}}, {"crop": {"originX": 0, "originY": 0, "width": 100, "height": 100}},
+                    {"flip": FlipType.Horizontal}], {"compress": 0.8, "format": SaveFormat.PNG}))
     assert out["uri"] == "/o.jpg"
-    assert log[0] == ("open", "/a.heic", 4000)
+    assert log[0] == ("open", "/a.heic", 0)
     spec = log[1][2]
-    assert spec["crop"] == {"x": 500, "y": 0, "width": 3000, "height": 3000}
-    assert (spec["width"], spec["height"], spec["format"], spec["quality"]) == (1080, 1080, "jpeg", 0.8)
+    # 4000x3000 rotated 90 -> 3000x4000; width 1500 keeps aspect -> 1500x2000
+    assert spec["ops"] == [{"op": "rotate", "degrees": 90}, {"op": "resize", "width": 1500, "height": 2000},
+                           {"op": "crop", "x": 0, "y": 0, "width": 100, "height": 100}, {"op": "flip", "axis": "horizontal"}]
+    assert (spec["format"], spec["quality"]) == ("png", 0.8)
     assert log[-1] == ("close", 7)
 
 
-def test_process_scales_pixel_crop_to_downsampled_bitmap():
+def test_manipulate_validates_before_render():
     log = []
-    run(_tools(log), lambda: ImageManipulator.process("/a.jpg", crop={"x": 1000, "y": 2000, "width": 4000, "height": 2000}))
-    assert log[1][2]["crop"] == {"x": 500, "y": 1000, "width": 2000, "height": 1000}
+    for actions, exc in (([{"crop": {"originX": 3900, "originY": 0, "width": 200, "height": 10}}], ValueError),
+                         ([{"rotate": 45}], NotSupportedError), ([{"spin": 1}], ValueError), ([{"resize": {}}], ValueError)):
+        with pytest.raises(exc):
+            run(_tools(log), lambda: ImageManipulator.manipulateAsync("/a.jpg", actions))
+    assert all(c[0] != "render" for c in log) and log.count(("close", 7)) == 4
+    with pytest.raises(ValueError):
+        run(_tools(log), lambda: ImageManipulator.manipulateAsync("/a.jpg", [], {"compress": 2}))
 
 
-def test_process_closes_handle_on_native_error():
+def test_manipulate_not_supported_formats_raise_before_native_call(monkeypatch):
+    from pyxpo.apis import _env
+    log = []
+    monkeypatch.setattr(_env, "current", _env.Env({"os": "ios", "modules": ["ImageManipulator"]}))
+    with pytest.raises(NotSupportedError):
+        run(_tools(log), lambda: ImageManipulator.manipulateAsync("/a.jpg", [], {"format": SaveFormat.WEBP}))
+    monkeypatch.setattr(_env, "current", _env.Env({"os": "android", "modules": ["ImageManipulator"]}))
+    with pytest.raises(NotSupportedError):
+        run(_tools(log), lambda: ImageManipulator.manipulateAsync("/a.jpg", [], {"format": SaveFormat.HEIC}))
+    assert log == []
+
+
+def test_manipulate_base64(tmp_path):
+    f = tmp_path / "o.jpg"
+    f.write_bytes(b"abc")
+    h = _tools([])
+    h[("ImageManipulator", "render")] = lambda hh, spec: {"uri": str(f), "fileSize": 3}
+    out, _ = run(h, lambda: ImageManipulator.manipulateAsync("/a.jpg", [], {"base64": True}))
+    assert out["base64"] == "YWJj"
+
+
+def test_manipulate_closes_handle_on_native_error():
     log = []
     h = _tools(log)
     h[("ImageManipulator", "render")] = lambda hh, spec: RuntimeError("boom")
     with pytest.raises(RuntimeError, match="boom"):
-        run(h, lambda: ImageManipulator.process("/a.jpg"))
+        run(h, lambda: ImageManipulator.manipulateAsync("/a.jpg"))
     assert ("close", 7) in log
 
 
@@ -169,11 +199,11 @@ def test_compress_to_size_uses_search_and_closes(tmp_path):
         return {"uri": str(p), "fileSize": int(4_000_000 * spec["quality"] ** 2)}
 
     h[("ImageManipulator", "render")] = render
-    out, _ = run(h, lambda: ImageManipulator.compressToSize("/a.jpg", 1_000_000))
+    out, _ = run(h, lambda: ImageManipulator.compressToSizeAsync("/a.jpg", 1_000_000))
     assert out["fileSize"] <= 1_000_000
     assert log[0] == ("open", "/a.jpg", 4096) and log[-1] == ("close", 7)
     with pytest.raises(ValueError):
-        run(h, lambda: ImageManipulator.compressToSize("/a.jpg", 0))
+        run(h, lambda: ImageManipulator.compressToSizeAsync("/a.jpg", 0))
 
 
 def test_picker_share_and_library_shapes():
