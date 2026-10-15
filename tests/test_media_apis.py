@@ -5,7 +5,7 @@ import os
 
 import pytest
 
-from pyxpo_sharing import Share
+from pyxpo_sharing import Share, Sharing
 from pyxpo_media_library import MediaLibrary
 from pyxpo_image_picker import ImagePicker
 from pyxpo.module_api import NotSupportedError
@@ -223,6 +223,57 @@ def test_picker_media_types_and_limit_normalization():
             run(h, lambda: ImagePicker.launchImageLibraryAsync(**kw))
 
 
+def test_share_links_go_into_message_and_sharing_shape():
+    h = {("Share", "share"): lambda urls, msg, mime, title: {"action": "sharedAction"}}
+    _, app = run(h, lambda: Share.share({"urls": ["/a.jpg", "https://x.dev/p"], "message": "hi"}, {"dialogTitle": "Send"}))
+    assert app.calls[0][2] == (["/a.jpg"], "hi\nhttps://x.dev/p", "", "Send")
+    _, app = run(h, lambda: Share.share({"url": "https://x.dev"}))
+    assert app.calls[0][2] == ([], "https://x.dev", "", "")
+    _, app = run(h, lambda: Sharing.shareAsync("/a.pdf", {"mimeType": "application/pdf", "dialogTitle": "T"}))
+    assert app.calls[0][2] == (["/a.pdf"], "", "application/pdf", "T")
+    with pytest.raises(ValueError):
+        run(h, lambda: Sharing.shareAsync("https://x.dev"))
+
+
+def test_share_rejects_second_sheet_and_resets_after_error():
+    async def both():
+        first = asyncio.ensure_future(Share.share({"url": "/a"}))
+        await asyncio.sleep(0)
+        with pytest.raises(RuntimeError, match="already open"):
+            await Share.share({"url": "/b"})
+        gate.set_result({"action": "dismissedAction"})
+        return await first
+
+    gate = None
+
+    class SlowApp(FakeApp):
+        def call(self, module, method, *args, reply=False):
+            return gate
+
+    async def go():
+        nonlocal gate
+        gate = asyncio.get_event_loop().create_future()
+        return await both()
+
+    old = _bridge.get_app()
+    _bridge.set_app(SlowApp({}))
+    try:
+        assert asyncio.run(go()) == {"action": "dismissedAction"}
+    finally:
+        _bridge.set_app(old)
+    out, _ = run({("Share", "share"): lambda *a: RuntimeError("boom")}, lambda: _boom())
+    assert out == "boom"
+    out, _ = run({("Share", "share"): lambda *a: {"action": "sharedAction"}}, lambda: Share.share({"url": "/a"}))
+    assert out["action"] == "sharedAction"
+
+
+async def _boom():
+    try:
+        await Share.share({"url": "/a"})
+    except RuntimeError as e:
+        return str(e)
+
+
 def test_picker_share_and_library_shapes():
     out, app = run({("ImagePicker", "pick"): lambda multi, limit, kinds: {"assets": [{"uri": "/x.jpg"}]}},
                    lambda: ImagePicker.launch_image_library_async(allowsMultipleSelection=True, selectionLimit=3))
@@ -231,9 +282,9 @@ def test_picker_share_and_library_shapes():
     out, _ = run({("ImagePicker", "pick"): lambda m, l, k: {"assets": []}}, lambda: ImagePicker.launchImageLibraryAsync())
     assert out == {"canceled": True, "assets": []}
 
-    out, app = run({("Share", "share"): lambda urls, msg: {"action": "sharedAction"}},
+    out, app = run({("Share", "share"): lambda urls, msg, mime, title: {"action": "sharedAction"}},
                    lambda: Share.share({"urls": ["/a", "/b"]}))
-    assert out == {"action": "sharedAction"} and app.calls[0][2] == (["/a", "/b"], "")
+    assert out == {"action": "sharedAction"} and app.calls[0][2] == (["/a", "/b"], "", "", "")
     with pytest.raises(ValueError):
         run({}, lambda: Share.share({}))
 
