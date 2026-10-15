@@ -5,7 +5,8 @@ import os
 
 import pytest
 
-from pyxpo import ImagePicker, MediaLibrary, Share
+from pyxpo import MediaLibrary, Share
+from pyxpo.modules.image_picker import ImagePicker
 from pyxpo.modules.image_tools import ImageTools, ImageTooLargeError
 from pyxpo.apis import _bridge
 from pyxpo.modules.image_tools import centered_crop, fit_size, parse_ratio, search_under
