@@ -14,5 +14,5 @@ def ActivityIndicator(animating: bool = True, size: Any = "small", color: Any = 
     dp = {"small": 20, "large": 36}.get(size, size) if isinstance(size, (int, float, str)) else 20
     if not animating and hides_when_stopped:
         style = [style, {"opacity": 0}]
-    return _native.Spinner(key=key, style=[_native.SELF, {"width": dp, "height": dp}, style], **_native.clean({
+    return _native.Spinner(key=key, style=[{"width": dp, "height": dp}, style], **_native.clean({
         "color": _native.color(color or ACCENT), "animating": None if animating else False, **passthrough(props)}))
