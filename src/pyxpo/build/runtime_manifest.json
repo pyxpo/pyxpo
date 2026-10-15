@@ -1,7 +1,7 @@
 {
   "runtime": "3.13.7-1",
   "python": "3.13.7",
-  "base_url": "https://github.com/ivishalchaubey/pyxpo/releases/download/runtime-3.13.7-1/",
+  "base_url": "https://github.com/pyxpo/pyxpo/releases/download/runtime-3.13.7-1/",
   "assets": {
     "android-arm64-v8a": {
       "file": "pyxpo-runtime-3.13.7-1-android-arm64-v8a.tar.gz",

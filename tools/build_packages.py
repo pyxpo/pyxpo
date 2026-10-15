@@ -3,7 +3,7 @@
 Usage:
     python tools/build_packages.py                      # every package -> wheelhouse-packages/<name>/
     python tools/build_packages.py image-picker sharing # only these
-    python tools/build_packages.py --tag pkg/image-picker/v0.1.0   # release gate: one package, tag must match its version
+    python tools/build_packages.py --tag pkg/image-picker/v0.1.0a1   # release gate: one package, tag must match its version
     options: --outdir DIR, --no-isolation (use the current environment's setuptools, offline)
 
 Each package must produce a wheel and an sdist that both carry pyxpo-module.json, the iOS and Android

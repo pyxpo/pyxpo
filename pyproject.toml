@@ -32,8 +32,8 @@ dependencies = ["tomli>=2; python_version < '3.11'"]
 dev = ["pytest"]
 
 [project.urls]
-Homepage = "https://github.com/ivishalchaubey/pyxpo"
-Issues = "https://github.com/ivishalchaubey/pyxpo/issues"
+Homepage = "https://github.com/pyxpo/pyxpo"
+Issues = "https://github.com/pyxpo/pyxpo/issues"
 
 [project.scripts]
 pyxpo = "pyxpo.cli:main"

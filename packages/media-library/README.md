@@ -2,7 +2,7 @@
 
 Photo library permissions and saving photos and videos from pyxpo apps (expo-media-library shape).
 
-This is an optional [pyxpo](https://github.com/ivishalchaubey/pyxpo) native module. Apps that do not
+This is an optional [pyxpo](https://github.com/pyxpo/pyxpo) native module. Apps that do not
 list it carry none of its code, permissions or dependencies.
 
 ## Install
