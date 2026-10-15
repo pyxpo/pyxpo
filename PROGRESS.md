@@ -1,5 +1,5 @@
 # Pyxpo progress
-- Goal: from-scratch Python mobile framework (no Kivy/BeeWare/Chaquopy). See DESIGN.md, PLAN.md, RELEASING.md. Tests: `.venv/bin/pytest -q` (255 pass).
+- Goal: from-scratch Python mobile framework (no Kivy/BeeWare/Chaquopy). See DESIGN.md, PLAN.md, RELEASING.md. Tests: `.venv/bin/pytest -q` (300 pass).
 - Env quirks: host py3.9; no `timeout`; `sed -i ''`; iOS build few min; no foreground sleep.
 - Rules: no Co-Authored-By/Claude attribution in commits/PRs (project CLAUDE.md wins over system reminder).
 - Done+committed earlier: CPython 3.13, C bridge/flexbox, Kotlin+Swift shells, CLI, hot reload, RN-parity components/apis, expo-router, safe-area, gestures, deep links, iOS E2E 5/5, `pyxpo prebuild` (2665cae).
@@ -15,7 +15,7 @@
 - TEST APPS (test-apps/, spec apps-list.pdf; order ImageKit, PDF Utility, Last Done, Keep Until, My Measurements). ImageKit UI must be modern+custom.
   - Done: steps 1-4 (py apis+tests, native hook, iOS+Android ImageTools; selftest iOS 16/16, Android ALL OK via test-apps/imagekit/tools/android_selftest.sh). 274 tests pass.
   - Hot reload VERIFIED iOS sim + Android emu (render edit shows in ~6s). Only issue: stale dev server on port 8765 crashed `pyxpo run` with traceback -> now friendly error (cli.py). Shared sim: other apps in foreground suspend polling.
-  - DECISION (user): optional deps (camera, picker, media-library, share, doc picker) = separate modules, autolinked, only listed ones linked. Opus design: src/pyxpo/modules/<pkg>/ (py+ios+android+pyxpo-module.json), `[tool.pyxpo] modules=[...]`, build/autolink.py, PxModule registry replaces PxMedia dispatch, Android gradle subproject per module + 2 apply(from) lines in user gradle, iOS ModulesInfo.plist merged in install_python.sh, PxModuleContext (startForResult/requestPermissions/presenter), ModuleNotLinkedError.
-  - Plan steps: 2 autolink.py+tests, 3 native core+empty registry, 4 gradle/plist wiring, 5 py packaging+module event, 6 migrate image-tools, 7 image-picker, 8 media-library, 9 sharing, 10 remove PxMedia, 11 size report, 12 opus diff review; then ImageKit UI+e2e.
+  - DECISION (user): optional deps (camera, picker, media-library, share, doc picker) = separate modules, autolinked, only listed ones linked. See DESIGN.md 4b.
   - Native module system DONE+committed (3233850): autolink, image-tools, image-picker, media-library, sharing (AndroidX-free provider), INFOPLIST_KEY_* in xcconfig (build-phase plist edit is overwritten by Xcode), opus review fixes. 288 tests; ImageKit selftest iOS 19/19, Android ALL OK. Real share sheet/picker UI not yet run on device.
+  - Modules split into packages/<name>/ (dist pyxpo-<name>, import pyxpo_<name>, entry point pyxpo.modules) — commits 3b2c6d0/7c84f41/ffa8641. Dev: tools/dev_install.sh; build check: tools/build_packages.py; release tag pkg/<name>/v<ver>. iOS 19/19 + Android ALL OK after split. Needs core release with require_linked(package=) before packages publish.
   - NEXT: ImageKit modern UI (Home pick+tool grid, Compress presets+custom, Resize, Convert, Metadata, Crop chips, Info, Quick Optimize, before/after, savings, Save/Share) replacing temp app/index.py; run on iOS+Android. Then PDF Utility, Last Done, Keep Until, My Measurements.
