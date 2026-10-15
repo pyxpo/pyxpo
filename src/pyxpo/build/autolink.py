@@ -17,7 +17,10 @@ from typing import Any, Dict, List, Optional
 
 from .runtime import BuildError
 
+from ..module_api import NATIVE_CONTRACT
+
 META = "pyxpo-module.json"
+SCHEMA_VERSION = 1
 NAME_RE = re.compile(r"^[a-z][a-z0-9-]*$")
 CLASS_RE = re.compile(r"^[A-Za-z_][A-Za-z0-9_.]*$")
 PLIST_KEY_RE = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
@@ -60,6 +63,16 @@ def validate(meta: Any, where: str) -> Dict[str, Any]:
         raise bad("'name' must be lowercase letters, digits and dashes")
     if not isinstance(native, str) or not re.match(r"^[A-Z][A-Za-z0-9]*$", native):
         raise bad("'native' (the bridge module name) must be a CapitalizedName")
+    for key in ("schemaVersion", "nativeContract"):
+        v = meta.get(key, 1)
+        if not isinstance(v, int) or isinstance(v, bool) or v < 1:
+            raise bad("'%s' must be a positive integer" % key)
+    if meta.get("schemaVersion", 1) > SCHEMA_VERSION:
+        raise bad("manifest schemaVersion %d is newer than this pyxpo understands (%d): upgrade pyxpo"
+                  % (meta["schemaVersion"], SCHEMA_VERSION))
+    if meta.get("nativeContract", 1) > NATIVE_CONTRACT:
+        raise bad("module needs native contract %d but this pyxpo provides %d: upgrade pyxpo"
+                  % (meta["nativeContract"], NATIVE_CONTRACT))
     ios, android = meta.get("ios") or {}, meta.get("android") or {}
     if not isinstance(ios, dict) or not isinstance(android, dict):
         raise bad("'ios' and 'android' must be JSON objects")
@@ -209,12 +222,22 @@ class Linked:
 
 
 def info_plist(mods: List[Module], options: Dict[str, Any]) -> Dict[str, str]:
-    """Usage-description keys the linked modules need. `options` is `[tool.pyxpo.module_options.<module>]`."""
+    """Usage-description keys the linked modules need. `options` is `[tool.pyxpo.module_options.<module>]`.
+    A module's `infoPlist` table there sets any key directly. Two modules asking for the same key with
+    different text is an error unless one of them sets it explicitly."""
     keys: Dict[str, str] = {}
+    owner: Dict[str, str] = {}
     for m in mods:
         opts = (options or {}).get(m.name) or {}
+        direct = opts.get("infoPlist") or {}
         for key, spec in (m.ios.get("infoPlist") or {}).items():
-            keys.setdefault(key, str(opts.get(spec.get("option", ""), spec["default"])))
+            explicit = key in direct or spec.get("option", "") in opts
+            val = str(direct[key] if key in direct else opts.get(spec.get("option", ""), spec["default"]))
+            if key in keys and keys[key] != val and not explicit:
+                raise BuildError("modules '%s' and '%s' both set Info.plist key %s with different text; set it in "
+                                 "[tool.pyxpo.module_options.%s.infoPlist]" % (owner[key], m.name, key, m.name))
+            if key not in keys or explicit:
+                keys[key], owner[key] = val, m.name
     return keys
 
 

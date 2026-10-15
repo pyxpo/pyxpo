@@ -204,3 +204,21 @@ def test_discover_skips_duplicate_entry_point(monkeypatch, tmp_path):
     monkeypatch.setattr(autolink, "_entry_points", lambda: [ep, ep])
     monkeypatch.setitem(sys.modules, "third_party", mod)
     assert list(autolink.discover()) == ["third-party"]
+
+
+def test_manifest_contract_versions(tmp_path):
+    ok = {"name": "ok", "native": "X"}
+    autolink.validate(dict(ok, schemaVersion=1, nativeContract=1), "f")
+    for extra in ({"schemaVersion": 99}, {"nativeContract": 99}, {"nativeContract": 0}, {"schemaVersion": "1"}):
+        with pytest.raises(BuildError):
+            autolink.validate(dict(ok, **extra), "f")
+
+
+def test_info_plist_conflict_and_direct_override(tmp_path):
+    a = make_module(tmp_path, "aa", "pyxpo_aa", ios={"classes": ["A"], "infoPlist": {"NSK": {"default": "one"}}})
+    b = make_module(tmp_path, "bb", "pyxpo_bb", ios={"classes": ["B"], "infoPlist": {"NSK": {"default": "two"}}})
+    with pytest.raises(BuildError):
+        autolink.info_plist([a, b], {})
+    assert autolink.info_plist([a, b], {"bb": {"infoPlist": {"NSK": "mine"}}}) == {"NSK": "mine"}
+    c = make_module(tmp_path, "cc", "pyxpo_cc", ios={"classes": ["C"], "infoPlist": {"NSK": {"default": "one"}}})
+    assert autolink.info_plist([a, c], {}) == {"NSK": "one"}

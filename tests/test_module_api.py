@@ -28,3 +28,16 @@ def test_packages_use_only_public_api():
     bad = re.compile(r"from pyxpo(\.apis|\._|\.modules)|import pyxpo\._")
     for f in pathlib.Path(__file__).parents[1].glob("packages/*/pyxpo_*/**/*.py"):
         assert not bad.search(f.read_text()), f
+
+
+def test_fake_bridge_roundtrip():
+    import asyncio
+    from pyxpo.module_testing import FakeBridge
+
+    async def go():
+        return await api.call("Demo", "echo", 5, reply=True)
+
+    with FakeBridge().on("Demo", "echo", lambda x: {"v": x}) as fb:
+        api.require_linked("Demo", "demo")
+        assert asyncio.run(go()) == {"v": 5}
+        assert fb.calls == [("Demo", "echo", (5,))]
