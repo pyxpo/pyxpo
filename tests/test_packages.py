@@ -47,5 +47,7 @@ def test_package_wheel_and_sdist_carry_native_files(name, tmp_path):
     whl = next(tmp_path.glob("*.whl"))
     assert whl.name.startswith(autolink.import_name(name) + "-")
     assert bp.expected_files(name)  # sanity: the checker really compared something
-    assert any(f.endswith(".swift") for f in bp.expected_files(name))
-    assert any(f.endswith(".kt") for f in bp.expected_files(name))
+    meta = json.loads((ROOT / "packages" / name / bp.import_name(name) / "pyxpo-module.json").read_text())
+    # Pure-Python modules (storage) declare no native side; the others must ship their sources.
+    assert any(f.endswith(".swift") for f in bp.expected_files(name)) == ("ios" in meta)
+    assert any(f.endswith(".kt") for f in bp.expected_files(name)) == ("android" in meta)

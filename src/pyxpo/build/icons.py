@@ -23,16 +23,21 @@ def _square(src: Path, dst: Path, px: int) -> None:
 
 
 def ios(project: Path, nc: Dict[str, Any], gen: Path) -> bool:
-    """Writes pyxpo-gen/runtime/Resources/Assets.xcassets/AppIcon.appiconset (single 1024 size; Xcode derives the rest)."""
+    """Writes pyxpo-gen/runtime/Resources/Assets.xcassets/AppIcon.appiconset (single 1024 size; Xcode derives the rest).
+
+    Without an icon the set is written empty: XcodeGen sets ASSETCATALOG_COMPILER_APPICON_NAME=AppIcon on the target,
+    and actool fails when the catalog (which splash always writes) has no set of that name."""
     icon = nc["ios"]["icon"]
-    if not icon.get("light"):
-        return False
     cat = Path(gen) / "runtime" / "Resources" / "Assets.xcassets"
     d = cat / "AppIcon.appiconset"
     if d.exists():
         shutil.rmtree(str(d))
     d.mkdir(parents=True)
     (cat / "Contents.json").write_text(json.dumps({"info": {"author": "pyxpo", "version": 1}}, indent=2))
+    if not icon.get("light"):
+        (d / "Contents.json").write_text(json.dumps({"images": [{"idiom": "universal", "platform": "ios", "size": "1024x1024"}],
+                                                     "info": {"author": "pyxpo", "version": 1}}, indent=2))
+        return False
     entries = []
     for key in ("light", "dark", "tinted"):
         if not icon.get(key):

@@ -33,7 +33,7 @@ The core wheel and sdist never contain the native module packages: `MANIFEST.in`
 
 ## Publish a native module package
 
-Each folder in `packages/` (`image-manipulator`, `image-picker`, `media-library`, `sharing`) is its own PyPI project
+Each folder in `packages/` (`file-system`, `image-manipulator`, `image-picker`, `media-library`, `secure-store`, `sharing`, `storage`) is its own PyPI project
 (`pyxpo-<name>`) with its own version (`__version__` in `packages/<name>/pyxpo_<name>/__init__.py`).
 
 1. Bump that `__version__`, commit, and tag `pkg/<name>/v<version>` (for example `pkg/image-picker/v0.1.1`).

@@ -114,7 +114,9 @@ def test_first_party_modules_found_via_entry_points():
     for name in autolink.OFFICIAL:
         m = mods[name]
         assert m.pkg == autolink.import_name(name) and m.root.name == m.pkg
-        assert list((m.root / "ios").glob("*.swift")) and (m.root / "android" / "src" / "main" / "AndroidManifest.xml").is_file()
+        # Pure-Python modules (storage) have no native side.
+        assert bool(list((m.root / "ios").glob("*.swift"))) == ("ios" in m.meta)
+        assert (m.root / "android" / "src" / "main" / "AndroidManifest.xml").is_file() == ("android" in m.meta)
     assert mods["image-manipulator"].native == "ImageManipulator"
 
 

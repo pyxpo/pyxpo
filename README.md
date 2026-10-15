@@ -52,10 +52,13 @@ Only the modules an app lists are compiled into it.
 
 | Package | Import | `modules` entry |
 |---|---|---|
+| `pyxpo-file-system` | `from pyxpo_file_system import File, Directory, Paths` | `file-system` |
 | `pyxpo-image-manipulator` | `from pyxpo_image_manipulator import ImageManipulator` | `image-manipulator` |
 | `pyxpo-image-picker` | `from pyxpo_image_picker import ImagePicker` | `image-picker` |
 | `pyxpo-media-library` | `from pyxpo_media_library import MediaLibrary` | `media-library` |
+| `pyxpo-secure-store` | `import pyxpo_secure_store as SecureStore` | `secure-store` |
 | `pyxpo-sharing` | `from pyxpo_sharing import Share` | `sharing` |
+| `pyxpo-storage` | `from pyxpo_storage import storage` | `storage` |
 
 ```
 pip install pyxpo-image-picker

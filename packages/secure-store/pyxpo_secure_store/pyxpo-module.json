@@ -1,0 +1,21 @@
+{
+  "schemaVersion": 1,
+  "nativeContract": 1,
+  "name": "secure-store",
+  "native": "SecureStore",
+  "ios": {
+    "classes": ["SecureStoreModule"],
+    "infoPlist": {
+      "NSFaceIDUsageDescription": {
+        "option": "faceIDPermission",
+        "default": "Use Face ID to unlock your saved sign-in details."
+      }
+    }
+  },
+  "android": {
+    "namespace": "dev.pyxpo.modules.securestore",
+    "classes": ["dev.pyxpo.modules.securestore.SecureStoreModule"],
+    "dependencies": [],
+    "minSdk": 24
+  }
+}

@@ -165,7 +165,10 @@ def test_icons_ios(tmp_path):
     assert [e.get("appearances", [{}])[0].get("value") for e in c] == [None, "dark", "tinted"]
     assert all(images.info(d / e["filename"])["width"] == 1024 for e in c)  # 512 tinted was scaled up
     nc["ios"]["icon"] = {}
-    assert icons.ios(p, nc, tmp_path / "gen2") is False and not (tmp_path / "gen2").exists()
+    # No icon: an empty AppIcon set, so the platform default icon stays and actool finds the set XcodeGen names.
+    assert icons.ios(p, nc, tmp_path / "gen2") is False
+    empty = json.loads((tmp_path / "gen2/runtime/Resources/Assets.xcassets/AppIcon.appiconset/Contents.json").read_text())
+    assert [i.get("filename") for i in empty["images"]] == [None]
 
 
 def test_icons_android(tmp_path):
