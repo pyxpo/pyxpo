@@ -5,12 +5,12 @@ import os
 
 import pytest
 
-from pyxpo.modules.sharing import Share
-from pyxpo.modules.media_library import MediaLibrary
-from pyxpo.modules.image_picker import ImagePicker
-from pyxpo.modules.image_tools import ImageTools, ImageTooLargeError
+from pyxpo_sharing import Share
+from pyxpo_media_library import MediaLibrary
+from pyxpo_image_picker import ImagePicker
+from pyxpo_image_tools import ImageTools, ImageTooLargeError
 from pyxpo.apis import _bridge
-from pyxpo.modules.image_tools import centered_crop, fit_size, parse_ratio, search_under
+from pyxpo_image_tools import centered_crop, fit_size, parse_ratio, search_under
 
 
 class FakeApp:

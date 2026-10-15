@@ -9,9 +9,11 @@ import math
 import os
 from typing import Any, Awaitable, Callable, Dict, Optional, Tuple, Union
 
-from ..._keys import snake_aliases
-from ...apis._bridge import call as _call
-from .. import require_linked
+from pyxpo._keys import snake_aliases
+from pyxpo.apis._bridge import call as _call
+from pyxpo.modules import require_linked
+
+__version__ = "0.1.0"
 
 Info = Dict[str, Any]
 Crop = Union[None, str, Dict[str, float]]
@@ -23,7 +25,7 @@ class ImageTooLargeError(RuntimeError):
 
 
 def call(method: str, *args: Any) -> Any:
-    require_linked("ImageTools", "image-tools")
+    require_linked("ImageTools", "image-tools", package="pyxpo-image-tools")
     return _call("ImageTools", method, *args, reply=True)
 
 

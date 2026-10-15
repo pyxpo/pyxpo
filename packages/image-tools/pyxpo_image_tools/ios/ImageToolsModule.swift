@@ -7,7 +7,7 @@ struct ImageToolsError: Error {
     init(_ message: String) { self.message = message }
 }
 
-/// Native side of `pyxpo.modules.image_tools`. Heavy work runs on one serial queue; replies come back through the host.
+/// Native side of `pyxpo_image_tools`. Heavy work runs on one serial queue; replies come back through the host.
 final class ImageToolsModule: PxModule {
     static let moduleName = "ImageTools"
     static let queue = DispatchQueue(label: "pyxpo.imagetools")

@@ -182,8 +182,6 @@ def _skip_runtime_file(rel: Path, release: bool) -> bool:
     """Files left out of app.zip: tooling always; the hot-reload package in release builds."""
     if rel.parts[0] in ("templates", "build") or rel.name == "cli.py" or "__pycache__" in rel.parts:
         return True
-    if rel.parts[0] == "modules" and (rel.name == "pyxpo-module.json" or (len(rel.parts) > 2 and rel.parts[2] in ("ios", "android"))):
-        return True
     if rel.parts[0] == "dev" and (release or rel.name == "server.py"):
         return True
     return False
@@ -206,7 +204,8 @@ def stage(native: Path, project: Path, cfg: Dict[str, object], release: bool, ab
     nc = native_config.resolve(cfg, project)
     if prebuild_mod.is_ejected(native):
         autolink.check_android_wiring(native)
-    gen = render_gen(native, nc, project, abis, autolink.link(cfg, project))
+    linked = autolink.link(cfg, project)
+    gen = render_gen(native, nc, project, abis, linked)
     jni = gen / "jniLibs"
     assets = gen / "assets" / "pyxpo"
     assets.mkdir(parents=True, exist_ok=True)
@@ -235,6 +234,8 @@ def stage(native: Path, project: Path, cfg: Dict[str, object], release: bool, ab
             if _skip_runtime_file(rel, release):
                 continue
             z.write(str(p), "pyxpo/" + str(rel))
+        for src, arc in autolink.python_files(linked.modules):  # linked module packages live outside pyxpo
+            z.write(str(src), arc)
     h = hashlib.sha256()
     for p in sorted(assets.glob("*.zip")):
         h.update(p.name.encode())

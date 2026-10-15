@@ -6,7 +6,7 @@ from pyxpo.build import autolink
 from pyxpo.build.runtime import BuildError
 
 
-def make_module(root, name="demo-mod", pkg="pyxpo.modules.demo_mod", **extra):
+def make_module(root, name="demo-mod", pkg="pyxpo_demo_mod", **extra):
     meta = {
         "name": name,
         "native": "Demo",
@@ -46,7 +46,7 @@ def test_resolve_requires_listed_import(tmp_path):
     m = make_module(tmp_path / "mods")
     proj = tmp_path / "proj"
     (proj / "app").mkdir(parents=True)
-    (proj / "app" / "index.py").write_text("x = 1\nfrom pyxpo.modules.demo_mod import thing\n")
+    (proj / "app" / "index.py").write_text("x = 1\nfrom pyxpo_demo_mod import thing\n")
     with pytest.raises(BuildError) as e:
         autolink.resolve({"modules": []}, proj, {m.name: m})
     assert "app/index.py:2" in str(e.value) and "add 'demo-mod'" in str(e.value)
@@ -54,7 +54,7 @@ def test_resolve_requires_listed_import(tmp_path):
 
 
 def test_resolve_dedupes_and_keeps_order(tmp_path):
-    a, b = make_module(tmp_path, "aa", "pyxpo.modules.aa"), make_module(tmp_path, "bb", "pyxpo.modules.bb")
+    a, b = make_module(tmp_path, "aa", "pyxpo_aa"), make_module(tmp_path, "bb", "pyxpo_bb")
     out = autolink.resolve({"modules": ["bb", "aa", "bb"]}, tmp_path, {"aa": a, "bb": b})
     assert out == [b, a]
 
@@ -102,18 +102,57 @@ def test_check_android_wiring(tmp_path):
     autolink.check_android_wiring(tmp_path)
 
 
-def test_discover_without_modules_dir(monkeypatch, tmp_path):
-    monkeypatch.setattr(autolink, "MODULES_DIR", tmp_path / "none")
+def test_discover_without_installed_modules(monkeypatch):
     monkeypatch.setattr(autolink, "_entry_points", lambda: [])
     assert autolink.discover() == {}
 
 
-def test_first_party_modules_are_valid():
+def test_first_party_modules_found_via_entry_points():
+    """The packages in packages/ are installed (tools/dev_install.sh) and found through `pyxpo.modules` entry points."""
+    assert sorted(ep.name for ep in autolink._entry_points()) == sorted(autolink.OFFICIAL)
     mods = autolink.discover()
-    assert "image-tools" in mods
-    m = mods["image-tools"]
-    assert m.native == "ImageTools" and (m.root / "ios" / "ImageToolsModule.swift").is_file()
-    assert (m.root / "android" / "src" / "main" / "AndroidManifest.xml").is_file()
+    for name in autolink.OFFICIAL:
+        m = mods[name]
+        assert m.pkg == autolink.import_name(name) and m.root.name == m.pkg
+        assert list((m.root / "ios").glob("*.swift")) and (m.root / "android" / "src" / "main" / "AndroidManifest.xml").is_file()
+    assert mods["image-tools"].native == "ImageTools"
+
+
+def test_listed_but_not_installed_says_which_package(tmp_path):
+    with pytest.raises(BuildError) as e:
+        autolink.resolve({"modules": ["image-picker"]}, tmp_path, {})
+    assert "pip install pyxpo-image-picker" in str(e.value)
+    with pytest.raises(BuildError) as e:
+        autolink.resolve({"modules": ["image-pickr"]}, tmp_path, {})
+    assert "did you mean 'image-picker'" in str(e.value)
+
+
+def test_import_of_uninstalled_first_party_module(tmp_path):
+    (tmp_path / "app").mkdir()
+    (tmp_path / "app" / "index.py").write_text("from pyxpo_sharing import Share\n")
+    with pytest.raises(BuildError) as e:
+        autolink.resolve({"modules": []}, tmp_path, {})
+    assert "pip install pyxpo-sharing" in str(e.value) and "add 'sharing'" in str(e.value)
+
+
+def test_python_files_bundles_only_module_python(tmp_path):
+    m = make_module(tmp_path, pkg="pyxpo_demo_mod")
+    (m.root / "__init__.py").write_text("")
+    (m.root / "sub").mkdir()
+    (m.root / "sub" / "x.py").write_text("")
+    (m.root / "__pycache__").mkdir()
+    (m.root / "__pycache__" / "y.py").write_text("")
+    arcs = sorted(arc for _, arc in autolink.python_files([m]))
+    assert arcs == ["pyxpo_demo_mod/__init__.py", "pyxpo_demo_mod/sub/x.py"]
+
+
+def test_moved_hint_points_at_package():
+    import pyxpo
+    with pytest.raises(AttributeError) as e:
+        pyxpo.ImagePicker
+    msg = str(e.value)
+    assert "pip install pyxpo-image-picker" in msg and "from pyxpo_image_picker import ImagePicker" in msg
+    assert "'image-picker'" in msg
 
 
 def test_require_linked(monkeypatch):
@@ -124,6 +163,9 @@ def test_require_linked(monkeypatch):
     with pytest.raises(modules.ModuleNotLinkedError) as e:
         modules.require_linked("ImageTools", "image-tools")
     assert "add 'image-tools'" in str(e.value).lower() or "Add 'image-tools'" in str(e.value)
+    with pytest.raises(modules.ModuleNotLinkedError) as e:
+        modules.require_linked("ImageTools", "image-tools", package="pyxpo-image-tools")
+    assert "pip install pyxpo-image-tools" in str(e.value)
     env.update({"modules": ["ImageTools"]})
     modules.require_linked("ImageTools", "image-tools")
 
@@ -159,7 +201,6 @@ def test_discover_skips_duplicate_entry_point(monkeypatch, tmp_path):
     mod = types.ModuleType("third_party")
     mod.__file__ = str(m.root / "__init__.py")
     ep = types.SimpleNamespace(name="third-party", load=lambda: mod)
-    monkeypatch.setattr(autolink, "MODULES_DIR", tmp_path / "none")
     monkeypatch.setattr(autolink, "_entry_points", lambda: [ep, ep])
     monkeypatch.setitem(sys.modules, "third_party", mod)
     assert list(autolink.discover()) == ["third-party"]

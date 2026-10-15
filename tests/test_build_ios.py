@@ -3,6 +3,7 @@ import pytest
 import os
 import plistlib
 import re
+import zipfile
 from pathlib import Path
 
 ios = importlib.import_module("pyxpo.build.ios")
@@ -94,12 +95,16 @@ def test_prebuild_ejects_and_preserves_user_edits(tmp_path, monkeypatch):
 def test_stage_keeps_user_files_and_leaves_no_placeholders(tmp_path, monkeypatch):
     _fake_dist(tmp_path, monkeypatch)
     monkeypatch.setattr(ios, "_run", lambda *a, **k: None)
-    proj = _project(tmp_path)
+    proj = _project(tmp_path, 'modules = ["sharing"]\n')
     native = ios.prebuild(proj)
     (native / "project.yml").write_text("# edited\nGENERATE_INFOPLIST_FILE: YES\n")
     ios.stage(native, proj, ios.load_config(proj), False, "simulator")
     assert (native / "project.yml").read_text().startswith("# edited")
-    assert (native / "pyxpo-gen" / "stage" / "app_root" / "app" / "index.py").is_file()
+    root = native / "pyxpo-gen" / "stage" / "app_root"
+    assert (root / "app" / "index.py").is_file()
+    # the linked module's Python (an installed pip package) ships with the app; unlinked ones and native sources do not
+    assert (root / "pyxpo_sharing" / "__init__.py").is_file() and (root / "pyxpo" / "modules.py").is_file()
+    assert not (root / "pyxpo_sharing" / "ios").exists() and not (root / "pyxpo_image_tools").exists()
     for p in native.rglob("*"):
         if p.is_file() and not p.is_symlink() and p.suffix in (".yml", ".plist", ".swift", ".sh", ".h", ".m", ".xcconfig"):
             text = p.read_text()
@@ -118,7 +123,7 @@ def test_android_prebuild_and_stage(tmp_path, monkeypatch):
     monkeypatch.setattr(droid, "_run", lambda *a, **k: None)
     monkeypatch.setattr(droid, "_check_16kb", lambda *a, **k: None)
     monkeypatch.setenv("ANDROID_HOME", str(tmp_path))
-    proj = _project(tmp_path, 'scheme = "demo"\n[tool.pyxpo.android]\nkeystore = "release.jks"\nkey_alias = "k"\n')
+    proj = _project(tmp_path, 'scheme = "demo"\nmodules = ["sharing"]\n[tool.pyxpo.android]\nkeystore = "release.jks"\nkey_alias = "k"\n')
     dest = droid.prebuild(proj)
     props = (dest / "pyxpo-gen" / "pyxpo.properties").read_text()
     assert "applicationId=dev.x.demo" in props and "scheme=demo" in props and "versionName=2.3.4" in props
@@ -130,7 +135,10 @@ def test_android_prebuild_and_stage(tmp_path, monkeypatch):
     gradle.write_text('// mine\napply(from = "../pyxpo-gen/modules.app.gradle.kts")\n')
     droid.stage(dest, proj, droid.load_config(proj), False, ["arm64-v8a"])
     assert gradle.read_text().startswith("// mine\n")
-    assert (dest / "pyxpo-gen" / "assets" / "pyxpo" / "app.zip").is_file()
+    names = zipfile.ZipFile(str(dest / "pyxpo-gen" / "assets" / "pyxpo" / "app.zip")).namelist()
+    assert "pyxpo_sharing/__init__.py" in names and "pyxpo/modules.py" in names
+    assert not [n for n in names if n.startswith("pyxpo_image_tools/") or n.endswith((".kt", ".swift", ".json"))]
+    assert (dest / "pyxpo-gen" / "modules" / "sharing" / "src" / "main" / "AndroidManifest.xml").is_file()
     assert (dest / "pyxpo-gen" / "jniLibs" / "arm64-v8a" / "libpython3.13.so").is_file()
     for p in dest.rglob("*"):
         if p.is_file() and p.suffix in (".kts", ".xml", ".kt"):

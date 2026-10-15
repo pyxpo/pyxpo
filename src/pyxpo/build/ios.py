@@ -133,10 +133,11 @@ def stage(native: Path, project: Path, cfg: Dict[str, object], release: bool, ki
     nc = native_config.resolve(cfg, project)
     if prebuild_mod.is_ejected(native):
         autolink.check_ios_wiring(native)
-    gen = render_gen(native, nc, autolink.link(cfg, project))
+    linked = autolink.link(cfg, project)
+    gen = render_gen(native, nc, linked)
     st = gen / "stage"
     _stage_stdlib(slice_dir, st / ("python-" + kind), host_python())
-    _stage_app(project, st / "app_root", release)
+    _stage_app(project, st / "app_root", release, linked.modules)
     install_requires(list(cfg.get("requires", [])), kind, st / ("site-" + kind), pip_index_args(cfg, project))
 
 
@@ -174,7 +175,7 @@ def _stage_stdlib(slice_dir: Path, dest: Path, compile_with: Optional[Path]) -> 
                        check=False, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
 
 
-def _stage_app(project: Path, dest: Path, release: bool) -> None:
+def _stage_app(project: Path, dest: Path, release: bool, modules: Optional[List[autolink.Module]] = None) -> None:
     if dest.exists():
         shutil.rmtree(str(dest))
     for sub in ("app", "assets"):
@@ -189,6 +190,10 @@ def _stage_app(project: Path, dest: Path, release: bool) -> None:
         out = dest / "pyxpo" / rel
         out.parent.mkdir(parents=True, exist_ok=True)
         shutil.copy2(str(p), str(out))
+    for src, arc in autolink.python_files(modules or []):  # linked module packages live outside pyxpo
+        out = dest / arc
+        out.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copy2(str(src), str(out))
 
 
 # -- simulator ------------------------------------------------------------

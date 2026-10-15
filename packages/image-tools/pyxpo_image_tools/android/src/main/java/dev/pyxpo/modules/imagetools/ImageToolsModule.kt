@@ -8,7 +8,7 @@ import java.util.concurrent.Executors
 
 class ImageToolsError(message: String) : Exception(message)
 
-/** Native side of `pyxpo.modules.image_tools`. Heavy work runs on one single-thread executor. */
+/** Native side of `pyxpo_image_tools`. Heavy work runs on one single-thread executor. */
 class ImageToolsModule : PxModule() {
     override val name = "ImageTools"
 

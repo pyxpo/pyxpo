@@ -7,6 +7,7 @@ __pycache__/
 
 # Build outputs and caches (CPython source, toolchains, emulator logs, screenshots)
 /build/
+packages/*/build/
 dist/
 .cache/
 
@@ -20,3 +21,6 @@ local.properties
 .gradle/
 wheels/dist/
 test-apps/
+
+# Native module package builds (tools/build_packages.py)
+wheelhouse-packages/

@@ -89,14 +89,16 @@ __all__ = [
 ]
 
 
-_MOVED = {"Share": "sharing", "MediaLibrary": "media_library", "ImagePicker": "image_picker", "ImageTools": "image_tools", "ImageTooLargeError": "image_tools"}
+_MOVED = {"Share": "sharing", "MediaLibrary": "media-library", "ImagePicker": "image-picker", "ImageTools": "image-tools",
+          "ImageTooLargeError": "image-tools"}
 
 
 def __getattr__(name: str):
     if name in _MOVED:
         mod = _MOVED[name]
         raise AttributeError(
-            "pyxpo.%s moved to an optional module: add '%s' to [tool.pyxpo] modules and use "
-            "`from pyxpo.modules.%s import %s`" % (name, mod.replace("_", "-"), mod, name)
+            "pyxpo.%s moved to the optional native module package pyxpo-%s: run `pip install pyxpo-%s`, "
+            "add '%s' to [tool.pyxpo] modules in pyproject.toml, and use `from pyxpo_%s import %s`"
+            % (name, mod, mod, mod, mod.replace("-", "_"), name)
         )
     raise AttributeError("module 'pyxpo' has no attribute %r" % name)

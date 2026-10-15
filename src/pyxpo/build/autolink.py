@@ -1,9 +1,9 @@
 """Native module autolinking: only the modules an app lists in `[tool.pyxpo] modules` are compiled into it.
 
-A module is a package with `pyxpo-module.json`, Python code, and optional `ios/*.swift` and
-`android/src/main/**` sources. First-party modules live in `pyxpo/modules/`; third-party ones are pip
-packages exposing the `pyxpo.modules` entry point. Unlisted modules are never copied, so they add no code,
-permissions or dependencies to the app.
+A module is an installed pip package with `pyxpo-module.json`, Python code, and optional `ios/*.swift` and
+`android/src/main/**` sources, registered under the `pyxpo.modules` entry point group. First-party modules
+live in this repo's `packages/` folder and are published as `pyxpo-<name>` (import `pyxpo_<name>`).
+Unlisted modules are never copied, so they add no code, permissions or dependencies to the app.
 """
 from __future__ import annotations
 
@@ -17,13 +17,24 @@ from typing import Any, Dict, List, Optional
 
 from .runtime import BuildError
 
-MODULES_DIR = Path(__file__).resolve().parent.parent / "modules"
 META = "pyxpo-module.json"
 NAME_RE = re.compile(r"^[a-z][a-z0-9-]*$")
 CLASS_RE = re.compile(r"^[A-Za-z_][A-Za-z0-9_.]*$")
 PLIST_KEY_RE = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
 SETTINGS_LINE = 'apply(from = "pyxpo-gen/modules.settings.gradle.kts")'
 APP_LINE = 'apply(from = "../pyxpo-gen/modules.app.gradle.kts")'
+# First-party modules, published separately; known here only to tell the user which package to install.
+OFFICIAL = ("image-tools", "image-picker", "media-library", "sharing")
+
+
+def dist_name(name: str) -> str:
+    """The pip distribution of a first-party module: `image-picker` -> `pyxpo-image-picker`."""
+    return "pyxpo-" + name
+
+
+def import_name(name: str) -> str:
+    """The import package of a first-party module: `image-picker` -> `pyxpo_image_picker`."""
+    return "pyxpo_" + name.replace("-", "_")
 
 
 class Module:
@@ -96,19 +107,14 @@ def _entry_points() -> List[Any]:
 
 
 def discover() -> Dict[str, Module]:
-    """{module name: Module} for first-party modules plus installed third-party ones."""
+    """{module name: Module} for every installed module package (`pyxpo.modules` entry points)."""
     found: Dict[str, Module] = {}
-    if MODULES_DIR.is_dir():
-        for d in sorted(MODULES_DIR.iterdir()):
-            m = _load(d, "pyxpo.modules." + d.name) if d.is_dir() else None
-            if m:
-                found[m.name] = m
     for ep in _entry_points():
         try:
             mod = ep.load()
         except Exception as e:  # noqa: BLE001
             raise BuildError("cannot load native module entry point %r: %s" % (ep.name, e))
-        if not getattr(mod, "__file__", None):
+        if not getattr(mod, "__file__", None) or Path(mod.__file__).name != "__init__.py":
             raise BuildError("native module entry point %r must point at a regular package" % ep.name)
         m = _load(Path(mod.__file__).resolve().parent, mod.__name__)
         if m is None:
@@ -122,8 +128,10 @@ def discover() -> Dict[str, Module]:
 
 
 def imported_modules(project: Path, known: Dict[str, Module]) -> Dict[str, str]:
-    """{module name: 'file:line'} for modules the app's Python code imports."""
-    by_pkg = {m.pkg: m.name for m in known.values()}
+    """{module name: 'file:line'} for modules the app's Python code imports, including first-party
+    modules whose package is not installed (so the build can say which package to install)."""
+    by_pkg = {import_name(n): n for n in OFFICIAL}
+    by_pkg.update({m.pkg: m.name for m in known.values()})
     used: Dict[str, str] = {}
     app = Path(project) / "app"
     for f in sorted(app.rglob("*.py")) if app.is_dir() else []:
@@ -152,17 +160,38 @@ def resolve(cfg: Dict[str, Any], project: Path, known: Optional[Dict[str, Module
         raise BuildError("[tool.pyxpo] modules must be a list of module names")
     out: List[Module] = []
     for n in listed:
+        if n not in known and n in OFFICIAL:
+            raise BuildError("native module %r is listed in [tool.pyxpo] modules but its package is not installed; "
+                             "run `pip install %s` in the environment that runs pyxpo" % (n, dist_name(n)))
         if n not in known:
-            close = difflib.get_close_matches(n, list(known), n=3)
-            raise BuildError("unknown native module %r in [tool.pyxpo] modules%s (available: %s)" % (
-                n, "; did you mean %s?" % " or ".join(repr(c) for c in close) if close else "",
-                ", ".join(sorted(known)) or "none"))
+            close = difflib.get_close_matches(n, sorted(set(known) | set(OFFICIAL)), n=3)
+            raise BuildError("unknown native module %r in [tool.pyxpo] modules%s (installed: %s). Modules are pip "
+                             "packages: install the one that provides %r (first-party ones are named pyxpo-<module>)" % (
+                                 n, "; did you mean %s?" % " or ".join(repr(c) for c in close) if close else "",
+                                 ", ".join(sorted(known)) or "none", n))
         if known[n] not in out:
             out.append(known[n])
     for name, where in imported_modules(project, known).items():
         if name not in listed:
-            raise BuildError("%s imports native module %r but it is not linked: add %r to [tool.pyxpo] modules "
-                             "in pyproject.toml" % (where, name, name))
+            raise BuildError("%s imports native module %r but it is not linked: %sadd %r to [tool.pyxpo] modules "
+                             "in pyproject.toml" % (where, name, "" if name in known else
+                                                    "run `pip install %s` and " % dist_name(name), name))
+    return out
+
+
+def python_files(mods: List[Module]) -> List[Any]:
+    """[(source file, path inside the app bundle)] for the linked modules' Python code.
+
+    Module packages live in the host's site-packages, not in the app, so a build copies the linked ones
+    next to the `pyxpo` runtime package. Native sources and metadata stay behind."""
+    out = []
+    for m in mods:
+        base = m.pkg.replace(".", "/")
+        for f in sorted(m.root.rglob("*.py")):
+            rel = f.relative_to(m.root)
+            if "__pycache__" in rel.parts or rel.parts[0] in ("ios", "android"):
+                continue
+            out.append((f, "%s/%s" % (base, rel.as_posix())))
     return out
 
 

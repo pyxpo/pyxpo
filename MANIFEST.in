@@ -8,4 +8,5 @@ prune .cache
 prune tests
 prune wheels
 prune examples
+prune packages
 global-exclude __pycache__ *.pyc .DS_Store
