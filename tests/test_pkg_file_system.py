@@ -128,6 +128,11 @@ def test_directories(root):
     assert Directory(root, "copy").exists
     with pytest.raises(ValueError):
         Directory(root, "a").move(Directory(root, "a", "c"))
+    with pytest.raises(ValueError):
+        Directory(root, "a").copy(Directory(root, "a", "c"))
+    with pytest.raises(ValueError):
+        asyncio.run(FileSystem.copyAsync({"from": Directory(root, "a").uri, "to": Directory(root, "a").uri}))
+    assert d.exists
     d.delete()
     assert not d.exists and d.size is None and d.info() == {"exists": False, "uri": d.uri}
 

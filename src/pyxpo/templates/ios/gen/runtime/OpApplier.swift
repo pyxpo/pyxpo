@@ -274,6 +274,7 @@ final class OpApplier {
                     }
                 }
             case let k where k.hasPrefix("accessib"): a11yDirty = true
+            case "test_id": v.accessibilityIdentifier = val as? String  // testID, as in React Native (XCUITest, Detox)
             case "on_layout": layoutListeners.insert(id)
             case "source", "resize_mode", "tint_color": if let i = v as? UIImageView { applyImage(id, i, props, removed) }
             default: if let sh = v as? ScrollHost { scrollProp(sh, k, props[k]) }
@@ -282,6 +283,7 @@ final class OpApplier {
         if Self.controls.contains(types[id] ?? "") { applyControl(id, v, props, removed) }
         for k in removed {
             if k == "on_layout" { layoutListeners.remove(id) }
+            if k == "test_id" { v.accessibilityIdentifier = nil }
             if k.hasPrefix("on_touch_") || k.hasPrefix("on_press") || k == "on_long_press" {
                 // Handlers removed (e.g. a disabled Slider): stop swallowing touches.
                 touchKeys[id]?.remove(k)

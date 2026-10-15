@@ -17,7 +17,10 @@
 - packages/storage (pure Python, SQLite, MMKV shape + AsyncStorage names, sync; hooks), file-system (expo File/Directory/Paths + legacy; native download), secure-store (Keychain / Keystore AES-GCM). All in autolink.OFFICIAL.
 - E2E: test-apps/storagekit (gitignored) tools/android_selftest.sh + tools/ios_selftest.sh: ALL OK both runs (persistence) on emulator + simulator; hook tap persists after restart (Android).
 - Fixes found by e2e: iOS empty AppIcon set when no icon (actool failed); iOS requireAuthentication without enrolled biometrics now errors like Android.
-- Not verified: biometric prompt flow (no enrolled biometrics on emulator/simulator), real devices.
+- Biometric flow verified: Face ID enrolled on simulator, fingerprint on emulator (PIN 1111). Selftest answers prompts via cache/sk_prompt marker (match/cancel); set+get+cancel ALL OK both OS. iOS fix: get now runs LAContext.evaluatePolicy itself (simulator keychain ignored ACL, never prompted).
+- testID wired like React Native: iOS accessibilityIdentifier, Android view.tag + viewIdResourceName (uiautomator resource-id). Verified: XCUITest finds "tap-button" (taps persist after relaunch); Android tap by resource-id 3->6.
+- Review fixes: folder copy onto/into itself now raises ValueError (was deleting source); delete of symlink-to-folder removes link only.
+- Not verified: real devices.
 
 ## Next apps
 PDF Utility, Last Done, Keep Until, My Measurements (spec apps-list.pdf).

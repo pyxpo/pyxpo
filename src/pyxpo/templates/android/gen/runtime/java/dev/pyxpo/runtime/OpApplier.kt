@@ -194,7 +194,7 @@ class OpApplier(
         if (removed != null) for (i in 0 until removed.length()) r.add(removed.getString(i))
         if ("style" in r) applyStyle(id, v, JSONObject())
         var textDirty = false
-        var a11yDirty = r.any { it.startsWith("accessib") }
+        var a11yDirty = r.any { it.startsWith("accessib") || it == "test_id" }
         var imgDirty = "source" in r || "resize_mode" in r || "tint_color" in r
         if ("spans" in r) { spans.remove(id); textDirty = true }
         val keys = props.keys()
@@ -218,7 +218,7 @@ class OpApplier(
                     rawTouch.add(id); touchKeys.getOrPut(id) { HashSet() }.add(k); attachTouch(id, v) }
                 "on_request_close" -> closeListeners.add(id)
                 "accessibility_label", "accessibility_hint", "accessibility_role", "accessibility_state",
-                "accessibility_value", "accessible" -> a11yDirty = true
+                "accessibility_value", "accessible", "test_id" -> a11yDirty = true
                 "style" -> applyStyle(id, v, props.optJSONObject(k) ?: JSONObject())
                 "on_layout" -> layoutListeners.add(id)
                 "animated" -> (v as? PxNav)?.animated = props.optBoolean(k, true)
@@ -727,7 +727,7 @@ class OpApplier(
     private fun merge(dst: JSONObject, props: JSONObject, removed: Set<String>) {
         for (k in removed) dst.remove(k)
         val it = props.keys()
-        while (it.hasNext()) { val k = it.next(); if (k.startsWith("accessib")) dst.put(k, props.get(k)) }
+        while (it.hasNext()) { val k = it.next(); if (k.startsWith("accessib") || k == "test_id") dst.put(k, props.get(k)) }
     }
 
     private fun applyA11y(v: View, a: JSONObject) {
@@ -746,6 +746,9 @@ class OpApplier(
             if (a.optBoolean("accessible")) View.IMPORTANT_FOR_ACCESSIBILITY_YES else View.IMPORTANT_FOR_ACCESSIBILITY_NO
         val role = a.optString("accessibility_role", "")
         val hint = a.optString("accessibility_hint", "")
+        // testID: the view's tag (Espresso/Detox) and its resource-id in the accessibility tree (UiAutomator, Maestro, Appium).
+        val testId = a.optString("test_id", "")
+        v.tag = testId.ifEmpty { null }
         v.accessibilityDelegate = object : View.AccessibilityDelegate() {
             override fun onInitializeAccessibilityNodeInfo(h: View, info: android.view.accessibility.AccessibilityNodeInfo) {
                 super.onInitializeAccessibilityNodeInfo(h, info)
@@ -760,6 +763,7 @@ class OpApplier(
                 if (st != null && st.has("checked")) { info.isCheckable = true; info.isChecked = st.optBoolean("checked") }
                 if (st != null && st.optBoolean("disabled")) info.isEnabled = false
                 if (hint.isNotEmpty() && android.os.Build.VERSION.SDK_INT >= 26) info.hintText = hint
+                if (testId.isNotEmpty()) info.viewIdResourceName = testId
             }
         }
     }
