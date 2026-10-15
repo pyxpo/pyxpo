@@ -10,7 +10,7 @@ protocol PxModuleContext: AnyObject {
     /// Keeps `object` alive until `release` (delegates that UIKit holds weakly, for example picker delegates).
     func retain(_ object: AnyObject) -> Int
     func release(_ token: Int)
-    /// Sends a `module` event to Python (`pyxpo.modules.on_event(name, payload)`).
+    /// Sends a `module` event to Python (`pyxpo.modules.on_event(name, payload)`). Safe from any thread.
     func emit(_ name: String, _ payload: [String: Any])
 }
 
@@ -71,5 +71,8 @@ final class PxModuleHost: PxModuleContext {
 
     func release(_ token: Int) { kept[token] = nil }
 
-    func emit(_ name: String, _ payload: [String: Any]) { emitEvent(name, payload) }
+    func emit(_ name: String, _ payload: [String: Any]) {
+        let send = emitEvent
+        DispatchQueue.main.async { send(name, payload) }
+    }
 }

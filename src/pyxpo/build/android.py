@@ -118,6 +118,7 @@ def prebuild(project: Path, clean: bool = False) -> Path:
     project = Path(project).resolve()
     cfg = load_config(project)
     nc = native_config.resolve(cfg, project)
+    linked = autolink.link(cfg, project)  # fail on module errors before touching the project
     dest = project / "android"
     if clean and dest.exists():
         shutil.rmtree(str(dest))
@@ -127,7 +128,7 @@ def prebuild(project: Path, clean: bool = False) -> Path:
     for action, rel in prebuild_mod.apply(rendered, dest, __version__):
         if action == "conflict":
             print("kept your edited %s; new version saved as %s.pyxpo-new" % (rel, rel))
-    render_gen(dest, nc, project, available_abis(_cfg_abis(cfg)), autolink.link(cfg, project))
+    render_gen(dest, nc, project, available_abis(_cfg_abis(cfg)), linked)
     return dest
 
 

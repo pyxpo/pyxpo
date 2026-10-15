@@ -96,7 +96,7 @@ def render_gen(native: Path, nc: Dict[str, object], linked: Optional[autolink.Li
     (gen / "Python.xcframework").symlink_to(DIST / "Python.xcframework")
     mods, opts = (linked.modules, linked.options) if linked else ([], {})
     # Module usage-description keys go through INFOPLIST_KEY_* (Xcode merges them into App/Info.plist); a build-phase edit is overwritten.
-    xc = xcconfig_text(nc) + "".join("INFOPLIST_KEY_%s = %s\n" % (k, v.replace("//", "/$()/").replace("\n", " "))
+    xc = xcconfig_text(nc) + "".join("INFOPLIST_KEY_%s = %s\n" % (k, v.replace("//", "/$()/").replace("\r", " ").replace("\n", " "))
                                     for k, v in sorted(autolink.info_plist(mods, opts).items()))
     (gen / "Pyxpo.xcconfig").write_text(xc)
     autolink.render_ios(gen, mods, opts)

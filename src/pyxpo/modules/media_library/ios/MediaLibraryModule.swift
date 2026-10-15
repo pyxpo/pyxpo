@@ -12,6 +12,10 @@ final class MediaLibraryModule: PxModule {
         case "request_permission":
             let writeOnly = (args.first as? Bool) ?? true
             let level: PHAccessLevel = writeOnly ? .addOnly : .readWrite
+            // iOS kills the app when read access is requested without a usage description; this module only declares the add-only one.
+            if !writeOnly && Bundle.main.object(forInfoDictionaryKey: "NSPhotoLibraryUsageDescription") == nil {
+                reply(nil, "read access needs NSPhotoLibraryUsageDescription in Info.plist"); return
+            }
             PHPhotoLibrary.requestAuthorization(for: level) { status in
                 reply(["granted": status == .authorized || status == .limited], nil)
             }

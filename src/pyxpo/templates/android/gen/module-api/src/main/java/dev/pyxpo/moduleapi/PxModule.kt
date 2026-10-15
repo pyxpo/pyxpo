@@ -17,7 +17,7 @@ interface PxModuleContext {
     /** Asks for runtime permissions; `onResult` maps each permission to granted. Already granted ones are not asked again. */
     fun requestPermissions(permissions: Array<String>, onResult: (Map<String, Boolean>) -> Unit)
 
-    /** Sends a `module` event to Python (`pyxpo.modules.on_event(name, payload)`). */
+    /** Sends a `module` event to Python (`pyxpo.modules.on_event(name, payload)`). Safe from any thread. */
     fun emit(name: String, payload: Map<String, Any?>)
 }
 

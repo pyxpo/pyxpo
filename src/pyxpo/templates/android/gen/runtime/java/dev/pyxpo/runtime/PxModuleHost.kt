@@ -45,12 +45,14 @@ class PxModuleHost(override val activity: Activity, private val emitEvent: (Stri
         val missing = permissions.filter { activity.checkSelfPermission(it) != PackageManager.PERMISSION_GRANTED }
         if (missing.isEmpty()) { onResult(permissions.associateWith { true }); return }
         val code = allocate { permissionCallbacks.indexOfKey(it) >= 0 }
-        permissionCallbacks.put(code, onResult)
+        // Report every requested permission, not just the ones the dialog asked about.
+        permissionCallbacks.put(code, { asked: Map<String, Boolean> -> onResult(permissions.associateWith { asked[it] ?: (it !in missing) }) })
         activity.requestPermissions(missing.toTypedArray(), code)
     }
 
     override fun emit(name: String, payload: Map<String, Any?>) {
-        emitEvent(name, JSONObject.wrap(payload) as JSONObject)
+        val data = JSONObject.wrap(payload) as? JSONObject ?: JSONObject()
+        main.post { emitEvent(name, data) }
     }
 
     /** Request codes 0x5000..0x5FFF, skipping ones still waiting. */

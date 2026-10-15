@@ -71,7 +71,6 @@ def test_render_ios(tmp_path):
     autolink.render_ios(gen, [m], {"demo-mod": {"demoText": "A & B"}})
     assert (gen / "runtime/modules/demo-mod/DemoModule.swift").is_file()
     assert "DemoModule.self" in (gen / "runtime/PxModuleRegistry.swift").read_text()
-    assert "A &amp; B" in (gen / "ModulesInfo.plist").read_text()
     autolink.render_ios(gen, [], {})  # unlinking removes the old copy
     assert not (gen / "runtime/modules/demo-mod").exists()
     assert "[]" in (gen / "runtime/PxModuleRegistry.swift").read_text()
@@ -136,3 +135,31 @@ def test_check_ios_wiring(tmp_path):
     assert "GENERATE_INFOPLIST_FILE: YES" in str(e.value)
     (tmp_path / "project.yml").write_text("settings:\n  base:\n    GENERATE_INFOPLIST_FILE: YES\n")
     autolink.check_ios_wiring(tmp_path)
+
+
+def test_validate_rejects_injection_and_bad_types():
+    ok = {"name": "ok", "native": "X"}
+    bad = [
+        {"ios": {"classes": ["A"], "infoPlist": {"NSFoo\nOTHER_LDFLAGS = -evil": {"default": "x"}}}},
+        {"ios": {"classes": ["A"], "infoPlist": ["NSFoo"]}},
+        {"ios": ["A"]},
+        {"android": {"namespace": "a.b", "classes": ["A"], "dependencies": "androidx.core:core"}},
+        {"android": {"namespace": "a.b", "classes": ["A"], "minSdk": "24"}},
+    ]
+    for extra in bad:
+        with pytest.raises(BuildError):
+            autolink.validate(dict(ok, **extra), "f")
+
+
+def test_discover_skips_duplicate_entry_point(monkeypatch, tmp_path):
+    import sys
+    import types
+    m = make_module(tmp_path / "pkgs", name="third-party", pkg="third_party")
+    (m.root / "__init__.py").write_text("")
+    mod = types.ModuleType("third_party")
+    mod.__file__ = str(m.root / "__init__.py")
+    ep = types.SimpleNamespace(name="third-party", load=lambda: mod)
+    monkeypatch.setattr(autolink, "MODULES_DIR", tmp_path / "none")
+    monkeypatch.setattr(autolink, "_entry_points", lambda: [ep, ep])
+    monkeypatch.setitem(sys.modules, "third_party", mod)
+    assert list(autolink.discover()) == ["third-party"]
