@@ -17,8 +17,8 @@
     },
     "ios": {
       "file": "pyxpo-runtime-3.13.7-1-ios.tar.gz",
-      "sha256": "ea8a3b3b889170c4727c6a43942ac37b7162fbc0a13d635342e55303a428c2b4",
-      "size": 55777292,
+      "sha256": "b66d9fed647925527d449124d2d1841b87c18ff158c6ed0a9a7527ab4fb67b50",
+      "size": 111164798,
       "dir": "ios"
     }
   }

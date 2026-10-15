@@ -24,3 +24,4 @@ test-apps/
 
 # Native module package builds (tools/build_packages.py)
 wheelhouse-packages/
+/out/

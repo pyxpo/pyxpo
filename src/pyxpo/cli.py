@@ -339,6 +339,8 @@ def cmd_config(args: argparse.Namespace) -> int:
 
 def build_parser() -> argparse.ArgumentParser:
     p = argparse.ArgumentParser(prog="pyxpo", description="Python mobile app framework")
+    from . import __version__
+    p.add_argument("--version", action="version", version="pyxpo %s" % __version__)
     sub = p.add_subparsers(dest="cmd", required=True)
     c = sub.add_parser("create", help="create a new project")
     c.add_argument("name")

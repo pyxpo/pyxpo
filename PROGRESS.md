@@ -11,6 +11,7 @@
 - build_properties verified: release APK with R8 minify+shrink launches, renders, taps work (keep rules `dev.pyxpo.**` + native methods in pyxpo-gen/proguard-pyxpo.pro).
 - Done: headless checker tools/e2e_app_config.py, dev-server native-config-changed warning, full-diff review (fixes: shrink needs minify, iOS full-screen KeyError, plugin import errors, res name check), ImageKit Android selftest ALL OK (MediaStore 32-clash fallback name). Docs deferred.
 - Verified (Oct 15): light+dark splash Android API 35 + iOS sim; hidden status/nav bars on splash + app (fix 346c2ed: applyStatusBar in onCreate); iOS AppIcon light/dark/tinted in Assets.car; entitlements: sim binary has associated-domains, device build (iphoneos) ad-hoc codesigned keeps them, Release settings point CODE_SIGN_ENTITLEMENTS.
+- Release APK without keystore now debug-signed (834180f), fixes "App not installed" on phone; user must re-prebuild (edited build.gradle.kts gets .pyxpo-new) and uninstall old app.
 - dist/ios now has ios-arm64 device slice too (build_cpython.py --host both); old sim-only copy in scratchpad.
 - Not verified: Android pre-31 system splash (API 30 image downloading, slow), iOS dark/tinted icon on home screen (simctl cannot toggle), team-signed device install (needs user's Apple team).
 - configdemo pyproject.toml temporarily modified (automatic style, bars hidden); original in scratchpad configdemo.pyproject.orig.
