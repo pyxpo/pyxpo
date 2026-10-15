@@ -5,7 +5,7 @@ import os
 
 import pytest
 
-from pyxpo import Share
+from pyxpo.modules.sharing import Share
 from pyxpo.modules.media_library import MediaLibrary
 from pyxpo.modules.image_picker import ImagePicker
 from pyxpo.modules.image_tools import ImageTools, ImageTooLargeError
