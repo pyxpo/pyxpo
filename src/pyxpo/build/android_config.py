@@ -4,12 +4,13 @@ Everything lands in `pyxpo-gen/` (rewritten on every build). The user-owned `And
 `build.gradle.kts` stay as they are. The generated manifests sit on the `debug` and `release` source sets, which the
 manifest merger ranks above `main`, so their attributes win (`tools:replace` states it for attributes `main` sets).
 """
+import shutil
 from pathlib import Path
 from typing import Any, Dict, List
 from xml.sax.saxutils import quoteattr
 
 from ..app_config import colors
-from . import icons
+from . import icons, splash
 
 ORIENT = {"default": None, "portrait": "portrait", "landscape": "landscape"}
 KEYBOARD = {"resize": "adjustResize", "pan": "adjustPan"}
@@ -69,11 +70,12 @@ def meta_data(nc: Dict[str, Any]) -> List[str]:
     values = {"pyxpo.background_color": "argb:" + colors.android_argb(a["background_color"])[1:],
               "pyxpo.user_interface_style": a["user_interface_style"],
               "pyxpo.status_bar_style": sb["style"], "pyxpo.status_bar_hidden": str(bool(sb["hidden"])).lower(),
-              "pyxpo.navigation_bar_style": nb["style"], "pyxpo.navigation_bar_hidden": str(bool(nb["hidden"])).lower()}
+              "pyxpo.navigation_bar_style": nb["style"], "pyxpo.navigation_bar_hidden": str(bool(nb["hidden"])).lower(),
+              "pyxpo.splash_image_width": str(a["splash"]["image_width"])}
     return ['        <meta-data android:name=%s android:value=%s />' % (quoteattr(k), quoteattr(v)) for k, v in values.items()]
 
 
-def manifest(nc: Dict[str, Any], debug: bool, icon: bool = False) -> str:
+def manifest(nc: Dict[str, Any], debug: bool, icon: bool = False, splash_theme: bool = False) -> str:
     a = nc["android"]
     cleartext = a["uses_cleartext_traffic"]
     if cleartext is None:
@@ -89,6 +91,9 @@ def manifest(nc: Dict[str, Any], debug: bool, icon: bool = False) -> str:
         app.append('android:enableOnBackInvokedCallback="true"')
     act = ['android:name="%s"' % ACTIVITY, 'android:windowSoftInputMode="%s"' % KEYBOARD[a["software_keyboard_layout_mode"]]]
     act_replace = ["android:windowSoftInputMode"]
+    if splash_theme:
+        act.append('android:theme="@style/PyxpoSplash"')
+        act_replace.append("android:theme")
     if ORIENT.get(a["orientation"]):
         act.append('android:screenOrientation="%s"' % ORIENT[a["orientation"]])
     filters = [scheme_filter_xml(nc["schemes"])] + [intent_filter_xml(f) for f in a["intent_filters"]]
@@ -122,9 +127,12 @@ def gradle(nc: Dict[str, Any], res: bool = False) -> str:
 
 def write(gen: Path, nc: Dict[str, Any], project: Path) -> None:
     gen = Path(gen)
+    if (gen / "res").exists():
+        shutil.rmtree(str(gen / "res"))
     icon = icons.android(project, nc, gen)
+    themed = splash.android(project, nc, gen)["theme"]
     for kind in ("debug", "release"):
         d = gen / "manifest" / kind
         d.mkdir(parents=True, exist_ok=True)
-        (d / "AndroidManifest.xml").write_text(manifest(nc, kind == "debug", icon))
-    (gen / "pyxpo.app.gradle").write_text(gradle(nc, icon))
+        (d / "AndroidManifest.xml").write_text(manifest(nc, kind == "debug", icon, themed))
+    (gen / "pyxpo.app.gradle").write_text(gradle(nc, icon or themed))

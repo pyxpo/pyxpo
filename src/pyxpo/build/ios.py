@@ -12,7 +12,7 @@ from typing import Dict, List, Optional
 from .. import native_config
 from ..config import load_config, pip_index_args
 from . import prebuild as prebuild_mod
-from . import autolink, icons, ios_config, runtime
+from . import autolink, icons, ios_config, runtime, splash
 from .android import BuildError, _run, _skip_runtime_file  # noqa: F401  (shared helpers)
 
 DIST = runtime.dist_path("ios")
@@ -102,6 +102,7 @@ def render_gen(native: Path, nc: Dict[str, object], linked: Optional[autolink.Li
     autolink.render_ios(gen, mods, opts)
     if project is not None:
         icons.ios(project, nc, gen)
+        splash.ios(project, nc, gen)
     return gen
 
 

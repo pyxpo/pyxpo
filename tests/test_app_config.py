@@ -199,3 +199,39 @@ def test_android_meta_data_and_ios_plist_bars(tmp_path):
     base = plistlib.loads((ios.TEMPLATE / "user" / "App" / "Info.plist").read_bytes())
     pl = ios_config.info_plist(base, nc)
     assert pl["PyxpoBackgroundColor"] == "#336699" and pl["PyxpoStatusBarStyle"] == "light" and pl["PyxpoStatusBarHidden"] is True
+
+
+def test_splash_ios_and_android(tmp_path):
+    import plistlib
+    from pyxpo.build import android_config, ios_config, splash
+    p, nc = _icon_project(tmp_path, '[tool.pyxpo.splash]\nimage = "l.png"\nimage_width = 100\nbackground_color = "#112233"\n'
+                          '[tool.pyxpo.splash.dark]\nimage = "d.png"\nbackground_color = "#000000"\n')
+    gen = tmp_path / "gen"
+    assert splash.ios(p, nc, gen) is True
+    cat = gen / "runtime/Resources/Assets.xcassets"
+    cs = json.loads((cat / "SplashBackground.colorset/Contents.json").read_text())["colors"]
+    assert [c.get("appearances", [{}])[0].get("value") for c in cs] == [None, "dark"]
+    assert cs[0]["color"]["components"]["red"] == "0.067"
+    im = cat / "SplashImage.imageset"
+    assert images.info(im / "splash-light.png")["width"] == 300  # 100pt @3x
+    assert json.loads((im / "Contents.json").read_text())["images"][1]["appearances"][0]["value"] == "dark"
+    pl = ios_config.info_plist({}, nc)
+    assert pl["UILaunchScreen"] == {"UIColorName": "SplashBackground", "UIImageName": "SplashImage"}
+    # no image: color only, stale imageset removed
+    nc["ios"]["splash"]["image"] = None
+    assert splash.ios(p, nc, gen) is False and not im.exists()
+    assert ios_config.info_plist({}, nc)["UILaunchScreen"] == {"UIColorName": "SplashBackground"}
+
+    agen = tmp_path / "agen"
+    assert splash.android(p, nc, agen)["theme"] is True
+    res = agen / "res"
+    assert "#ff112233" in (res / "values/pyxpo_splash_bg.xml").read_text()
+    assert "#ff000000" in (res / "values-night/pyxpo_splash_bg.xml").read_text()
+    assert "windowSplashScreenBackground" in (res / "values-v31/pyxpo_splash_theme.xml").read_text()
+    assert "windowSplashScreenAnimatedIcon" in (res / "values-v31/pyxpo_splash_theme.xml").read_text()
+    assert (res / "drawable-night-nodpi/pyxpo_splash_image.png").is_file()
+    win = (res / "drawable/pyxpo_splash_window.xml").read_text()
+    assert 'android:width="100dp"' in win and 'android:height="100dp"' in win
+    m = android_config.manifest(nc, False, False, True)
+    assert 'android:theme="@style/PyxpoSplash"' in m and "android:theme" in m.split("tools:replace=")[-1]
+    assert '"pyxpo.splash_image_width" android:value="100"' in m

@@ -100,3 +100,21 @@ def resize(src, dst, px: int) -> str:
     except ImportError:
         shutil.copyfile(src, dst)
         return "copy"
+
+
+def resize_width(src, dst, px: int) -> str:
+    """Scales to `px` wide, keeping the aspect ratio. Backend as in `resize`."""
+    src, dst = str(src), str(dst)
+    Path(dst).parent.mkdir(parents=True, exist_ok=True)
+    if shutil.which("sips"):
+        r = subprocess.run(["sips", "--resampleWidth", str(px), src, "--out", dst], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        if r.returncode == 0:
+            return "sips"
+    try:
+        from PIL import Image  # type: ignore
+        im = Image.open(src).convert("RGBA")
+        im.resize((px, max(1, round(im.height * px / im.width))), Image.LANCZOS).save(dst)
+        return "pillow"
+    except ImportError:
+        shutil.copyfile(src, dst)
+        return "copy"

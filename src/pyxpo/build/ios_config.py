@@ -45,6 +45,11 @@ def info_plist(base: Dict[str, Any], nc: Dict[str, Any]) -> Dict[str, Any]:
         p["UIRequiresFullScreen"] = True
     if ios["uses_non_exempt_encryption"] is not None:
         p["ITSAppUsesNonExemptEncryption"] = bool(ios["uses_non_exempt_encryption"])
+    launch = {"UIColorName": "SplashBackground"}
+    if ios["splash"].get("image"):
+        launch["UIImageName"] = "SplashImage"
+    p["UILaunchScreen"] = launch
+    p.pop("UILaunchStoryboardName", None)
     p["PyxpoBackgroundColor"] = ios["background_color"]
     p["PyxpoStatusBarStyle"] = nc["status_bar"]["style"]
     p["PyxpoStatusBarHidden"] = nc["status_bar"]["hidden"]

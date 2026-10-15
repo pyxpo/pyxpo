@@ -54,6 +54,8 @@ final class OpApplier {
         ]
     }
 
+    let splash = PxSplash()
+
     init(container: UIView, sendEvent: @escaping (String) -> Void) {
         self.sendEvent = sendEvent
         let fn: PxMeasureFn = { ctx, id, w, wm, h, hm, ow, oh in
@@ -67,6 +69,7 @@ final class OpApplier {
         root.translatesAutoresizingMaskIntoConstraints = false
         container.addSubview(root)
         PxAppConfig.apply(container: container)
+        splash.show(in: container)
         // Edge to edge: the app draws under the status bar / home indicator. Insets go to Python (SafeArea).
         NSLayoutConstraint.activate([
             root.leadingAnchor.constraint(equalTo: container.leadingAnchor),
@@ -123,6 +126,7 @@ final class OpApplier {
         }
         batching = false
         flush()
+        splash.batchApplied()
     }
 
     /// Dev builds: ask Python to re-execute the app and remount (double-R / Cmd+R).
@@ -569,6 +573,8 @@ final class OpApplier {
         case "Clipboard.get_string": if wantReply { reply(id, UIPasteboard.general.string ?? ""); return }
         case "Linking.open_url":
             if let u = URL(string: args.first as? String ?? "") { UIApplication.shared.open(u) }
+        case "SplashScreen.prevent_auto_hide": splash.preventAutoHide()
+        case "SplashScreen.hide": splash.hide()
         case "Vibration.vibrate": AudioServicesPlaySystemSound(kSystemSoundID_Vibrate)
         case "Alert.alert":
             let labels = (args.count > 2 ? args[2] as? [String] : nil) ?? ["OK"]

@@ -80,12 +80,15 @@ class OpApplier(
     private val binds = HashMap<Int, HashMap<String, Int>>()   // view id -> style key -> animated node id
     private val depCache = HashMap<Int, Set<Int>>()
 
+    private val splash = PxSplash(ctx)
+
     init {
         // Root id 1 is implicit in the ops protocol: it is never created by the reconciler.
         val root = PxRoot(ctx) { w, h -> onRootSize(w, h) }
         container.addView(root, ViewGroup.LayoutParams(-1, -1))
         views[1] = root
         types[1] = "Root"
+        splash.show(container)
     }
 
     // -- ops ---------------------------------------------------------------------------------------
@@ -112,6 +115,7 @@ class OpApplier(
         }
         batching = false
         requestFlush()
+        splash.batchApplied()
     }
 
     private var flushPending = false
@@ -599,6 +603,8 @@ class OpApplier(
                     }
                     null
                 }
+                "SplashScreen.prevent_auto_hide" -> { splash.preventAutoHide(); null }
+                "SplashScreen.hide" -> { splash.hide(); null }
                 "Linking.can_open_url" -> {
                     android.content.Intent(android.content.Intent.ACTION_VIEW, android.net.Uri.parse(args.optString(0)))
                         .resolveActivity(ctx.packageManager) != null

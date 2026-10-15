@@ -27,3 +27,45 @@ enum PxAppConfig {
         if (Bundle.main.object(forInfoDictionaryKey: "PyxpoStatusBarHidden") as? Bool) == true { vc?.setBarHidden(true) }
     }
 }
+
+/// In-app copy of the launch screen: stays up until the first batch is applied, or until `SplashScreen.hide()` when
+/// the app called `SplashScreen.prevent_auto_hide()`. Debug builds honour `PYXPO_SPLASH_HOLD_MS` (screenshots, tests).
+final class PxSplash {
+    private var view: UIView?
+    private var held = false
+    private var first = true
+
+    func show(in container: UIView) {
+        let v = UIView(frame: container.bounds)
+        v.autoresizingMask = [.flexibleWidth, .flexibleHeight]
+        v.backgroundColor = UIColor(named: "SplashBackground") ?? PxAppConfig.parse(PxAppConfig.string("PyxpoBackgroundColor"))
+        if let img = UIImage(named: "SplashImage") {
+            let iv = UIImageView(image: img)
+            iv.center = CGPoint(x: v.bounds.midX, y: v.bounds.midY)
+            iv.autoresizingMask = [.flexibleLeftMargin, .flexibleRightMargin, .flexibleTopMargin, .flexibleBottomMargin]
+            v.addSubview(iv)
+        }
+        container.addSubview(v)
+        view = v
+    }
+
+    func preventAutoHide() { held = true }
+
+    /// Called after every applied batch; the first one decides whether the splash goes away on its own.
+    func batchApplied() {
+        guard first else { return }
+        first = false
+        var holdMs = 0
+        #if DEBUG
+        holdMs = Int(ProcessInfo.processInfo.environment["PYXPO_SPLASH_HOLD_MS"] ?? "") ?? 0
+        #endif
+        if holdMs > 0 { DispatchQueue.main.asyncAfter(deadline: .now() + .milliseconds(holdMs)) { [weak self] in self?.hide() } }
+        else if !held { hide() }
+    }
+
+    func hide() {
+        guard let v = view else { return }
+        view = nil
+        UIView.animate(withDuration: 0.25, animations: { v.alpha = 0 }, completion: { _ in v.removeFromSuperview() })
+    }
+}
