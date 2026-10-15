@@ -34,3 +34,4 @@
   - Open: Metadata strip re-encodes (can grow file; lossless EXIF strip needs native); Result preview loads late; long UUID filenames in tool info card. iOS UI not tapped (no idb).
 - ImageKit client-ready check (2026-10-15): fresh standalone Android APK (no dev server) verified: pick 1 and 3 photos, Compress, Convert PNG (3024x4032, lossless so bigger), Quick Optimize batch (12.14 MB to 1.50 MB), Save 3, Share 3. iOS rebuilt, selftest 25/25, Home renders. 316 tests pass.
   - Not verified: iOS UI taps (Simulator.app unavailable, cliclick cannot reach headless sim), real device.
+- Button loading fix: ActivityIndicator no longer forces align_self flex-start (dc60767). ImageKit Button busy = centered spinner only, label hidden, disabled. Android verified; iOS not screenshotted.
