@@ -63,6 +63,7 @@ def xcconfig_text(nc: Dict[str, object], has_entitlements: bool = False, extra: 
         "MARKETING_VERSION = %s" % nc["version"],
         "CURRENT_PROJECT_VERSION = %s" % nc["ios"]["build_number"],
         "PYXPO_SCHEME = %s" % nc["scheme"],
+        "PYXPO_PYTHON = %s" % sys.executable,  # runs `-m pyxpo stage ios` when Xcode builds an ejected project
     ] + ios_config.xcconfig_lines(nc, has_entitlements, extra)
     if nc["team_id"]:
         lines.append("DEVELOPMENT_TEAM = %s" % nc["team_id"])
@@ -77,9 +78,11 @@ def xcconfig_text(nc: Dict[str, object], has_entitlements: bool = False, extra: 
 
 
 def render_gen(native: Path, nc: Dict[str, object], linked: Optional[autolink.Linked] = None, project: Optional[Path] = None) -> Path:
-    """Recreates the framework-owned `pyxpo-gen/` folder. Never touches anything outside it."""
+    """Refreshes the framework-owned `pyxpo-gen/` folder. Never touches anything outside it.
+    Files are rendered into a scratch folder, then synced, so an Xcode build already running keeps its inputs."""
     runtime.ensure("ios", path=DIST)
-    gen = native / GEN
+    final = native / GEN
+    gen = native / (GEN + ".tmp")
     if gen.exists():
         shutil.rmtree(str(gen))
     gen.mkdir(parents=True)
@@ -105,7 +108,8 @@ def render_gen(native: Path, nc: Dict[str, object], linked: Optional[autolink.Li
         icons.ios(project, nc, gen)
         splash.ios(project, nc, gen)
         pmods.run_dangerous("ios", project, native)
-    return gen
+    prebuild_mod.sync_tree(gen, final, keep=("stage",))  # stage/ is filled by stage()
+    return final
 
 
 def prebuild(project: Path, clean: bool = False) -> Path:
@@ -118,14 +122,24 @@ def prebuild(project: Path, clean: bool = False) -> Path:
     if clean and dest.exists():
         shutil.rmtree(str(dest))
     rendered = prebuild_mod.render(TEMPLATE / "user", {})
-    rendered[".gitignore"] = ("%s/\n*.xcodeproj/\n*.pyxpo-new\n" % GEN).encode()
+    rendered[".gitignore"] = ("%s/\n%s.tmp/\n*.xcodeproj/\n*.pyxpo-new\n" % (GEN, GEN)).encode()
     from .. import __version__
     actions = prebuild_mod.apply(rendered, dest, __version__)
     for action, rel in actions:
         if action == "conflict":
             print("kept your edited %s; new version saved as %s.pyxpo-new" % (rel, rel))
     render_gen(dest, nc, linked, project)
+    if shutil.which("xcodegen"):  # so `open ios/PyxpoApp.xcodeproj` works right away, as after `expo prebuild`
+        _run(["xcodegen", "generate", "--spec", dest / "project.yml", "--project", dest], cwd=str(dest))
+    else:
+        print("xcodegen not found: run `brew install xcodegen`, then `pyxpo build ios` to create ios/PyxpoApp.xcodeproj")
     return dest
+
+
+def stage_project(project: Path, release: bool = False, kind: str = "simulator") -> None:
+    """`pyxpo stage ios`: what an Xcode build of an ejected project runs before compiling."""
+    project = Path(project).resolve()
+    stage(native_dir(project), project, load_config(project), release, kind)
 
 
 def stage(native: Path, project: Path, cfg: Dict[str, object], release: bool, kind: str) -> None:
@@ -271,7 +285,7 @@ def build(project: Path, release: bool = False, kind: str = "simulator") -> Path
            "-configuration", cfgname, "-derivedDataPath", derived, "build"]
     if kind == "simulator":
         cmd += ["ARCHS=arm64", "ONLY_ACTIVE_ARCH=YES"]
-    _run(cmd)
+    _run(cmd, env=dict(os.environ, PYXPO_STAGED="1"))
     app = derived / "Build" / "Products" / ("%s-%s" % (cfgname, sdk)) / ("%s.app" % nc["product_name"])
     if not app.is_dir():
         raise BuildError("app not produced: %s" % app)

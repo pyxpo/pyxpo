@@ -62,3 +62,16 @@ android {
 
 // Native modules listed in [tool.pyxpo] modules are linked by pyxpo (regenerated on every build).
 apply(from = "../pyxpo-gen/modules.app.gradle.kts")
+
+// `./gradlew assembleDebug|assembleRelease` and Android Studio stage the Python app first, like `pyxpo build android`.
+// The interpreter is the one that ran `pyxpo prebuild`; set PYXPO_PYTHON to use another. `pyxpo build` stages
+// before calling Gradle and sets PYXPO_STAGED, so the task skips itself there.
+for (variant in listOf("Debug", "Release")) {
+    val stage = tasks.register<Exec>("pyxpoStage$variant") {
+        onlyIf { System.getenv("PYXPO_STAGED") == null }
+        workingDir = rootProject.projectDir.parentFile
+        val python = System.getenv("PYXPO_PYTHON") ?: px.getProperty("python") ?: "python3"
+        commandLine(listOf(python, "-m", "pyxpo", "stage", "android") + if (variant == "Release") listOf("--release") else emptyList())
+    }
+    tasks.matching { it.name == "pre${variant}Build" }.configureEach { dependsOn(stage) }
+}

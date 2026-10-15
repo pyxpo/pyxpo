@@ -197,6 +197,23 @@ def cmd_prebuild(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_stage(args: argparse.Namespace) -> int:
+    """Refresh pyxpo-gen/ (app code, runtime, packages) in an ejected project. Gradle and Xcode call this."""
+    from .build import android as droid, ios
+
+    project = Path(args.dir or ".").resolve()
+    try:
+        if args.target == "android":
+            droid.stage_project(project, release=args.release)
+        else:
+            ios.stage_project(project, release=args.release, kind=args.kind)
+    except (ios.BuildError, FileNotFoundError, ValueError) as e:
+        print("error: %s" % e, file=sys.stderr)
+        return 1
+    print("staged %s app" % args.target)
+    return 0
+
+
 def cmd_doctor(args: argparse.Namespace) -> int:
     def row(label: str, found: Optional[str]) -> None:
         print("  %-14s %s" % (label, found or "not found"))
@@ -325,6 +342,12 @@ def build_parser() -> argparse.ArgumentParser:
     pb.add_argument("--yes", action="store_true", help="skip the --clean confirmation")
     pb.add_argument("--dir")
     pb.set_defaults(fn=cmd_prebuild)
+    st = sub.add_parser("stage", help="refresh the Python app inside ejected native projects (run by Gradle/Xcode)")
+    st.add_argument("target", choices=["android", "ios"])
+    st.add_argument("--release", action="store_true")
+    st.add_argument("--kind", choices=["simulator", "device"], default="simulator", help="iOS only")
+    st.add_argument("--dir")
+    st.set_defaults(fn=cmd_stage)
     rt = sub.add_parser("runtime", help="manage the prebuilt CPython runtime cache")
     rt.add_argument("action", choices=["fetch", "path", "clean"])
     rt.add_argument("--platform", choices=["ios", "android"])

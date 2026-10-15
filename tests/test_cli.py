@@ -93,3 +93,23 @@ def test_android_dev_relaunches_until_client_connects(tmp_path, monkeypatch):
     monkeypatch.setattr(DevServer, "serve_forever", lambda self: self.stop())
     cli._android_dev(FakeDroid, tmp_path, argparse.Namespace())
     assert launches == ["com.example.demo", "com.example.demo"]
+
+
+def test_stage_cli(tmp_path, monkeypatch):
+    import importlib
+
+    ios = importlib.import_module("pyxpo.build.ios")
+    droid = importlib.import_module("pyxpo.build.android")
+    seen = []
+    monkeypatch.setattr(ios, "stage_project", lambda p, release=False, kind="simulator": seen.append(("ios", release, kind)))
+    monkeypatch.setattr(droid, "stage_project", lambda p, release=False: seen.append(("android", release)))
+    assert cli.main(["stage", "android", "--release", "--dir", str(tmp_path)]) == 0
+    assert cli.main(["stage", "ios", "--kind", "device", "--dir", str(tmp_path)]) == 0
+    assert seen == [("android", True), ("ios", False, "device")]
+
+
+def test_python_dash_m_pyxpo():
+    import sys
+
+    r = subprocess.run([sys.executable, "-m", "pyxpo", "stage", "--help"], capture_output=True, text=True)
+    assert r.returncode == 0 and "--kind" in r.stdout

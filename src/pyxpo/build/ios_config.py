@@ -53,6 +53,10 @@ def info_plist(base: Dict[str, Any], nc: Dict[str, Any]) -> Dict[str, Any]:
     p["PyxpoBackgroundColor"] = ios["background_color"]
     p["PyxpoStatusBarStyle"] = nc["status_bar"]["style"]
     p["PyxpoStatusBarHidden"] = nc["status_bar"]["hidden"]
+    if nc["status_bar"]["hidden"]:
+        p["UIStatusBarHidden"] = True  # the launch screen is shown before any code runs, so only the plist can hide it there
+    else:
+        p.pop("UIStatusBarHidden", None)
     p["PyxpoUserInterfaceStyle"] = style
     deep_merge(p, ios["info_plist"])
     return p

@@ -122,6 +122,8 @@ def gradle(nc: Dict[str, Any], res: bool = False, extra: List[str] = None) -> st
         ] + (['        main.res.srcDir "${rootDir}/pyxpo-gen/res"'] if res else []) + [
         "        debug.manifest.srcFile \"${rootDir}/pyxpo-gen/manifest/debug/AndroidManifest.xml\"",
         "        release.manifest.srcFile \"${rootDir}/pyxpo-gen/manifest/release/AndroidManifest.xml\"",
+        "        debug.assets.srcDir \"${rootDir}/pyxpo-gen/app-debug\"",
+        "        release.assets.srcDir \"${rootDir}/pyxpo-gen/app-release\"",
         "    }",
         ] + _build_properties(a["build_properties"]) + [
         "}"] + list(extra or []) + [""])

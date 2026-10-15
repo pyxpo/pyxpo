@@ -202,6 +202,9 @@ def test_android_meta_data_and_ios_plist_bars(tmp_path):
     base = plistlib.loads((ios.TEMPLATE / "user" / "App" / "Info.plist").read_bytes())
     pl = ios_config.info_plist(base, nc)
     assert pl["PyxpoBackgroundColor"] == "#336699" and pl["PyxpoStatusBarStyle"] == "light" and pl["PyxpoStatusBarHidden"] is True
+    assert pl["UIStatusBarHidden"] is True
+    nc["status_bar"]["hidden"] = False
+    assert "UIStatusBarHidden" not in ios_config.info_plist(dict(pl), nc)
 
 
 def test_splash_ios_and_android(tmp_path):

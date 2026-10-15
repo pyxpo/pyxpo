@@ -3,6 +3,7 @@ import pytest
 import os
 import plistlib
 import re
+import sys
 import zipfile
 from pathlib import Path
 
@@ -75,13 +76,18 @@ def _project(tmp_path, extra=""):
 def test_prebuild_ejects_and_preserves_user_edits(tmp_path, monkeypatch):
     _fake_dist(tmp_path, monkeypatch)
     proj = _project(tmp_path, '[tool.pyxpo.ios]\nteam_id = "ABCDE12345"\n')
+    ran = []
+    monkeypatch.setattr(ios, "_run", lambda cmd, **k: ran.append([str(c) for c in cmd]))
+    monkeypatch.setattr(ios.shutil, "which", lambda name: "/usr/bin/" + name)
     dest = ios.prebuild(proj)
     assert dest == proj / "ios"
+    assert ran[0][:2] == ["xcodegen", "generate"]  # the .xcodeproj exists right after prebuild, as in Expo
+    assert "preBuildScripts" in (dest / "project.yml").read_text()
     assert (dest / "project.yml").is_file() and (dest / "App" / "AppDelegate.swift").is_file()
     assert (dest / "pyxpo-gen" / "native" / "pyxpo_bridge.c").is_file()
     xc = (dest / "pyxpo-gen" / "Pyxpo.xcconfig").read_text()
     for line in ("PRODUCT_BUNDLE_IDENTIFIER = dev.x.demo", "PYXPO_DISPLAY_NAME = Demo App", "MARKETING_VERSION = 2.3.4",
-                 "DEVELOPMENT_TEAM = ABCDE12345", "PYXPO_SCHEME = dev.x.demo"):
+                 "DEVELOPMENT_TEAM = ABCDE12345", "PYXPO_SCHEME = dev.x.demo", "PYXPO_PYTHON = " + sys.executable):
         assert line in xc
     assert "pyxpo-gen/" in (dest / ".gitignore").read_text()
     (dest / "App" / "AppDelegate.swift").write_text("// mine\n")
@@ -128,6 +134,13 @@ def test_android_prebuild_and_stage(tmp_path, monkeypatch):
     props = (dest / "pyxpo-gen" / "pyxpo.properties").read_text()
     assert "applicationId=dev.x.demo" in props and "scheme=demo" in props and "versionName=2.3.4" in props
     assert "release.jks" in props and "assword" not in props
+    assert "python=" in props
+    # `cd android && ./gradlew assembleRelease` works after prebuild, as after `expo prebuild`
+    assert os.access(str(dest / "gradlew"), os.X_OK) and (dest / "gradle" / "wrapper" / "gradle-wrapper.jar").is_file()
+    assert "gradle-8.10.2" in (dest / "gradle" / "wrapper" / "gradle-wrapper.properties").read_text()
+    assert "pyxpoStage" in (dest / "app" / "build.gradle.kts").read_text()
+    monkeypatch.setattr(droid.runtime, "is_dev_checkout", lambda: False)
+    assert droid.find_gradle(dest) == str(dest / "gradlew")
     gradle = dest / "app" / "build.gradle.kts"
     gradle.write_text("// mine\n")  # an old ejected project without the native-module line
     with pytest.raises(droid.BuildError, match="native-module line"):
@@ -135,7 +148,7 @@ def test_android_prebuild_and_stage(tmp_path, monkeypatch):
     gradle.write_text('// mine\napply(from = "../pyxpo-gen/modules.app.gradle.kts")\n')
     droid.stage(dest, proj, droid.load_config(proj), False, ["arm64-v8a"])
     assert gradle.read_text().startswith("// mine\n")
-    names = zipfile.ZipFile(str(dest / "pyxpo-gen" / "assets" / "pyxpo" / "app.zip")).namelist()
+    names = zipfile.ZipFile(str(dest / "pyxpo-gen" / "app-debug" / "pyxpo" / "app.zip")).namelist()
     assert "pyxpo_sharing/__init__.py" in names and "pyxpo/modules.py" in names
     assert not [n for n in names if (n.startswith("pyxpo_image_manipulator/") or n.endswith((".kt", ".swift", ".json"))) and n != "pyxpo/_app_config.json"]
     assert (dest / "pyxpo-gen" / "modules" / "sharing" / "src" / "main" / "AndroidManifest.xml").is_file()
@@ -145,3 +158,23 @@ def test_android_prebuild_and_stage(tmp_path, monkeypatch):
             assert not re.search(r"\{\{\w+\}\}", p.read_text()), p
             if "pyxpo-gen" not in p.parts:
                 assert str(tmp_path) not in p.read_text(), p
+
+
+def test_sync_tree_rewrites_only_changes_and_keeps_build_outputs(tmp_path):
+    pb = importlib.import_module("pyxpo.build.prebuild")
+    dst, src = tmp_path / "gen", tmp_path / "gen.tmp"
+    for d, files in ((dst, {"same.txt": "a", "changed.txt": "old", "stale.txt": "x", "sub/stale/f": "x",
+                             "module-api/build/out.jar": "jar", "stage/app.py": "kept"}),
+                     (src, {"same.txt": "a", "changed.txt": "new", "sub/new.txt": "n", "module-api/build.gradle.kts": "k"})):
+        for rel, text in files.items():
+            (d / rel).parent.mkdir(parents=True, exist_ok=True)
+            (d / rel).write_text(text)
+    os.symlink(str(tmp_path), str(src / "link"))
+    os.utime(str(dst / "same.txt"), (1, 1))
+    pb.sync_tree(src, dst, keep=("stage",))
+    assert not src.exists()
+    assert (dst / "same.txt").stat().st_mtime == 1  # unchanged files keep their mtime (no needless rebuilds)
+    assert (dst / "changed.txt").read_text() == "new" and (dst / "sub" / "new.txt").is_file()
+    assert not (dst / "stale.txt").exists() and not (dst / "sub" / "stale").exists()
+    assert (dst / "module-api" / "build" / "out.jar").is_file() and (dst / "stage" / "app.py").is_file()
+    assert os.readlink(str(dst / "link")) == str(tmp_path)

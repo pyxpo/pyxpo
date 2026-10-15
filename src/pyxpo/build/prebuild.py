@@ -3,8 +3,10 @@ from __future__ import annotations
 
 import hashlib
 import json
+import os
+import shutil
 from pathlib import Path
-from typing import Dict, List, Tuple
+from typing import Dict, Iterable, List, Tuple
 
 STAMP = ".pyxpo-prebuild.json"
 TEXT_SUFFIXES = (".yml", ".plist", ".swift", ".sh", ".h", ".m", ".kt", ".kts", ".xml", ".properties", ".gradle", ".txt")
@@ -77,3 +79,39 @@ def apply(rendered: Dict[str, bytes], dest: Path, version: str) -> List[Tuple[st
             Path(str(path) + ".pyxpo-new").write_bytes(rendered[rel])
     (dest / STAMP).write_text(json.dumps({"pyxpo_version": version, "files": files}, indent=2, sort_keys=True) + "\n")
     return actions
+
+
+def sync_tree(src: Path, dst: Path, keep: Iterable[str] = ()) -> None:
+    """Makes `dst` match `src` but rewrites only changed files, so Gradle and Xcode keep their up-to-date checks and a
+    build that is already reading `dst` never sees it missing. Top-level names in `keep` (filled later by staging)
+    and every `build/` folder (Gradle output of the generated subprojects) are left alone. `src` is consumed."""
+    keep = set(keep)
+    dst.mkdir(parents=True, exist_ok=True)
+    for root, dirs, files in os.walk(str(dst), topdown=True):
+        rel = Path(root).relative_to(dst)
+        dirs[:] = [d for d in dirs if d != "build" and not (rel == Path(".") and d in keep)]
+        for name in list(dirs) + files:
+            if rel == Path(".") and name in keep:
+                continue
+            d, s = Path(root) / name, src / rel / name
+            if not os.path.lexists(str(s)) or s.is_symlink() != d.is_symlink() or s.is_dir() != d.is_dir():
+                if d.is_dir() and not d.is_symlink():
+                    shutil.rmtree(str(d))
+                    dirs.remove(name)
+                else:
+                    d.unlink()
+    for root, dirs, files in os.walk(str(src)):
+        rel = Path(root).relative_to(src)
+        (dst / rel).mkdir(exist_ok=True)
+        for name in dirs + files:
+            s, d = Path(root) / name, dst / rel / name
+            if s.is_symlink():
+                if not d.is_symlink() or os.readlink(str(d)) != os.readlink(str(s)):
+                    if os.path.lexists(str(d)):
+                        d.unlink()
+                    os.symlink(os.readlink(str(s)), str(d))
+                if name in dirs:
+                    dirs.remove(name)
+            elif s.is_file() and not (d.is_file() and d.stat().st_size == s.stat().st_size and d.read_bytes() == s.read_bytes()):
+                shutil.copy2(str(s), str(d))
+    shutil.rmtree(str(src))

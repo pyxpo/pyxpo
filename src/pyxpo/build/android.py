@@ -50,17 +50,23 @@ def find_ndk(sdk: Path) -> Optional[Path]:
     return pinned if pinned.is_dir() else None
 
 
-def find_gradle() -> str:
-    g = shutil.which("gradle")
-    if g:
-        return g
+def find_gradle(native: Optional[Path] = None) -> str:
+    """The project's Gradle wrapper (pinned version, downloaded on first use); a pyxpo checkout uses its cached copy."""
     cached = sorted(runtime.REPO.glob(".cache/gradle-*/bin/gradle")) if runtime.is_dev_checkout() else []
     if cached:
         return str(cached[-1])
-    raise BuildError("gradle not found; install Gradle 8+ (brew install gradle, or sdkman) and put it on PATH")
+    if native is not None and (Path(native) / "gradlew").is_file():
+        return str(Path(native) / "gradlew")
+    g = shutil.which("gradle")
+    if g:
+        return g
+    raise BuildError("gradle not found: run `pyxpo prebuild android` to add the Gradle wrapper, or install Gradle 8")
 
 
 GEN = "pyxpo-gen"
+# Filled by stage(), not render_gen(). The app code is per build type, so `./gradlew assemble` (debug + release in one
+# run) cannot pack the debug app into the release APK.
+STAGED = ("assets", "jniLibs", "site", "app-debug", "app-release")
 
 
 def native_dir(project: Path) -> Path:
@@ -74,6 +80,7 @@ def properties_text(nc: Dict[str, object], project: Path, abis: List[str]) -> st
     props = {
         "applicationId": nc["android"]["package"], "name": nc["name"], "scheme": nc["scheme"], "versionName": nc["version"],
         "versionCode": nc["android"]["version_code"], "abis": ",".join(abis), "dist": DIST, "common": COMMON,
+        "python": sys.executable,  # runs `pyxpo stage android` when Gradle builds an ejected project directly
     }
     if nc["keystore"]:
         ks = Path(str(nc["keystore"]))
@@ -84,8 +91,10 @@ def properties_text(nc: Dict[str, object], project: Path, abis: List[str]) -> st
 
 def render_gen(native: Path, nc: Dict[str, object], project: Path, abis: List[str],
                linked: Optional[autolink.Linked] = None) -> Path:
-    """Recreates the framework-owned `pyxpo-gen/` folder. Never touches anything outside it."""
-    gen = native / GEN
+    """Refreshes the framework-owned `pyxpo-gen/` folder. Never touches anything outside it.
+    Files are rendered into a scratch folder, then synced, so a Gradle build already running keeps its inputs."""
+    final = native / GEN
+    gen = native / (GEN + ".tmp")
     if gen.exists():
         shutil.rmtree(str(gen))
     for rel, data in prebuild_mod.render(TEMPLATE / "gen", {}).items():
@@ -102,7 +111,8 @@ def render_gen(native: Path, nc: Dict[str, object], project: Path, abis: List[st
         (native / "local.properties").write_text("sdk.dir=%s\n" % find_sdk())
     except BuildError:
         pass  # the real build reports the missing SDK
-    return gen
+    prebuild_mod.sync_tree(gen, final, keep=STAGED)
+    return final
 
 
 def available_abis(requested: Optional[List[str]] = None) -> List[str]:
@@ -117,6 +127,19 @@ def _cfg_abis(cfg: Dict[str, object]) -> Optional[List[str]]:
     return [str(a) for a in v] if isinstance(v, (list, tuple)) and v else None
 
 
+def _write_user(native: Path, rendered: Dict[str, bytes]) -> None:
+    for rel, data in rendered.items():
+        (native / rel).parent.mkdir(parents=True, exist_ok=True)
+        (native / rel).write_bytes(data)
+    _make_gradlew_executable(native)
+
+
+def _make_gradlew_executable(native: Path) -> None:
+    w = native / "gradlew"
+    if w.is_file():
+        w.chmod(w.stat().st_mode | 0o111)
+
+
 def prebuild(project: Path, clean: bool = False) -> Path:
     """Ejects `<project>/android`: user-owned files are written once (edited ones are kept), `pyxpo-gen/` is refreshed."""
     project = Path(project).resolve()
@@ -127,11 +150,12 @@ def prebuild(project: Path, clean: bool = False) -> Path:
     if clean and dest.exists():
         shutil.rmtree(str(dest))
     rendered = prebuild_mod.render(TEMPLATE / "user", {})
-    rendered[".gitignore"] = ("%s/\n.gradle/\nbuild/\napp/build/\napp/.cxx/\nlocal.properties\n*.pyxpo-new\n" % GEN).encode()
+    rendered[".gitignore"] = ("%s/\n%s.tmp/\n.gradle/\nbuild/\napp/build/\napp/.cxx/\nlocal.properties\n*.pyxpo-new\n" % (GEN, GEN)).encode()
     from .. import __version__
     for action, rel in prebuild_mod.apply(rendered, dest, __version__):
         if action == "conflict":
             print("kept your edited %s; new version saved as %s.pyxpo-new" % (rel, rel))
+    _make_gradlew_executable(dest)
     render_gen(dest, nc, project, available_abis(_cfg_abis(cfg)), linked)
     return dest
 
@@ -184,7 +208,7 @@ def _check_16kb(site: Path, jni_abi: Path, abi: str, allow: bool) -> None:
 
 def _skip_runtime_file(rel: Path, release: bool) -> bool:
     """Files left out of app.zip: tooling always; the hot-reload package in release builds."""
-    if rel.parts[0] in ("templates", "build") or rel.name == "cli.py" or "__pycache__" in rel.parts:
+    if rel.parts[0] in ("templates", "build") or rel.name in ("cli.py", "__main__.py") or "__pycache__" in rel.parts:
         return True
     if rel.parts[0] == "dev" and (release or rel.name == "server.py"):
         return True
@@ -211,8 +235,13 @@ def stage(native: Path, project: Path, cfg: Dict[str, object], release: bool, ab
     linked = autolink.link(cfg, project)
     gen = render_gen(native, nc, project, abis, linked)
     jni = gen / "jniLibs"
+    if jni.exists():
+        shutil.rmtree(str(jni))
     assets = gen / "assets" / "pyxpo"
     assets.mkdir(parents=True, exist_ok=True)
+    for old in ("app.zip", "manifest.txt"):  # older pyxpo kept the app in main assets
+        if (assets / old).exists():
+            (assets / old).unlink()
     for abi in abis:
         prefix = DIST / abi / "prefix"
         _zip_tree(assets / ("stdlib-%s.zip" % abi), prefix / "lib" / "python3.13",
@@ -224,7 +253,9 @@ def stage(native: Path, project: Path, cfg: Dict[str, object], release: bool, ab
         _zip_tree(assets / ("site-%s.zip" % abi), site)
         for so in SO_FOR_JNILIBS:
             shutil.copy2(str(prefix / "lib" / so), str(jni / abi / so))
-    app_zip = assets / "app.zip"
+    variant = gen / ("app-release" if release else "app-debug") / "pyxpo"
+    variant.mkdir(parents=True, exist_ok=True)
+    app_zip = variant / "app.zip"
     with zipfile.ZipFile(str(app_zip), "w", zipfile.ZIP_DEFLATED) as z:
         for sub in ("app", "assets"):
             d = project / sub
@@ -242,10 +273,20 @@ def stage(native: Path, project: Path, cfg: Dict[str, object], release: bool, ab
             z.write(str(src), arc)
         z.writestr("pyxpo/" + app_json.NAME, app_json.dumps(nc))
     h = hashlib.sha256()
-    for p in sorted(assets.glob("*.zip")):
+    for p in sorted(assets.glob("*.zip")) + [app_zip]:
         h.update(p.name.encode())
         h.update(p.read_bytes())
-    (assets / "manifest.txt").write_text(h.hexdigest()[:16])
+    (variant / "manifest.txt").write_text(h.hexdigest()[:16])
+
+
+def stage_project(project: Path, release: bool = False) -> None:
+    """`pyxpo stage android`: what `./gradlew assemble*` or Android Studio runs before building an ejected project."""
+    project = Path(project).resolve()
+    cfg = load_config(project)
+    abis = available_abis(_cfg_abis(cfg))
+    if not abis:
+        raise BuildError("no Android CPython build in %s (set PYXPO_ANDROID_DIST, or see `pyxpo doctor`)" % DIST)
+    stage(native_dir(project), project, cfg, release, abis)
 
 
 def build(project: Path, release: bool = False, install: bool = False, run: bool = False) -> Path:
@@ -263,13 +304,12 @@ def build(project: Path, release: bool = False, install: bool = False, run: bool
     if not prebuild_mod.is_ejected(native):  # implicit prebuild: a disposable project nobody edits
         if native.exists():
             shutil.rmtree(str(native))
-        for rel, data in prebuild_mod.render(TEMPLATE / "user", {}).items():
-            (native / rel).parent.mkdir(parents=True, exist_ok=True)
-            (native / rel).write_bytes(data)
+        _write_user(native, prebuild_mod.render(TEMPLATE / "user", {}))
     stage(native, project, cfg, release, abis)
 
-    _run([find_gradle(), "-p", native, "--console=plain", "assembleRelease" if release else "assembleDebug"],
-         env=dict(os.environ, ANDROID_HOME=str(sdk)))
+    # PYXPO_STAGED: the app is staged already, so the Gradle stage task (for direct ./gradlew builds) skips itself
+    _run([find_gradle(native), "-p", native, "--console=plain", "assembleRelease" if release else "assembleDebug"],
+         env=dict(os.environ, ANDROID_HOME=str(sdk), PYXPO_STAGED="1"))
     outdir = native / "app" / "build" / "outputs" / "apk" / ("release" if release else "debug")
     if release:
         apk = outdir / ("app-release.apk" if nc["keystore"] else "app-release-unsigned.apk")
