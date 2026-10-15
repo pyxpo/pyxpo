@@ -9,6 +9,7 @@ from pathlib import Path
 from typing import Any, Dict, List
 from xml.sax.saxutils import quoteattr
 
+from .. import config_plugins
 from ..app_config import colors
 from . import icons, splash
 
@@ -106,7 +107,7 @@ def manifest(nc: Dict[str, Any], debug: bool, icon: bool = False, splash_theme: 
     return "\n".join(lines)
 
 
-def gradle(nc: Dict[str, Any], res: bool = False) -> str:
+def gradle(nc: Dict[str, Any], res: bool = False, extra: List[str] = None) -> str:
     """Groovy script applied from the user's app/build.gradle.kts (overrides what it set)."""
     a = nc["android"]
     return "\n".join([
@@ -122,17 +123,40 @@ def gradle(nc: Dict[str, Any], res: bool = False) -> str:
         "        debug.manifest.srcFile \"${rootDir}/pyxpo-gen/manifest/debug/AndroidManifest.xml\"",
         "        release.manifest.srcFile \"${rootDir}/pyxpo-gen/manifest/release/AndroidManifest.xml\"",
         "    }",
-        "}", ""])
+        "}"] + list(extra or []) + [""])
 
 
-def write(gen: Path, nc: Dict[str, Any], project: Path) -> None:
+def write(gen: Path, nc: Dict[str, Any], project: Path, mods: Any = None) -> None:
     gen = Path(gen)
     if (gen / "res").exists():
         shutil.rmtree(str(gen / "res"))
     icon = icons.android(project, nc, gen)
     themed = splash.android(project, nc, gen)["theme"]
+    mods = mods or config_plugins.Mods()
+    values = mods.apply_res_values({})
+    if values:
+        (gen / "res" / "values").mkdir(parents=True, exist_ok=True)
+        (gen / "res" / "values" / "pyxpo_plugins.xml").write_text(config_plugins.res_values_xml(values))
     for kind in ("debug", "release"):
         d = gen / "manifest" / kind
         d.mkdir(parents=True, exist_ok=True)
-        (d / "AndroidManifest.xml").write_text(manifest(nc, kind == "debug", icon, themed))
-    (gen / "pyxpo.app.gradle").write_text(gradle(nc, icon or themed))
+        (d / "AndroidManifest.xml").write_text(mods.apply_manifest(manifest(nc, kind == "debug", icon, themed)))
+    (gen / "pyxpo.app.gradle").write_text(gradle(nc, icon or themed or bool(values), mods.apply_app_gradle([])))
+
+
+MARK_BEGIN, MARK_END = "# >>> pyxpo config plugins (generated, do not edit) >>>", "# <<< pyxpo config plugins <<<"
+
+
+def write_gradle_properties(native: Path, mods: Any) -> None:
+    """Keeps a marked block in the user-owned `android/gradle.properties` in step with `with_gradle_properties` mods."""
+    props = mods.apply_gradle_properties({})
+    f = Path(native) / "gradle.properties"
+    text = f.read_text() if f.is_file() else ""
+    if MARK_BEGIN in text and MARK_END in text:
+        head, rest = text.split(MARK_BEGIN, 1)
+        text = head.rstrip("\n") + ("\n" if head.strip() else "") + rest.split(MARK_END, 1)[1].lstrip("\n")
+    if props:
+        block = "\n".join([MARK_BEGIN] + ["%s=%s" % (k, v) for k, v in props.items()] + [MARK_END]) + "\n"
+        text = (text.rstrip("\n") + "\n\n" if text.strip() else "") + block
+    if props or f.is_file():
+        f.write_text(text)

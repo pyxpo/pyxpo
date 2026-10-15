@@ -224,13 +224,16 @@ class Linked:
 def info_plist(mods: List[Module], options: Dict[str, Any]) -> Dict[str, str]:
     """Usage-description keys the linked modules need. `options` is `[tool.pyxpo.module_options.<module>]`.
     A module's `infoPlist` table there sets any key directly. Two modules asking for the same key with
-    different text is an error unless one of them sets it explicitly."""
+    different text is an error unless one of them sets it explicitly. Setting a key to `false` leaves it out (for an app
+    that never uses that feature, such as the microphone key `image-picker` adds for video capture)."""
     keys: Dict[str, str] = {}
     owner: Dict[str, str] = {}
     for m in mods:
         opts = (options or {}).get(m.name) or {}
         direct = opts.get("infoPlist") or {}
         for key, spec in (m.ios.get("infoPlist") or {}).items():
+            if direct.get(key) is False:
+                continue
             explicit = key in direct or spec.get("option", "") in opts
             val = str(direct[key] if key in direct else opts.get(spec.get("option", ""), spec["default"]))
             if key in keys and keys[key] != val and not explicit:

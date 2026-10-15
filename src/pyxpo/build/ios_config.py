@@ -68,7 +68,7 @@ def entitlements(nc: Dict[str, Any]) -> Dict[str, Any]:
     return deep_merge(e, ios["entitlements"])
 
 
-def xcconfig_lines(nc: Dict[str, Any], has_entitlements: bool) -> list:
+def xcconfig_lines(nc: Dict[str, Any], has_entitlements: bool, extra: Dict[str, str] = None) -> list:
     ios = nc["ios"]
     lines = [
         "PYXPO_INFOPLIST = pyxpo-gen/Info.plist",
@@ -77,15 +77,20 @@ def xcconfig_lines(nc: Dict[str, Any], has_entitlements: bool) -> list:
     ]
     if has_entitlements:
         lines.append("CODE_SIGN_ENTITLEMENTS = pyxpo-gen/App.entitlements")
+    lines += ["%s = %s" % (k, v) for k, v in (extra or {}).items()]  # last, so config plugin settings win
     return lines
 
 
-def write(gen: Path, native: Path, nc: Dict[str, Any]) -> bool:
-    """Writes pyxpo-gen/Info.plist (+ App.entitlements when needed). Returns whether entitlements were written."""
+def write(gen: Path, native: Path, nc: Dict[str, Any], mods: Any = None) -> bool:
+    """Writes pyxpo-gen/Info.plist (+ App.entitlements when needed). Returns whether entitlements were written.
+    `mods` (config plugins) run after the app config is applied."""
     user = Path(native) / "App" / "Info.plist"
     base = plistlib.loads(user.read_bytes()) if user.is_file() else {}
-    (gen / "Info.plist").write_bytes(plistlib.dumps(info_plist(base, nc)))
+    plist = info_plist(base, nc)
     ent = entitlements(nc)
+    if mods is not None:
+        plist, ent = mods.apply_info_plist(plist), mods.apply_entitlements(ent)
+    (gen / "Info.plist").write_bytes(plistlib.dumps(plist))
     if ent:
         (gen / "App.entitlements").write_bytes(plistlib.dumps(ent))
     return bool(ent)

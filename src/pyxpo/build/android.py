@@ -9,7 +9,7 @@ import zipfile
 from pathlib import Path
 from typing import Dict, List, Optional
 
-from .. import native_config
+from .. import config_plugins, native_config
 from ..config import load_config, pip_index_args
 from . import prebuild as prebuild_mod
 from . import android_config, app_json, autolink, elfcheck, runtime
@@ -94,7 +94,10 @@ def render_gen(native: Path, nc: Dict[str, object], project: Path, abis: List[st
         out.write_bytes(data)
     (gen / "pyxpo.properties").write_text(properties_text(nc, project, abis))
     autolink.render_android(gen, linked.modules if linked else [])
-    android_config.write(gen, nc, project)
+    mods = config_plugins.load(nc, project)
+    android_config.write(gen, nc, project, mods)
+    android_config.write_gradle_properties(native, mods)
+    mods.run_dangerous("android", project, native)
     try:
         (native / "local.properties").write_text("sdk.dir=%s\n" % find_sdk())
     except BuildError:
