@@ -35,3 +35,4 @@
 - ImageKit client-ready check (2026-10-15): fresh standalone Android APK (no dev server) verified: pick 1 and 3 photos, Compress, Convert PNG (3024x4032, lossless so bigger), Quick Optimize batch (12.14 MB to 1.50 MB), Save 3, Share 3. iOS rebuilt, selftest 25/25, Home renders. 316 tests pass.
   - Not verified: iOS UI taps (Simulator.app unavailable, cliclick cannot reach headless sim), real device.
 - Button loading fix: ActivityIndicator no longer forces align_self flex-start (dc60767). ImageKit Button busy = centered spinner only, label hidden, disabled. Android verified; iOS not screenshotted.
+- iOS had NO native Switch/Slider/ActivityIndicator (rendered empty PxGroup). Added in OpApplier.swift (d261d63). Spinner verified iOS sim (button busy: centered, label hidden). Switch/Slider iOS: compiled, NOT visually/interaction tested.
