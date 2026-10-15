@@ -7,6 +7,8 @@
 set -e
 ROOT=$(cd "$(dirname "$0")/.." && pwd)
 PY=${PYTHON:-$ROOT/.venv/bin/python}
+# PYTHON may be a bare command name (CI sets PYTHON=python): resolve it on PATH before the -x check.
+PY=$(command -v "$PY" || echo "$PY")
 if [ ! -x "$PY" ]; then
     python3 -m venv "$ROOT/.venv"
     PY=$ROOT/.venv/bin/python
@@ -15,6 +17,6 @@ set -- -e "$ROOT[dev]"
 for d in "$ROOT"/packages/*/; do
     [ -f "$d/pyproject.toml" ] && set -- "$@" -e "${d%/}"
 done
-"$PY" -m pip install -q "setuptools>=77" build
+"$PY" -m pip install -q -U pip "setuptools>=77" build
 "$PY" -m pip install -q "$@"
 "$PY" -c "from pyxpo.build import autolink; print('pyxpo modules installed:', ', '.join(sorted(autolink.discover())) or 'none')"
