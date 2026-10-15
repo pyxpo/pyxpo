@@ -53,5 +53,5 @@ def test_packages_follow_packaging_hygiene():
         text = pyproj.read_text()
         assert (pkg / imp / "py.typed").is_file(), pkg.name
         assert (pkg / "CHANGELOG.md").is_file(), pkg.name
-        assert re.search(r'"pyxpo>=\d+\.\d+\.\d+,<\d+\.\d+"', text), pkg.name
+        assert re.search(r'"pyxpo>=\d+\.\d+\.\d+(?:(?:a|b|rc)\d+)?,<\d+\.\d+"', text), pkg.name
         assert '"py.typed"' in text, pkg.name
