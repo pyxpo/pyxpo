@@ -94,8 +94,12 @@ def render_gen(native: Path, nc: Dict[str, object], linked: Optional[autolink.Li
     for f in NATIVE_FILES:
         shutil.copy2(str(COMMON / f), str(gen / "native" / f))
     (gen / "Python.xcframework").symlink_to(DIST / "Python.xcframework")
-    (gen / "Pyxpo.xcconfig").write_text(xcconfig_text(nc))
-    autolink.render_ios(gen, linked.modules if linked else [], linked.options if linked else {})
+    mods, opts = (linked.modules, linked.options) if linked else ([], {})
+    # Module usage-description keys go through INFOPLIST_KEY_* (Xcode merges them into App/Info.plist); a build-phase edit is overwritten.
+    xc = xcconfig_text(nc) + "".join("INFOPLIST_KEY_%s = %s\n" % (k, v.replace("//", "/$()/").replace("\n", " "))
+                                    for k, v in sorted(autolink.info_plist(mods, opts).items()))
+    (gen / "Pyxpo.xcconfig").write_text(xc)
+    autolink.render_ios(gen, mods, opts)
     return gen
 
 
@@ -127,6 +131,8 @@ def stage(native: Path, project: Path, cfg: Dict[str, object], release: bool, ki
         raise BuildError("no iOS %s CPython in %s (device builds need an ios-arm64 slice in the runtime; "
                          "set PYXPO_IOS_DIST or see `pyxpo doctor`)" % (kind, DIST))
     nc = native_config.resolve(cfg, project)
+    if prebuild_mod.is_ejected(native):
+        autolink.check_ios_wiring(native)
     gen = render_gen(native, nc, autolink.link(cfg, project))
     st = gen / "stage"
     _stage_stdlib(slice_dir, st / ("python-" + kind), host_python())

@@ -1,0 +1,16 @@
+{
+  "name": "media-library",
+  "native": "MediaLibrary",
+  "ios": {
+    "classes": ["MediaLibraryModule"],
+    "infoPlist": {
+      "NSPhotoLibraryAddUsageDescription": { "option": "addUsageDescription", "default": "Save processed photos to your photo library." }
+    }
+  },
+  "android": {
+    "namespace": "dev.pyxpo.modules.medialibrary",
+    "classes": ["dev.pyxpo.modules.medialibrary.MediaLibraryModule"],
+    "dependencies": [],
+    "minSdk": 24
+  }
+}

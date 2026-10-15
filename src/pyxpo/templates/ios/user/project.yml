@@ -14,7 +14,7 @@ settings:
     SWIFT_VERSION: "5.0"
     ENABLE_USER_SCRIPT_SANDBOXING: NO
     SWIFT_OBJC_BRIDGING_HEADER: App/Pyxpo-Bridging-Header.h
-    GENERATE_INFOPLIST_FILE: NO
+    GENERATE_INFOPLIST_FILE: YES
     INFOPLIST_FILE: App/Info.plist
     CODE_SIGN_STYLE: Automatic
     "CODE_SIGN_IDENTITY[sdk=iphonesimulator*]": "-"

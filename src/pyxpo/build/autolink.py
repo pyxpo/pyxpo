@@ -253,3 +253,10 @@ def check_android_wiring(native: Path) -> None:
         f = Path(native) / rel
         if f.is_file() and line not in f.read_text():
             raise BuildError("%s is missing the native-module line; add this to it:\n    %s" % (f, line))
+
+
+def check_ios_wiring(native: Path) -> None:
+    """An ejected project predating autolinking sets GENERATE_INFOPLIST_FILE to NO, which drops module Info.plist keys."""
+    f = Path(native) / "project.yml"
+    if f.is_file() and not re.search(r"GENERATE_INFOPLIST_FILE:\s*[\"']?YES", f.read_text()):
+        raise BuildError("%s must set GENERATE_INFOPLIST_FILE: YES (under settings.base) so native-module Info.plist keys are applied" % f)

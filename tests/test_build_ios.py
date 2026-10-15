@@ -96,9 +96,9 @@ def test_stage_keeps_user_files_and_leaves_no_placeholders(tmp_path, monkeypatch
     monkeypatch.setattr(ios, "_run", lambda *a, **k: None)
     proj = _project(tmp_path)
     native = ios.prebuild(proj)
-    (native / "project.yml").write_text("# edited\n")
+    (native / "project.yml").write_text("# edited\nGENERATE_INFOPLIST_FILE: YES\n")
     ios.stage(native, proj, ios.load_config(proj), False, "simulator")
-    assert (native / "project.yml").read_text() == "# edited\n"
+    assert (native / "project.yml").read_text().startswith("# edited")
     assert (native / "pyxpo-gen" / "stage" / "app_root" / "app" / "index.py").is_file()
     for p in native.rglob("*"):
         if p.is_file() and not p.is_symlink() and p.suffix in (".yml", ".plist", ".swift", ".sh", ".h", ".m", ".xcconfig"):

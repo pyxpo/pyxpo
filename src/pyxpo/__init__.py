@@ -43,7 +43,6 @@ from .apis.appearance import Appearance
 from .apis.appstate import AppState
 from .apis.back_handler import BackHandler
 from .apis.clipboard import Clipboard
-from .apis.media_library import MediaLibrary
 from .apis.share import Share
 from .apis.dimensions import Dimensions
 from .apis.i18n_manager import I18nManager
@@ -77,7 +76,7 @@ __all__ = [
     "TouchableNativeFeedback", "Button", "Switch", "ActivityIndicator", "Modal", "KeyboardAvoidingView",
     "SafeAreaView", "StatusBar", "RefreshControl", "Picker", "Slider", "ErrorBoundary",
     # apis
-    "Alert", "Animated", "Easing", "Appearance", "AppState", "BackHandler", "Clipboard", "Dimensions", "MediaLibrary", "Share",
+    "Alert", "Animated", "Easing", "Appearance", "AppState", "BackHandler", "Clipboard", "Dimensions", "Share",
     "I18nManager", "Keyboard", "Linking", "PanResponder", "PixelRatio", "Platform", "StyleSheet", "ToastAndroid",
     "Vibration", "processColor",
     # hooks
@@ -91,7 +90,7 @@ __all__ = [
 ]
 
 
-_MOVED = {"ImagePicker": "image_picker", "ImageTools": "image_tools", "ImageTooLargeError": "image_tools"}
+_MOVED = {"MediaLibrary": "media_library", "ImagePicker": "image_picker", "ImageTools": "image_tools", "ImageTooLargeError": "image_tools"}
 
 
 def __getattr__(name: str):
