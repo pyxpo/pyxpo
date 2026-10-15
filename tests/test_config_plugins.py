@@ -77,6 +77,20 @@ def test_plugin_exception_and_bad_return_are_config_errors(tmp_path):
         cp.load(_nc(tmp_path, ["./ret.py"]), tmp_path)
 
 
+def test_plugin_import_time_errors_are_config_errors(tmp_path):
+    _proj(tmp_path, "def plugin(c, p)\n", "syn.py")
+    _proj(tmp_path, "raise RuntimeError('at import')\n", "boommod.py")
+    with pytest.raises(ConfigError, match="cannot load.*SyntaxError"):
+        cp.load(_nc(tmp_path, ["./syn.py"]), tmp_path)
+    with pytest.raises(ConfigError, match="cannot import.*RuntimeError"):
+        cp.load(_nc(tmp_path, ["boommod"]), tmp_path)
+
+
+def test_res_value_name_checked():
+    with pytest.raises(ConfigError, match="name must be"):
+        cp.res_values_xml({'x" evil="1': ("string", "v")})
+
+
 def test_plugin_cannot_change_native_config(tmp_path):
     _proj(tmp_path, "def plugin(c, p):\n    c.native['name'] = 'Evil'\n", "mut.py")
     nc = _nc(tmp_path, ["./mut.py"])

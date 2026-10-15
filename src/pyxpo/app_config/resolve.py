@@ -3,7 +3,7 @@ from __future__ import annotations
 
 import re
 from pathlib import Path
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Tuple
 
 from . import images
 from .schema import ConfigError
@@ -50,6 +50,9 @@ def resolve(cfg: Dict[str, Any], project: Path, project_version: str = "") -> Di
     sb, nb = cfg.get("status_bar") or {}, cfg.get("navigation_bar") or {}
     bp = (cfg.get("build_properties") or {}).get("android") or {}
     pk = bp.get("packaging_options") or {}
+    if bp.get("enable_shrink_resources_in_release_builds") and not bp.get("enable_minify_in_release_builds"):
+        raise ConfigError("build_properties.android: enable_shrink_resources_in_release_builds needs "
+                          "enable_minify_in_release_builds = true (Android removes unused resources only with code shrinking)")
     ic = cfg.get("icon")
     ai = android.get("adaptive_icon") or {}
     return {
@@ -107,7 +110,7 @@ def check_assets(r: Dict[str, Any], project: Path, cfg: Dict[str, Any]) -> List[
     warns: List[str] = []
     project = Path(project)
 
-    def need(rel: str, where: str) -> Path:
+    def need(rel: str, where: str) -> Tuple[Path, Dict[str, Any]]:
         p = project / rel
         if not p.is_file():
             raise ConfigError("%s: file not found: %s" % (where, p))

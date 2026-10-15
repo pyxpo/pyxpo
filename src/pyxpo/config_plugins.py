@@ -11,6 +11,7 @@ from __future__ import annotations
 import copy
 import importlib
 import importlib.util
+import re
 import sys
 import xml.etree.ElementTree as ET
 from pathlib import Path
@@ -171,16 +172,20 @@ def _resolve(entry: str, project: Path) -> Callable:
         sys.path.insert(0, str(f.parent))
         try:
             spec.loader.exec_module(mod)
+        except Exception as e:  # noqa: BLE001  (a plugin is user code)
+            raise ConfigError("plugins: cannot load %s: %s: %s" % (f, type(e).__name__, e))
         finally:
-            sys.path.remove(str(f.parent))
+            if str(f.parent) in sys.path:
+                sys.path.remove(str(f.parent))
     else:
         sys.path.insert(0, str(project))
         try:
             mod = importlib.import_module(mod_part)
-        except ImportError as e:
-            raise ConfigError("plugins: cannot import %r: %s" % (mod_part, e))
+        except Exception as e:  # noqa: BLE001
+            raise ConfigError("plugins: cannot import %r: %s: %s" % (mod_part, type(e).__name__, e))
         finally:
-            sys.path.remove(str(project))
+            if str(project) in sys.path:
+                sys.path.remove(str(project))
     fn = getattr(mod, fn_name, None)
     if not callable(fn):
         raise ConfigError("plugins: %r has no function %r (a plugin is plugin(config, props))" % (mod_part, fn_name))
@@ -215,6 +220,8 @@ def res_values_xml(values: Dict[str, Tuple[str, str]]) -> str:
     for name, (kind, value) in sorted(values.items()):
         if kind not in RES_TYPES:
             raise ConfigError("android res value %r: type must be one of %s, got %r" % (name, ", ".join(RES_TYPES), kind))
+        if not re.fullmatch(r"[A-Za-z_][A-Za-z0-9_.]*", str(name)):
+            raise ConfigError("android res value %r: name must be letters, digits, '_' or '.'" % (name,))
         v = str(value).lower() if kind == "bool" else escape(str(value))
         if kind == "string":
             v = v.replace("\\", "\\\\").replace("'", "\\'").replace('"', '\\"')

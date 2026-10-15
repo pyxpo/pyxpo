@@ -128,7 +128,15 @@ class MediaLibraryModule : PxModule() {
         try {
             (cr.openOutputStream(uri) ?: throw java.io.IOException("cannot open library entry")).use { o -> src.inputStream().use { it.copyTo(o) } }
             if (Build.VERSION.SDK_INT >= 29) {
-                cr.update(uri, ContentValues().apply { put(MediaStore.MediaColumns.IS_PENDING, 0) }, null, null)
+                val done = ContentValues().apply { put(MediaStore.MediaColumns.IS_PENDING, 0) }
+                try {
+                    cr.update(uri, done, null, null)
+                } catch (e: IllegalStateException) {
+                    // MediaStore gives up after 32 "name (n).ext" clashes when it publishes the file; use a timestamped name.
+                    done.put(MediaStore.MediaColumns.DISPLAY_NAME, "${src.nameWithoutExtension}_${System.currentTimeMillis()}" +
+                        (if (src.extension.isEmpty()) "" else ".${src.extension}"))
+                    cr.update(uri, done, null, null)
+                }
             }
         } catch (e: Throwable) {
             cr.delete(uri, null, null)

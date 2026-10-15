@@ -274,3 +274,14 @@ def test_android_build_properties(tmp_path):
     (tmp_path / "b").mkdir()
     q = project(tmp_path / "b", 'name = "B"')
     assert "minifyEnabled" not in android_config.gradle(native_config.resolve(load_config(q), q))
+    (tmp_path / "c").mkdir()
+    r = project(tmp_path / "c", 'name = "C"', '[tool.pyxpo.build_properties.android]\nenable_shrink_resources_in_release_builds = true\n')
+    with pytest.raises(ConfigError, match="needs enable_minify"):
+        native_config.resolve(load_config(r), r)
+
+
+def test_ios_require_full_screen_without_base_orientations():
+    from pyxpo.build import ios_config
+    nc = native_config.resolve({"name": "A", "ios": {"require_full_screen": True}}, Path("."))
+    p = ios_config.info_plist({}, nc)
+    assert p["UIRequiresFullScreen"] is True and p["UISupportedInterfaceOrientations~ipad"] == ios_config.ALL_ORIENTATIONS

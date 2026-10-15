@@ -35,7 +35,7 @@ def info_plist(base: Dict[str, Any], nc: Dict[str, Any]) -> Dict[str, Any]:
     if orient != "default" or ios["require_full_screen"] or "UISupportedInterfaceOrientations~ipad" in p:
         if ios["supports_tablet"]:
             p["UISupportedInterfaceOrientations~ipad"] = list(ALL_ORIENTATIONS) if not ios["require_full_screen"] \
-                else list(p["UISupportedInterfaceOrientations"])
+                else list(p.get("UISupportedInterfaceOrientations") or ALL_ORIENTATIONS)
     style = ios["user_interface_style"]
     if style in STYLES:
         p["UIUserInterfaceStyle"] = STYLES[style]
