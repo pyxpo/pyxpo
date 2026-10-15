@@ -10,6 +10,7 @@ import sys
 from pathlib import Path
 from typing import List, Optional
 
+from . import native_config
 from .config import load_config, set_requires
 
 TEMPLATE = Path(__file__).parent / "templates" / "app"
@@ -109,7 +110,7 @@ def _android_dev(droid, project: Path, args: argparse.Namespace) -> None:
     adb = droid.adb_path()
     port = str(dev.port)
     droid._run([adb, "reverse", "tcp:" + port, "tcp:" + port])
-    app_id = cfg.get("bundle_id", "com.example.app")
+    app_id = native_config.resolve(cfg, project)["android"]["package"]
     extras = {"pyxpo_dev_url": dev.url, "pyxpo_dev_token": token}
     try:
         dev.start()
@@ -133,7 +134,7 @@ def _ios(args: argparse.Namespace, run: bool) -> int:
     project = Path(args.dir or ".").resolve()
     try:
         cfg = load_config(project)
-        app_id = cfg.get("bundle_id", "com.example.app")
+        app_id = native_config.resolve(cfg, project)["ios"]["bundle_id"]
         app = ios.build(project, release=getattr(args, "release", False))
         if not run:
             return 0
@@ -278,6 +279,28 @@ def cmd_add_lib(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_config(args: argparse.Namespace) -> int:
+    import json
+
+    from . import app_config
+
+    if args.schema:
+        print(json.dumps(app_config.json_schema(), indent=2))
+        return 0
+    project = Path(args.dir or ".").resolve()
+    try:
+        cfg = load_config(project)
+        r = native_config.resolve(cfg, project)
+        for w in app_config.check_assets(r, project, cfg):
+            print("warning: " + w, file=sys.stderr)
+    except (FileNotFoundError, ValueError) as e:
+        print("error: %s" % e, file=sys.stderr)
+        return 2
+    out = r[args.platform] if args.platform else r
+    print(json.dumps(out, indent=2, sort_keys=True))
+    return 0
+
+
 def build_parser() -> argparse.ArgumentParser:
     p = argparse.ArgumentParser(prog="pyxpo", description="Python mobile app framework")
     sub = p.add_subparsers(dest="cmd", required=True)
@@ -311,6 +334,11 @@ def build_parser() -> argparse.ArgumentParser:
     rt.set_defaults(fn=cmd_runtime)
     d = sub.add_parser("doctor", help="check installed toolchains")
     d.set_defaults(fn=cmd_doctor)
+    cf = sub.add_parser("config", help="print the resolved app config (validates [tool.pyxpo])")
+    cf.add_argument("--platform", choices=["ios", "android"])
+    cf.add_argument("--schema", action="store_true", help="print the JSON Schema for [tool.pyxpo]")
+    cf.add_argument("--dir")
+    cf.set_defaults(fn=cmd_config)
     a = sub.add_parser("add-lib", help="check mobile wheel availability and add a dependency")
     a.add_argument("package")
     a.add_argument("--dir")

@@ -72,8 +72,8 @@ def native_dir(project: Path) -> Path:
 def properties_text(nc: Dict[str, object], project: Path, abis: List[str]) -> str:
     """Values the user-owned Gradle files read from pyxpo-gen/pyxpo.properties (rewritten on every build)."""
     props = {
-        "applicationId": nc["bundle_id"], "name": nc["name"], "scheme": nc["scheme"], "versionName": nc["version"],
-        "versionCode": nc["build_number"], "abis": ",".join(abis), "dist": DIST, "common": COMMON,
+        "applicationId": nc["android"]["package"], "name": nc["name"], "scheme": nc["scheme"], "versionName": nc["version"],
+        "versionCode": nc["android"]["version_code"], "abis": ",".join(abis), "dist": DIST, "common": COMMON,
     }
     if nc["keystore"]:
         ks = Path(str(nc["keystore"]))
@@ -276,5 +276,5 @@ def build(project: Path, release: bool = False, install: bool = False, run: bool
     if install or run:
         _run([adb_path(), "install", "-r", apk])
         if run:
-            launch(str(nc["bundle_id"]))
+            launch(str(nc["android"]["package"]))
     return apk

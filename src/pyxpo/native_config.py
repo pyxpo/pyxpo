@@ -1,9 +1,11 @@
-"""Resolves the native app identity (name, ids, version, signing team) from `[tool.pyxpo]`."""
+"""Resolves the native app configuration from `[tool.pyxpo]` (see pyxpo.app_config for the schema)."""
 from __future__ import annotations
 
-import re
 from pathlib import Path
 from typing import Any, Dict
+
+from .app_config import resolve as _resolve
+from .app_config import safe_name  # noqa: F401  (re-exported)
 
 try:
     import tomllib as _toml  # type: ignore
@@ -12,10 +14,6 @@ except ImportError:  # Python < 3.11
         import tomli as _toml  # type: ignore
     except ImportError:
         _toml = None
-
-
-def safe_name(name: str) -> str:
-    return re.sub(r"[^A-Za-z0-9]", "", name) or "PyxpoApp"
 
 
 def _project_version(project: Path) -> str:
@@ -28,19 +26,7 @@ def _project_version(project: Path) -> str:
 
 
 def resolve(cfg: Dict[str, Any], project: Path) -> Dict[str, Any]:
-    """Native values shared by both platforms. Defaults match what `pyxpo create` writes."""
-    name = str(cfg.get("name") or Path(project).name)
-    bundle_id = str(cfg.get("bundle_id", "com.example.app"))
-    ios = cfg.get("ios") or {}
-    android = cfg.get("android") or {}
-    return {
-        "name": name,
-        "product_name": safe_name(name),
-        "bundle_id": bundle_id,
-        "scheme": str(cfg.get("scheme") or bundle_id),
-        "version": str(cfg.get("version") or _project_version(project) or "1.0.0"),
-        "build_number": int(cfg.get("build_number", 1)),
-        "team_id": str(ios.get("team_id", "")),
-        "keystore": str(android.get("keystore", "")),
-        "key_alias": str(android.get("key_alias", "")),
-    }
+    """Per-platform native values: top-level identity plus `ios` and `android` sub-dicts, all defaulted."""
+    r = _resolve(cfg, project, _project_version(project))
+    r["team_id"], r["keystore"], r["key_alias"] = r["ios"]["team_id"], r["android"]["keystore"], r["android"]["key_alias"]
+    return r

@@ -22,6 +22,8 @@ def _mini_parse(text: str) -> Dict[str, Any]:
     for raw in text.splitlines():
         line = raw.strip()
         if line.startswith("["):
+            if line.startswith("[tool.pyxpo."):
+                raise ValueError("pyproject.toml uses nested [tool.pyxpo.*] tables: install tomli (pip install tomli) on Python < 3.11")
             inside = line == "[tool.pyxpo]"
             continue
         if inside and "=" in line and not line.startswith("#"):
@@ -41,7 +43,8 @@ def load_config(project_dir: Path) -> Dict[str, Any]:
         cfg = _mini_parse(text) or None
     if cfg is None:
         raise ValueError("pyproject.toml has no [tool.pyxpo] table")
-    return cfg
+    from . import app_config
+    return app_config.prepare(cfg, project_dir)
 
 
 def set_requires(project_dir: Path, requires: list) -> None:
