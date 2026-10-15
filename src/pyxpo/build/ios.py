@@ -9,7 +9,7 @@ import sys
 from pathlib import Path
 from typing import Dict, List, Optional
 
-from .. import config_plugins, native_config
+from .. import config_plugins, native_config, term
 from ..config import load_config, pip_index_args
 from . import prebuild as prebuild_mod
 from . import app_json, autolink, icons, ios_config, runtime, splash
@@ -127,12 +127,12 @@ def prebuild(project: Path, clean: bool = False) -> Path:
     actions = prebuild_mod.apply(rendered, dest, __version__)
     for action, rel in actions:
         if action == "conflict":
-            print("kept your edited %s; new version saved as %s.pyxpo-new" % (rel, rel))
+            term.warn("kept your edited ios/%s; new version saved as ios/%s.pyxpo-new" % (rel, rel))
     render_gen(dest, nc, linked, project)
     if shutil.which("xcodegen"):  # so `open ios/PyxpoApp.xcodeproj` works right away, as after `expo prebuild`
-        _run(["xcodegen", "generate", "--spec", dest / "project.yml", "--project", dest], cwd=str(dest))
+        _run(["xcodegen", "generate", "--spec", dest / "project.yml", "--project", dest], cwd=str(dest), quiet=True)
     else:
-        print("xcodegen not found: run `brew install xcodegen`, then `pyxpo build ios` to create ios/PyxpoApp.xcodeproj")
+        term.warn("xcodegen not found: run `brew install xcodegen`, then `pyxpo prebuild ios` to create ios/PyxpoApp.xcodeproj")
     return dest
 
 

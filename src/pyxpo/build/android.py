@@ -9,7 +9,7 @@ import zipfile
 from pathlib import Path
 from typing import Dict, List, Optional
 
-from .. import config_plugins, native_config
+from .. import config_plugins, native_config, term
 from ..config import load_config, pip_index_args
 from . import prebuild as prebuild_mod
 from . import android_config, app_json, autolink, elfcheck, runtime
@@ -24,10 +24,16 @@ SO_FOR_JNILIBS = ["libpython3.13.so", "libcrypto_python.so", "libssl_python.so",
 STDLIB_SKIP = ("test", "idlelib", "tkinter", "turtledemo", "ensurepip", "lib2to3", "config-3.13")
 
 
-def _run(cmd: List[str], **kw) -> None:
-    print("> " + " ".join(str(c) for c in cmd))
+def _run(cmd: List[str], quiet: bool = False, **kw) -> None:
+    """Run a build command; `quiet` hides its output unless it fails."""
+    if quiet:
+        kw.update(stdout=subprocess.PIPE, stderr=subprocess.STDOUT, universal_newlines=True)
+    else:
+        print("> " + " ".join(str(c) for c in cmd))
     r = subprocess.run([str(c) for c in cmd], **kw)
     if r.returncode != 0:
+        if quiet:
+            print("> " + " ".join(str(c) for c in cmd) + "\n" + (r.stdout or ""), end="")
         raise BuildError("command failed (%d): %s" % (r.returncode, cmd[0]))
 
 
@@ -154,7 +160,7 @@ def prebuild(project: Path, clean: bool = False) -> Path:
     from .. import __version__
     for action, rel in prebuild_mod.apply(rendered, dest, __version__):
         if action == "conflict":
-            print("kept your edited %s; new version saved as %s.pyxpo-new" % (rel, rel))
+            term.warn("kept your edited android/%s; new version saved as android/%s.pyxpo-new" % (rel, rel))
     _make_gradlew_executable(dest)
     render_gen(dest, nc, project, available_abis(_cfg_abis(cfg)), linked)
     return dest

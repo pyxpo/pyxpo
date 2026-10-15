@@ -57,6 +57,25 @@ def test_prebuild_cli(tmp_path, monkeypatch):
     assert cli.main(["prebuild", "ios", "--clean", "--dir", str(tmp_path)]) == 2  # needs --yes when not a tty
 
 
+def test_prebuild_cli_output(tmp_path, monkeypatch, capsys):
+    import importlib
+
+    ios = importlib.import_module("pyxpo.build.ios")
+    droid = importlib.import_module("pyxpo.build.android")
+    monkeypatch.setattr(ios, "prebuild", lambda p, clean=False: (p / "ios" / "PyxpoApp.xcodeproj").mkdir(parents=True))
+    monkeypatch.setattr(droid, "prebuild", lambda p, clean=False: (p / "android").mkdir())
+    assert cli.main(["prebuild", "--dir", str(tmp_path)]) == 0
+    out = capsys.readouterr().out
+    assert "\033[" not in out  # no colour when stdout is not a terminal
+    assert "Created Gradle project android/" in out
+    assert "Created Xcode project ios/ (PyxpoApp.xcodeproj)" in out
+    assert "cd android && ./gradlew assembleRelease" in out and "open ios/PyxpoApp.xcodeproj" in out
+    monkeypatch.setattr(ios, "prebuild", lambda p, clean=False: None)
+    assert cli.main(["prebuild", "ios", "--dir", str(tmp_path)]) == 0
+    out = capsys.readouterr().out
+    assert "Updated Xcode project ios/" in out and "gradlew" not in out and "ios/ is yours" in out
+
+
 def test_android_dev_relaunches_until_client_connects(tmp_path, monkeypatch):
     # Android's package-update flow can relaunch the app without our extras; the CLI must relaunch it.
     import argparse

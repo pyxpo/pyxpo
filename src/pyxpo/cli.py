@@ -186,14 +186,33 @@ def cmd_prebuild(args: argparse.Namespace) -> int:
         if not sys.stdin.isatty():
             print("error: pass --yes to confirm in a non-interactive shell", file=sys.stderr)
             return 2
+    from . import term
+
+    kinds = {"android": "Gradle project", "ios": "Xcode project"}
     try:
         for t in targets:
-            dest = (droid if t == "android" else ios).prebuild(project, clean=args.clean)
-            print("ejected %s" % dest)
+            existed = (project / t).exists()
+            (droid if t == "android" else ios).prebuild(project, clean=args.clean)
+            extra = " (PyxpoApp.xcodeproj)" if t == "ios" and (project / "ios" / "PyxpoApp.xcodeproj").exists() else ""
+            term.ok("%s %s %s/%s" % ("Updated" if existed else "Created", kinds[t], t, extra))
     except (ios.BuildError, FileNotFoundError, ValueError) as e:
         print("error: %s" % e, file=sys.stderr)
         return 1
-    print("edit the native files, commit them, then `pyxpo run <android|ios>` builds from them")
+    term.ok(term.bold("Finished prebuild"))
+    steps = []
+    for t in targets:
+        steps.append(("pyxpo run %s" % t, "build and launch in debug"))
+    if "android" in targets:
+        steps.append(("cd android && ./gradlew assembleRelease", "release APK"))
+    if "ios" in targets and (project / "ios" / "PyxpoApp.xcodeproj").exists():
+        steps.append(("open ios/PyxpoApp.xcodeproj", "build, sign and archive in Xcode"))
+    print("\n" + term.bold("Next steps"))
+    width = max(len(s) for s, _ in steps)
+    for s, hint in steps:
+        term.item(s, hint, width)
+    print("\n" + term.dim("%s %s yours: edit and commit. Re-run `pyxpo prebuild` after changing [tool.pyxpo];\n"
+                          "files you edited are kept and new versions are saved as *.pyxpo-new."
+                          % (" and ".join(t + "/" for t in targets), "is" if len(targets) == 1 else "are")))
     return 0
 
 
