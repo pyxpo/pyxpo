@@ -499,23 +499,44 @@ class OpApplier(
         event("call_result", id, p)
     }
 
-    private var statusLight: Boolean? = null
+    /** true = dark glyphs (light bar background). Initial values come from `status_bar` / `navigation_bar` in the app config. */
+    private fun styleOf(key: String): Boolean? = when (PxAppConfig.meta(ctx, key)) { "dark" -> true; "light" -> false; else -> null }
+    private var statusLight: Boolean? = styleOf("pyxpo.status_bar_style")
+    private var navLight: Boolean? = styleOf("pyxpo.navigation_bar_style")
+    private val statusHidden = PxAppConfig.meta(ctx, "pyxpo.status_bar_hidden") == "true"
+    private val navHidden = PxAppConfig.meta(ctx, "pyxpo.navigation_bar_hidden") == "true"
 
     /** Dark glyphs on a light background. Dialogs reset the window appearance, so this is reapplied on focus. */
     fun applyStatusBar() {
-        val light = statusLight ?: return
         val act = ctx as? android.app.Activity ?: return
         act.runOnUiThread {
             val w = act.window
+            val status = statusLight
+            val nav = navLight ?: status
             if (Build.VERSION.SDK_INT >= 30) {
-                val m = android.view.WindowInsetsController.APPEARANCE_LIGHT_STATUS_BARS or
-                    android.view.WindowInsetsController.APPEARANCE_LIGHT_NAVIGATION_BARS
-                w.insetsController?.setSystemBarsAppearance(if (light) m else 0, m)
-            } else if (Build.VERSION.SDK_INT >= 23) {
+                val c = w.insetsController ?: return@runOnUiThread
+                val sm = android.view.WindowInsetsController.APPEARANCE_LIGHT_STATUS_BARS
+                val nm = android.view.WindowInsetsController.APPEARANCE_LIGHT_NAVIGATION_BARS
+                if (status != null) c.setSystemBarsAppearance(if (status) sm else 0, sm)
+                if (nav != null) c.setSystemBarsAppearance(if (nav) nm else 0, nm)
+                if (statusHidden) c.hide(android.view.WindowInsets.Type.statusBars())
+                if (navHidden) {
+                    c.hide(android.view.WindowInsets.Type.navigationBars())
+                    c.systemBarsBehavior = android.view.WindowInsetsController.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
+                }
+            } else {
                 @Suppress("DEPRECATION") run {
                     var f = w.decorView.systemUiVisibility
-                    f = if (light) f or android.view.View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR
-                        else f and android.view.View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR.inv()
+                    if (Build.VERSION.SDK_INT >= 23 && status != null) {
+                        f = if (status) f or android.view.View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR
+                            else f and android.view.View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR.inv()
+                    }
+                    if (Build.VERSION.SDK_INT >= 26 && nav != null) {
+                        f = if (nav) f or android.view.View.SYSTEM_UI_FLAG_LIGHT_NAVIGATION_BAR
+                            else f and android.view.View.SYSTEM_UI_FLAG_LIGHT_NAVIGATION_BAR.inv()
+                    }
+                    if (statusHidden) f = f or android.view.View.SYSTEM_UI_FLAG_FULLSCREEN
+                    if (navHidden) f = f or android.view.View.SYSTEM_UI_FLAG_HIDE_NAVIGATION or android.view.View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY
                     w.decorView.systemUiVisibility = f
                 }
             }

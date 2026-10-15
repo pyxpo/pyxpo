@@ -66,6 +66,7 @@ final class OpApplier {
         // Root id 1 is implicit in the ops protocol: it is never created by the reconciler.
         root.translatesAutoresizingMaskIntoConstraints = false
         container.addSubview(root)
+        PxAppConfig.apply(container: container)
         // Edge to edge: the app draws under the status bar / home indicator. Insets go to Python (SafeArea).
         NSLayoutConstraint.activate([
             root.leadingAnchor.constraint(equalTo: container.leadingAnchor),

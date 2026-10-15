@@ -183,3 +183,19 @@ def test_icons_android(tmp_path):
     assert "pyxpo-gen/res" in android_config.gradle(nc, True)
     nc["android"]["adaptive_icon"] = {}
     assert icons.android(p, nc, tmp_path / "gen2") is False
+
+
+def test_android_meta_data_and_ios_plist_bars(tmp_path):
+    from pyxpo.build import android_config, ios, ios_config
+    import plistlib
+    p = project(tmp_path, 'background_color = "#336699"\nuser_interface_style = "dark"',
+                '[tool.pyxpo.status_bar]\nstyle = "light"\nhidden = true\n[tool.pyxpo.navigation_bar]\nstyle = "dark"\n')
+    nc = native_config.resolve(load_config(p), p)
+    m = android_config.manifest(nc, False)
+    for frag in ('"pyxpo.background_color" android:value="argb:ff336699"', '"pyxpo.user_interface_style" android:value="dark"',
+                 '"pyxpo.status_bar_style" android:value="light"', '"pyxpo.status_bar_hidden" android:value="true"',
+                 '"pyxpo.navigation_bar_style" android:value="dark"', '"pyxpo.navigation_bar_hidden" android:value="false"'):
+        assert frag in m
+    base = plistlib.loads((ios.TEMPLATE / "user" / "App" / "Info.plist").read_bytes())
+    pl = ios_config.info_plist(base, nc)
+    assert pl["PyxpoBackgroundColor"] == "#336699" and pl["PyxpoStatusBarStyle"] == "light" and pl["PyxpoStatusBarHidden"] is True

@@ -9,9 +9,26 @@ class MainActivity : Activity() {
     private var runtime: PyxpoRuntime? = null
     private var applier: OpApplier? = null
 
+    /** `user_interface_style = "light" | "dark"` pins the night mode for this app; "automatic" follows the system. */
+    override fun attachBaseContext(base: android.content.Context) {
+        val night = when (PxAppConfig.meta(base, "pyxpo.user_interface_style")) {
+            "dark" -> android.content.res.Configuration.UI_MODE_NIGHT_YES
+            "light" -> android.content.res.Configuration.UI_MODE_NIGHT_NO
+            else -> null
+        }
+        if (night == null) return super.attachBaseContext(base)
+        val c = android.content.res.Configuration(base.resources.configuration)
+        c.uiMode = (c.uiMode and android.content.res.Configuration.UI_MODE_NIGHT_MASK.inv()) or night
+        super.attachBaseContext(base.createConfigurationContext(c))
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         val root = FrameLayout(this)
+        PxAppConfig.color(this, "pyxpo.background_color")?.let {
+            root.setBackgroundColor(it)
+            window.setBackgroundDrawable(android.graphics.drawable.ColorDrawable(it))
+        }
         // Edge-to-edge: the app draws under system bars. Insets and keyboard height go to Python (SafeArea).
         if (android.os.Build.VERSION.SDK_INT >= 30) window.setDecorFitsSystemWindows(false)
         window.statusBarColor = android.graphics.Color.TRANSPARENT
