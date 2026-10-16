@@ -396,6 +396,35 @@ def use_color_scheme() -> str:
     return _use_env(lambda e: e["color_scheme"])
 
 
+def use_breakpoint() -> str:
+    """Active responsive breakpoint ("xs", "sm", "md", "lg", "xl", "xxl" by default, see `pyxpo.responsive`).
+    Re-renders only when the window crosses a breakpoint."""
+    from . import responsive
+    return _use_env(lambda e: (responsive.breakpoint_for(e["window"]["width"] or 0), responsive.version()))[0]
+
+
+def use_breakpoint_value(values: Any, default: Any = None) -> Any:
+    """The value of a breakpoint map for the current window, mobile first:
+    `use_breakpoint_value({"base": 1, "md": 2, "xl": 4})`. A plain value comes back as is."""
+    from . import responsive
+    return responsive.pick(values, use_breakpoint(), default)
+
+
+def use_media_query(up: Optional[str] = None, down: Optional[str] = None, *, only: Optional[str] = None,
+                    min_width: Optional[float] = None, max_width: Optional[float] = None,
+                    orientation: Optional[str] = None) -> bool:
+    """CSS-like media query against the window: `use_media_query("md")` is True from md up,
+    `use_media_query(down="lg")` below lg, `use_media_query(only="md")`, `use_media_query(min_width=600)`,
+    `use_media_query(orientation="landscape")`. Conditions combine with AND. Re-renders only when the result flips."""
+    from . import responsive
+
+    def test(e: Any) -> bool:
+        w, h = e["window"]["width"] or 0, e["window"]["height"] or 0
+        return responsive.query(responsive.breakpoint_for(w), w, h, up_=up, down_=down, only=only,
+                                min_width=min_width, max_width=max_width, orientation=orientation)
+    return _use_env(test)
+
+
 SafeAreaInsetsContext = create_context(None)  # set by `pyxpo.safe_area.SafeAreaProvider`; None means "read the device"
 SafeAreaFrameContext = create_context(None)
 
@@ -422,3 +451,6 @@ useWindowDimensions = use_window_dimensions
 useColorScheme = use_color_scheme
 useSafeAreaInsets = use_safe_area_insets
 useSafeAreaFrame = use_safe_area_frame
+useBreakpoint = use_breakpoint
+useBreakpointValue = use_breakpoint_value
+useMediaQuery = use_media_query

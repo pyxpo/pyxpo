@@ -112,6 +112,8 @@ class App:
             return
         self.flushing = True
         try:
+            if self.rec.refresh_responsive():  # the window crossed a breakpoint
+                self._send(self.rec.take_ops())
             for _ in range(100):
                 if not self.dirty:
                     break

@@ -37,6 +37,8 @@ from .components.text_input import TextInput
 from .components.touchables import (TouchableHighlight, TouchableNativeFeedback, TouchableOpacity,
                                     TouchableWithoutFeedback)
 from .components.view import View
+from .components.layout import Center, Col, Container, Flex, Grid, GridItem, HStack, Hide, Row, Show, Spacer, VStack
+from . import responsive
 
 from .apis.alert import Alert
 from .apis.appearance import Appearance
@@ -62,7 +64,8 @@ from .hooks import (HookError, createContext, create_context, use_async, use_cal
                     use_safe_area_frame, use_safe_area_insets, use_window_dimensions, useAsync, useCallback, useColorScheme, useContext,
                     useDebugValue, useDeferredValue, useEffect, useId, useImperativeHandle, useLayoutEffect, useMemo,
                     useReducer, useRef, useSafeAreaFrame, useSafeAreaInsets, useState, useSyncExternalStore, useTransition,
-                    useWindowDimensions)
+                    useWindowDimensions, use_breakpoint, use_breakpoint_value, use_media_query, useBreakpoint,
+                    useBreakpointValue, useMediaQuery)
 
 useAnimatedValue = use_animated_value
 
@@ -76,6 +79,10 @@ __all__ = [
     "VirtualizedList", "Pressable", "TouchableOpacity", "TouchableHighlight", "TouchableWithoutFeedback",
     "TouchableNativeFeedback", "Button", "Switch", "ActivityIndicator", "Modal", "KeyboardAvoidingView",
     "SafeAreaView", "StatusBar", "RefreshControl", "Picker", "Slider", "ErrorBoundary",
+    # layout + responsive
+    "Container", "Row", "Col", "Grid", "GridItem", "Flex", "HStack", "VStack", "Center", "Spacer", "Show", "Hide",
+    "responsive", "use_breakpoint", "use_breakpoint_value", "use_media_query", "useBreakpoint", "useBreakpointValue",
+    "useMediaQuery",
     # apis
     "Alert", "Animated", "Easing", "Appearance", "AppState", "BackHandler", "Clipboard", "Dimensions",
     "I18nManager", "Keyboard", "Linking", "PanResponder", "PixelRatio", "Platform", "StyleSheet", "ToastAndroid",

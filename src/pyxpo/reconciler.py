@@ -5,6 +5,7 @@ import inspect
 import warnings
 from typing import Any, Callable, Dict, List, Optional, Set, Tuple
 
+from . import responsive as _resp
 from .animated import runtime as _anim
 from .element import Element, flatten
 from .apis import _env as _env_mod
@@ -121,6 +122,11 @@ class Reconciler:
         self._error: Optional[BaseException] = None
         self.root = Fiber("root", None, None, self)
         self.root.id = 1
+        # host fibers whose style holds a breakpoint map: id -> (fiber, breakpoint it was resolved at)
+        self.responsive: Dict[int, Tuple[Fiber, str]] = {}
+        self._bp_key: Tuple[Any, int] = (None, -1)
+        self._bp_name = ""
+        self._refreshed_bp: Optional[str] = None
 
     # -- public --------------------------------------------------------
     def schedule(self, fiber: Fiber) -> None:
@@ -229,14 +235,54 @@ class Reconciler:
             self._spawn(result, "async event handler")
         return True
 
+    def breakpoint(self) -> str:
+        """Active responsive breakpoint for the current window width."""
+        key = (self.env._data["window"]["width"], _resp.version())
+        if key != self._bp_key:
+            self._bp_key = key
+            self._bp_name = _resp.breakpoint_for(key[0] or 0)
+        return self._bp_name
+
+    def refresh_responsive(self) -> bool:
+        """After the window crossed a breakpoint: re-style the views whose style holds a breakpoint map, without
+        re-rendering any component. Returns True when it queued ops."""
+        bp = self.breakpoint()
+        if bp == self._refreshed_bp:
+            return False
+        self._refreshed_bp = bp
+        queued = False
+        for fid, (f, used) in list(self.responsive.items()):
+            if used == bp:
+                continue
+            if f.unmounted or f.element is None:
+                del self.responsive[fid]
+                continue
+            style, _ = _resp.resolve_style(f.element.props.get("style"), bp)
+            new = normalize_style(style)
+            self.responsive[fid] = (f, bp)
+            old = f.sent.get("style", _MISSING)
+            if old is _MISSING or not _same(old, new):
+                self.ops.append(Update(f.id, {"style": new}, []))
+                f.sent = dict(f.sent, style=new)
+                queued = True
+        return queued
+
     # -- internals -----------------------------------------------------
-    def _wire(self, props: Dict[str, Any]):
+    def _wire(self, props: Dict[str, Any], f: Optional[Fiber] = None):
         wire: Dict[str, Any] = {}
         events: Dict[str, Callable[..., Any]] = {}
         for k, v in props.items():
             if k == "ref":
                 continue
             if k == "style":
+                if v is not None:
+                    bp = self.breakpoint()
+                    v, used = _resp.resolve_style(v, bp)
+                    if f is not None:
+                        if used:
+                            self.responsive[f.id] = (f, bp)
+                        elif self.responsive:
+                            self.responsive.pop(f.id, None)
                 wire[k] = normalize_style(v)
                 continue
             if v.__class__ in _PLAIN_PROP_TYPES:
@@ -274,7 +320,7 @@ class Reconciler:
             f = Fiber("host", e, parent, self)
             f.id = self._next_id
             self._next_id += 1
-            wire, events = self._wire(e.props)
+            wire, events = self._wire(e.props, f)
             f.sent = wire
             self._bind_ref(f, e)
             self.ops.append(Create(f.id, e.type, wire))  # wire is never mutated after this (f.sent is replaced)
@@ -303,7 +349,7 @@ class Reconciler:
             old_ref = old.props.get("ref") if old is not None else None
             if old_ref is not None and old_ref is not ref and hasattr(old_ref, "_unbind"):
                 old_ref._unbind(f.id)  # ref prop swapped or removed: the old ref must not keep this view
-            wire, events = self._wire(e.props)
+            wire, events = self._wire(e.props, f)
             if ref is not None and hasattr(ref, "_bind"):
                 ref._bind(f.id, e.type)
             sent = f.sent
@@ -476,6 +522,7 @@ class Reconciler:
                 ref._unbind(f.id)
             for ev in f.events:
                 self.handlers.pop((f.id, ev), None)
+            self.responsive.pop(f.id, None)
             self._deletes.append(f.id)
 
     def _sync(self, host: Fiber) -> None:

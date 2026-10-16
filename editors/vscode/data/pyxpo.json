@@ -23,6 +23,33 @@
     "style"
    ]
   },
+  "Center": {
+   "doc": "Centers its children on both axes.",
+   "props": [
+    "style",
+    "test_id"
+   ]
+  },
+  "Col": {
+   "doc": "Column inside a `Row`. `span`: columns of 12 (`span={\"base\": 12, \"md\": 6, \"xl\": 4}`), \"auto\" (content width)\nor None (equal share). `span=0` hides it at that breakpoint. `offset` skips columns on the left. `align` is\nalign_self.",
+   "props": [
+    "span",
+    "offset",
+    "align",
+    "style",
+    "test_id"
+   ]
+  },
+  "Container": {
+   "doc": "Centered page column. Its max width steps up with the breakpoint (540, 720, 960, 1140, 1320 like Bootstrap);\n`fluid=True` (or a breakpoint name such as \"lg\": fluid below it) keeps it full width. `max_width` takes a\nnumber or a breakpoint map. `padding` is the side gutter.",
+   "props": [
+    "fluid",
+    "max_width",
+    "padding",
+    "style",
+    "test_id"
+   ]
+  },
   "FlatList": {
    "doc": "RN FlatList. `renderItem({\"item\", \"index\", \"separators\"})`; `ref.current` has scrollToIndex / scrollToOffset /\nscrollToEnd. `getItemLayout(data, index) -> {\"length\", \"offset\", \"index\"}` (or `item_size`) enables windowing.",
    "props": [
@@ -49,6 +76,61 @@
     "style",
     "content_container_style",
     "on_scroll",
+    "test_id"
+   ]
+  },
+  "Flex": {
+   "doc": "Flexbox container with short props: `direction` (\"row\", \"column\", \"row_reverse\", \"column_reverse\"), `gap`,\n`align` (align_items), `justify` (justify_content), `wrap` (True / \"wrap\" / \"nowrap\"), `grow` (flex). Each takes\na breakpoint map: `Flex(direction={\"base\": \"column\", \"md\": \"row\"})` stacks on phones and lines up on wider\nscreens.",
+   "props": [
+    "direction",
+    "gap",
+    "align",
+    "justify",
+    "wrap",
+    "grow",
+    "style",
+    "test_id"
+   ]
+  },
+  "Grid": {
+   "doc": "Equal-width columns that wrap into rows, like CSS grid `repeat(n, 1fr)`.\n\n`columns`: a number or a breakpoint map (`{\"base\": 1, \"sm\": 2, \"lg\": 4}`). `min_item_width`: auto-fit as many\ncolumns of at least that width as the grid's own width allows (CSS `repeat(auto-fill, minmax(w, 1fr))`).\n`gap` / `row_gap` / `column_gap` space the cells. Wrap a child in `GridItem(span=2)` to span columns.\n`align` is align_items for each row (default stretch: cells in a row share its height).",
+   "props": [
+    "columns",
+    "gap",
+    "row_gap",
+    "column_gap",
+    "min_item_width",
+    "align",
+    "style",
+    "test_id"
+   ]
+  },
+  "GridItem": {
+   "doc": "Cell of a `Grid` spanning `span` columns (a number or breakpoint map). The Grid sizes it.",
+   "props": [
+    "span",
+    "style",
+    "test_id"
+   ]
+  },
+  "HStack": {
+   "doc": "Children side by side, `spacing` apart, vertically centered.",
+   "props": [
+    "spacing",
+    "align",
+    "justify",
+    "wrap",
+    "style",
+    "test_id"
+   ]
+  },
+  "Hide": {
+   "doc": "The opposite of `Show`: hides its children at matching breakpoints.",
+   "props": [
+    "above",
+    "below",
+    "only",
+    "style",
     "test_id"
    ]
   },
@@ -141,6 +223,20 @@
     "test_id"
    ]
   },
+  "Row": {
+   "doc": "Row of a 12-column grid (Bootstrap style). `Col(span=6)` children take 6/12 of the width and wrap to the next\nline when the row is full. `gutter` is the space between columns and between lines; `gx` / `gy` set them\nseparately. `align` / `justify` are align_items / justify_content. All take breakpoint maps.",
+   "props": [
+    "gutter",
+    "gx",
+    "gy",
+    "columns",
+    "align",
+    "justify",
+    "wrap",
+    "style",
+    "test_id"
+   ]
+  },
   "SafeAreaView": {
    "doc": "View inset by the system bars, notch and home indicator (`react-native-safe-area-context` API).\n`mode`: \"padding\" (default) or \"margin\".",
    "props": [
@@ -188,6 +284,16 @@
     "test_id"
    ]
   },
+  "Show": {
+   "doc": "Renders its children only at matching breakpoints: `Show(Sidebar(), above=\"lg\")` from lg up,\n`below=\"md\"` under md, `only=\"md\"`. Hidden children are unmounted (use a `display` breakpoint map in a style to\nkeep them mounted).",
+   "props": [
+    "above",
+    "below",
+    "only",
+    "style",
+    "test_id"
+   ]
+  },
   "Slider": {
    "doc": "Platform slider (`@react-native-community/slider` API). Controlled: update `value` in `onValueChange`.",
    "props": [
@@ -201,6 +307,14 @@
     "minimum_track_tint_color",
     "maximum_track_tint_color",
     "thumb_tint_color",
+    "style",
+    "test_id"
+   ]
+  },
+  "Spacer": {
+   "doc": "Takes the free space in a Flex/HStack/VStack (or a fixed `size` in dp).",
+   "props": [
+    "size",
     "style",
     "test_id"
    ]
@@ -319,6 +433,16 @@
     "on_long_press",
     "on_press_in",
     "on_press_out",
+    "style",
+    "test_id"
+   ]
+  },
+  "VStack": {
+   "doc": "Children stacked top to bottom, `spacing` apart.",
+   "props": [
+    "spacing",
+    "align",
+    "justify",
     "style",
     "test_id"
    ]
@@ -919,6 +1043,10 @@
    "doc": "Minimal platform-styled button (RN `Button`): `title`, `onPress`, `color` (fill), `disabled`.",
    "kind": "component"
   },
+  "Center": {
+   "doc": "Centers its children on both axes.",
+   "kind": "component"
+  },
   "Channel": {
    "doc": "Python <-> native transport. Both directions carry JSON strings.",
    "kind": "class"
@@ -927,6 +1055,10 @@
    "doc": "",
    "kind": "class"
   },
+  "Col": {
+   "doc": "Column inside a `Row`. `span`: columns of 12 (`span={\"base\": 12, \"md\": 6, \"xl\": 4}`), \"auto\" (content width)\nor None (equal share). `span=0` hides it at that breakpoint. `offset` skips columns on the left. `align` is\nalign_self.",
+   "kind": "component"
+  },
   "Component": {
    "doc": "",
    "kind": "class"
@@ -934,6 +1066,10 @@
   "Constants": {
    "doc": "Read-only app constants. Everything in `extra` ships in plain text; never put secrets there.",
    "kind": "class"
+  },
+  "Container": {
+   "doc": "Centered page column. Its max width steps up with the breakpoint (540, 720, 960, 1140, 1320 like Bootstrap);\n`fluid=True` (or a breakpoint name such as \"lg\": fluid below it) keeps it full width. `max_width` takes a\nnumber or a breakpoint map. `padding` is the side gutter.",
+   "kind": "component"
   },
   "Dimensions": {
    "doc": "",
@@ -953,6 +1089,26 @@
   },
   "FlatList": {
    "doc": "RN FlatList. `renderItem({\"item\", \"index\", \"separators\"})`; `ref.current` has scrollToIndex / scrollToOffset /\nscrollToEnd. `getItemLayout(data, index) -> {\"length\", \"offset\", \"index\"}` (or `item_size`) enables windowing.",
+   "kind": "component"
+  },
+  "Flex": {
+   "doc": "Flexbox container with short props: `direction` (\"row\", \"column\", \"row_reverse\", \"column_reverse\"), `gap`,\n`align` (align_items), `justify` (justify_content), `wrap` (True / \"wrap\" / \"nowrap\"), `grow` (flex). Each takes\na breakpoint map: `Flex(direction={\"base\": \"column\", \"md\": \"row\"})` stacks on phones and lines up on wider\nscreens.",
+   "kind": "component"
+  },
+  "Grid": {
+   "doc": "Equal-width columns that wrap into rows, like CSS grid `repeat(n, 1fr)`.",
+   "kind": "component"
+  },
+  "GridItem": {
+   "doc": "Cell of a `Grid` spanning `span` columns (a number or breakpoint map). The Grid sizes it.",
+   "kind": "component"
+  },
+  "HStack": {
+   "doc": "Children side by side, `spacing` apart, vertically centered.",
+   "kind": "component"
+  },
+  "Hide": {
+   "doc": "The opposite of `Show`: hides its children at matching breakpoints.",
    "kind": "component"
   },
   "HookError": {
@@ -1015,6 +1171,10 @@
    "doc": "Pull-to-refresh. Only meaningful as `ScrollView(refreshControl=RefreshControl(refreshing=..., onRefresh=...))`\n(also FlatList / SectionList). Props: refreshing, onRefresh, colors, tintColor, progressBackgroundColor.",
    "kind": "component"
   },
+  "Row": {
+   "doc": "Row of a 12-column grid (Bootstrap style). `Col(span=6)` children take 6/12 of the width and wrap to the next\nline when the row is full. `gutter` is the space between columns and between lines; `gx` / `gy` set them\nseparately. `align` / `justify` are align_items / justify_content. All take breakpoint maps.",
+   "kind": "component"
+  },
   "SafeAreaView": {
    "doc": "View inset by the system bars, notch and home indicator (`react-native-safe-area-context` API).\n`mode`: \"padding\" (default) or \"margin\".",
    "kind": "component"
@@ -1027,8 +1187,16 @@
    "doc": "RN SectionList: `sections=[{\"title\", \"data\", \"renderItem\"?, \"keyExtractor\"?}]`. `renderItem` gets\n`{\"item\", \"index\", \"section\", \"separators\"}`; the section renderers get `{\"section\"}`. Sticky headers are not\nsupported yet.",
    "kind": "component"
   },
+  "Show": {
+   "doc": "Renders its children only at matching breakpoints: `Show(Sidebar(), above=\"lg\")` from lg up,\n`below=\"md\"` under md, `only=\"md\"`. Hidden children are unmounted (use a `display` breakpoint map in a style to\nkeep them mounted).",
+   "kind": "component"
+  },
   "Slider": {
    "doc": "Platform slider (`@react-native-community/slider` API). Controlled: update `value` in `onValueChange`.",
+   "kind": "component"
+  },
+  "Spacer": {
+   "doc": "Takes the free space in a Flex/HStack/VStack (or a fixed `size` in dp).",
    "kind": "component"
   },
   "SplashScreen": {
@@ -1075,6 +1243,10 @@
    "doc": "Handles presses and shows nothing.",
    "kind": "component"
   },
+  "VStack": {
+   "doc": "Children stacked top to bottom, `spacing` apart.",
+   "kind": "component"
+  },
   "Vibration": {
    "doc": "",
    "kind": "class"
@@ -1111,6 +1283,10 @@
    "doc": "Return color as 0xAARRGGBB int. Accepts int, #rgb, #rgba, #rrggbb, #rrggbbaa, rgb(), rgba(), names.",
    "kind": "function"
   },
+  "responsive": {
+   "doc": "Responsive breakpoints, like CSS media queries, on every platform.",
+   "kind": "function"
+  },
   "run_app": {
    "doc": "Run the app on the current platform. Desktop target draws into a browser app window (PYXPO_RENDERER=console:\ntext tree in the terminal).",
    "kind": "function"
@@ -1121,6 +1297,14 @@
   },
   "useAsync": {
    "doc": "Run fn (coroutine fn, or blocking fn in a worker thread) when deps change. Returns (loading, value, error).",
+   "kind": "hook"
+  },
+  "useBreakpoint": {
+   "doc": "Active responsive breakpoint (\"xs\", \"sm\", \"md\", \"lg\", \"xl\", \"xxl\" by default, see `pyxpo.responsive`).\nRe-renders only when the window crosses a breakpoint.",
+   "kind": "hook"
+  },
+  "useBreakpointValue": {
+   "doc": "The value of a breakpoint map for the current window, mobile first:\n`use_breakpoint_value({\"base\": 1, \"md\": 2, \"xl\": 4})`. A plain value comes back as is.",
    "kind": "hook"
   },
   "useCallback": {
@@ -1157,6 +1341,10 @@
   },
   "useLayoutEffect": {
    "doc": "Same timing as `use_effect`: native layout is measured asynchronously, so there is no earlier point to run.",
+   "kind": "hook"
+  },
+  "useMediaQuery": {
+   "doc": "CSS-like media query against the window: `use_media_query(\"md\")` is True from md up,\n`use_media_query(down=\"lg\")` below lg, `use_media_query(only=\"md\")`, `use_media_query(min_width=600)`,\n`use_media_query(orientation=\"landscape\")`. Conditions combine with AND. Re-renders only when the result flips.",
    "kind": "hook"
   },
   "useMemo": {
@@ -1203,6 +1391,14 @@
    "doc": "Run fn (coroutine fn, or blocking fn in a worker thread) when deps change. Returns (loading, value, error).",
    "kind": "hook"
   },
+  "use_breakpoint": {
+   "doc": "Active responsive breakpoint (\"xs\", \"sm\", \"md\", \"lg\", \"xl\", \"xxl\" by default, see `pyxpo.responsive`).\nRe-renders only when the window crosses a breakpoint.",
+   "kind": "hook"
+  },
+  "use_breakpoint_value": {
+   "doc": "The value of a breakpoint map for the current window, mobile first:\n`use_breakpoint_value({\"base\": 1, \"md\": 2, \"xl\": 4})`. A plain value comes back as is.",
+   "kind": "hook"
+  },
   "use_callback": {
    "doc": "",
    "kind": "hook"
@@ -1237,6 +1433,10 @@
   },
   "use_layout_effect": {
    "doc": "Same timing as `use_effect`: native layout is measured asynchronously, so there is no earlier point to run.",
+   "kind": "hook"
+  },
+  "use_media_query": {
+   "doc": "CSS-like media query against the window: `use_media_query(\"md\")` is True from md up,\n`use_media_query(down=\"lg\")` below lg, `use_media_query(only=\"md\")`, `use_media_query(min_width=600)`,\n`use_media_query(orientation=\"landscape\")`. Conditions combine with AND. Re-renders only when the result flips.",
    "kind": "hook"
   },
   "use_memo": {
