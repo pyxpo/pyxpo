@@ -1,0 +1,15 @@
+{
+  "schemaVersion": 1,
+  "nativeContract": 2,
+  "name": "application",
+  "native": "Application",
+  "ios": {
+    "classes": ["ApplicationModule"]
+  },
+  "android": {
+    "namespace": "dev.pyxpo.modules.application",
+    "classes": ["dev.pyxpo.modules.application.ApplicationModule"],
+    "dependencies": ["com.android.installreferrer:installreferrer:2.2"],
+    "minSdk": 24
+  }
+}
