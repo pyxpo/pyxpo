@@ -244,7 +244,8 @@ def _web(args: argparse.Namespace, run: bool) -> int:
         if not run:
             web.build(project, release=getattr(args, "release", False), base=args.base)
             return 0
-        web.serve(project, port=args.port or 8000, base=args.base, open_browser=not args.no_open)
+        web.serve(project, port=args.port or 8000, base=args.base, open_browser=not args.no_open,
+                  devtools=not args.no_devtools)
     except (BuildError, OSError) as e:
         print("error: %s" % e, file=sys.stderr)
         return 1
@@ -448,6 +449,8 @@ def build_parser() -> argparse.ArgumentParser:
                    help="desktop only: quick preview in a browser window instead of building the native Mac or Windows app")
     r.add_argument("--base", help="web only: path the site is served under, such as /myapp")
     r.add_argument("--no-open", action="store_true", help="web only: do not open a browser")
+    r.add_argument("--no-devtools", action="store_true",
+                   help="web only: hide the dev tools button (device preview, breakpoints)")
     r.set_defaults(fn=cmd_run)
     b = sub.add_parser("build", help="build a mobile package")
     b.add_argument("target", choices=["android", "ios", "desktop", "web"])

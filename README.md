@@ -114,6 +114,60 @@ modules = ["image-picker"]
 Their sources live in `packages/`; see each package's README. Third-party modules are pip packages that register a
 `pyxpo.modules` entry point the same way.
 
+### Dev tools
+
+`pyxpo run web` shows a round button at the bottom right of the page. It opens a panel for building responsive UI
+without an emulator. `pyxpo build web` never includes it; `--no-devtools` hides it during development.
+
+- **View**: Desktop (the default), Mobile, Tablet or Custom. Mobile and Tablet show the app in a device body
+  (iPhone 15 Pro, iPhone SE, Pixel 8, iPad, Galaxy Tab and more) with its status bar, notch or home indicator and
+  safe area insets. Rotate turns the device. Custom takes any width and height, or drag the frame edges.
+- In a device the screen behaves like a touch screen: no hover, a round touch cursor, drag to scroll with momentum
+  and no scroll bars. The app gets the device size, pixel ratio and insets, so `use_window_dimensions`,
+  `SafeAreaView` and breakpoints react as on the phone.
+- **Breakpoint**: the active breakpoint and window size. Click a breakpoint to view the app at that width.
+- **Appearance**: System, Light or Dark. **Behaviour**: Web, iOS or Android sets `Platform.OS`, so stacks slide and
+  swipe like the phone app. On Android, Esc is the back button.
+- Zoom fits the device to the window, or pick 50 to 150%. Cmd/Ctrl+Shift+M turns the device view on and off.
+  Settings are kept per browser.
+
+## Responsive layout
+
+Breakpoints work like CSS media queries, mobile first: `xs` 0, `sm` 576, `md` 768, `lg` 992, `xl` 1200, `xxl` 1400
+(window width in dp). A breakpoint map such as `{"base": 1, "md": 3}` takes the value of the largest breakpoint at or
+below the current one. Maps work as a style value, as a whole style block, and in every layout prop below. Crossing a
+breakpoint updates only the affected views, without a re-render.
+
+```python
+from pyxpo import Container, Row, Col, Grid, GridItem, Flex, HStack, VStack, Spacer, Show, Hide, Text, View
+from pyxpo import use_breakpoint, use_breakpoint_value, use_media_query
+
+style = {"padding": {"base": 8, "lg": 24}, "flex_direction": {"base": "column", "md": "row"}}
+block = {"base": {"padding": 8}, "md": {"padding": 24, "gap": 16}}   # like Tailwind md:
+
+Container(                                        # centered column: 540 / 720 / 960 / 1140 / 1320 max width
+    Row(                                          # 12-column grid, gutter between columns and lines
+        Col(Text("Main"), span={"base": 12, "md": 8}),
+        Col(Text("Side"), span={"base": 12, "md": 4}),
+        Col(Text("Pushed"), span=4, offset=4),    # span="auto" = content width, None = equal share, 0 = hidden
+        gutter=16,
+    ),
+    Grid(*cards, columns={"base": 1, "sm": 2, "lg": 4}, gap=12),   # CSS grid repeat(n, 1fr)
+    Grid(*cards, min_item_width=220),             # auto-fill as many 220 dp columns as fit
+    Grid(GridItem(hero, span=2), a, b, columns=3),
+    Flex(a, Spacer(), b, direction={"base": "column", "md": "row"}, gap=12, align="center", wrap=True),
+    Show(Sidebar(), above="lg"), Hide(MobileNav(), above="lg"),
+)
+
+bp = use_breakpoint()                             # "md"; re-renders only when the breakpoint changes
+cols = use_breakpoint_value({"base": 1, "md": 2, "xl": 3})
+wide = use_media_query(above="md", orientation="landscape")
+```
+
+`pyxpo.responsive.set_breakpoints({"phone": 0, "tablet": 600, "desktop": 1024})` replaces the table. Every flexbox
+style (`flex_direction`, `flex_wrap`, `flex_grow`, `flex_basis`, `align_content`, `gap`, `row_gap`, `column_gap`,
+percent sizes) works on every target.
+
 ## React Native style API
 Every RN spelling is an alias; the snake_case API keeps working. No JSX (not valid Python), so children are call arguments.
 

@@ -629,6 +629,9 @@
         navigator.vibrate(typeof a[0] === "number" ? a[0] : 400);
         reply(op, null);
       } else {
+        if (m.startsWith("StatusBar.")) {  // the dev tools draw a device status bar
+          window.dispatchEvent(new CustomEvent("pyxpo-statusbar", { detail: { method: m.slice(10), value: a[0] } }));
+        }
         reply(op, null);  // StatusBar, SplashScreen, Back, Vibration: nothing to do in a window
       }
     } catch (e) { reply(op, null, e); }
@@ -747,19 +750,25 @@
   // -- environment ------------------------------------------------------------------------------
   const dark = window.matchMedia("(prefers-color-scheme: dark)");
   function sendEnv() {
-    emit("env", 0, {
+    const env = {
       window: { width: window.innerWidth, height: window.innerHeight },
       screen: { width: screen.width, height: screen.height },
       scale: window.devicePixelRatio || 1,
       font_scale: 1,
       color_scheme: dark.matches ? "dark" : "light",
       insets: { top: 0, right: 0, bottom: 0, left: 0 },
-    });
+    };
+    if (window.PYXPO_DEVICE) {  // dev tools (pyxpo run web): emulated device size, insets and color scheme
+      const d = window.PYXPO_DEVICE();
+      for (const k of ["window", "screen", "scale", "color_scheme", "insets"]) if (d[k] != null) env[k] = d[k];
+    }
+    emit("env", 0, env);
   }
   let envTimer = null;
   window.addEventListener("resize", () => { clearTimeout(envTimer); envTimer = setTimeout(sendEnv, 50); });
   dark.addEventListener("change", sendEnv);
   window.addEventListener("focus", sendEnv);  // several windows on one app: the focused one sets the size
+  window.addEventListener("pyxpo-env", sendEnv);
 
   // -- browser history (web) --------------------------------------------------------------------
   // Python owns navigation state; the address bar mirrors it. A Python navigation pushes an entry, a Python back
@@ -796,7 +805,7 @@
     if (msg.ops) applyOps(msg.ops, !root.children.length);  // first paint: no push animations
     if (msg.aval) applyValues(msg.aval);
   }
-  if (WEB) { window.pyxpoPage = { receive }; return; }
+  if (WEB) { window.pyxpoPage = { receive, emit }; return; }
   function connect() {
     es = new EventSource("/stream?t=" + encodeURIComponent(TOKEN));
     es.onopen = () => { fails = 0; lost.classList.remove("show"); };

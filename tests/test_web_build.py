@@ -105,6 +105,27 @@ def test_dev_server_spa_fallback_and_reload(tmp_path):
             assert ctype.startswith("text/html") and "PYXPO_CONFIG" in html and "/__pyxpo/reload" in html
         bundle = _config(dev.root)["bundle"]
         assert get("/" + bundle)[0] == "application/zip"
+        assert '<script src="/__pyxpo/devtools.js">' in get("")[1]
+        with urllib.request.urlopen("http://%s:%d/__pyxpo/devtools.js" % dev.httpd.server_address[:2], timeout=5) as r:
+            assert r.headers.get("Content-Type").startswith("text/javascript")
+            assert b"PYXPO_DEVICE" in r.read()
+    finally:
+        dev.httpd.shutdown()
+        dev.httpd.server_close()
+    # the static build never carries the dev tools
+    assert "devtools" not in (dev.root / "index.html").read_text(encoding="utf-8")
+    assert not (dev.root / "devtools.js").exists()
+
+
+def test_dev_server_without_devtools(tmp_path):
+    dev = web.DevServer(_project(tmp_path), port=0, devtools=False)
+    threading.Thread(target=dev.httpd.serve_forever, daemon=True).start()
+    try:
+        with urllib.request.urlopen(dev.url, timeout=5) as r:
+            html = r.read().decode()
+        assert "devtools" not in html and "/__pyxpo/reload" in html
+        with urllib.request.urlopen(dev.url + "__pyxpo/devtools.js", timeout=5) as r:
+            assert r.headers.get("Content-Type").startswith("text/html")  # SPA fallback, no script
     finally:
         dev.httpd.shutdown()
         dev.httpd.server_close()
@@ -197,12 +218,13 @@ def test_boot_reports_linked_modules(monkeypatch):
 def test_cli_run_and_build_web(monkeypatch, tmp_path):
     calls = []
     monkeypatch.setattr(web, "build", lambda project, release=False, base=None: calls.append(("build", base)))
-    monkeypatch.setattr(web, "serve", lambda project, port=8000, base=None, open_browser=True:
-                        calls.append(("serve", port, base, open_browser)))
+    monkeypatch.setattr(web, "serve", lambda project, port=8000, base=None, open_browser=True, devtools=True:
+                        calls.append(("serve", port, base, open_browser, devtools)))
     p = _project(tmp_path)
     assert cli.main(["build", "web", "--dir", str(p), "--base", "/x"]) == 0
     assert cli.main(["run", "web", "--dir", str(p), "--port", "9001", "--no-open"]) == 0
-    assert calls == [("build", "/x"), ("serve", 9001, None, False)]
+    assert cli.main(["run", "web", "--dir", str(p), "--no-devtools"]) == 0
+    assert calls == [("build", "/x"), ("serve", 9001, None, False, True), ("serve", 8000, None, True, False)]
 
 
 def test_cli_web_build_error_is_printed(tmp_path, capsys):

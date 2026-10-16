@@ -123,6 +123,7 @@ def build(project: Path, release: bool = False, base: Optional[str] = None, out:
 # -- dev server ------------------------------------------------------------------------------------------------------
 _RELOAD = ('<script>(() => { const es = new EventSource("/__pyxpo/reload"); '
            'es.onmessage = () => location.reload(); })();</script>\n</body>')
+_DEVTOOLS = '<script src="/__pyxpo/devtools.js"></script>\n'  # device preview panel, dev server only
 
 
 def _watch_stamp(project: Path) -> float:
@@ -137,8 +138,10 @@ def _watch_stamp(project: Path) -> float:
 class DevServer:
     """Serves `build/web` like a static host with SPA fallback, rebuilds on change and reloads open pages."""
 
-    def __init__(self, project: Path, port: int = 8000, host: str = "127.0.0.1", base: Optional[str] = None) -> None:
+    def __init__(self, project: Path, port: int = 8000, host: str = "127.0.0.1", base: Optional[str] = None,
+                 devtools: bool = True) -> None:
         self.project = Path(project).resolve()
+        self.devtools = devtools
         self.base = base
         self.root = build(self.project, base=base)
         self.prefix = json.loads(self._config())["base"]
@@ -188,12 +191,15 @@ class DevServer:
                 path = urllib.parse.unquote(urllib.parse.urlsplit(self.path).path)
                 if path == "/__pyxpo/reload":
                     return self._reload()
+                if path == "/__pyxpo/devtools.js" and server.devtools:
+                    return self._send((_WEB / "devtools.js").read_bytes(), _ctype("devtools.js"), "no-cache")
                 rel = path[len(server.prefix):] if path.startswith(server.prefix + "/") else None
                 f = (server.root / rel.lstrip("/")).resolve() if rel else None
                 if f is not None and f.is_file() and server.root.resolve() in f.parents:
                     return self._send(f.read_bytes(), _ctype(f.name), "no-cache")
                 # SPA fallback: every other path is a route of the app
-                html = (server.root / "index.html").read_text(encoding="utf-8").replace("</body>", _RELOAD, 1)
+                html = (server.root / "index.html").read_text(encoding="utf-8")
+                html = html.replace("</body>", (_DEVTOOLS if server.devtools else "") + _RELOAD, 1)
                 self._send(html.encode(), "text/html; charset=utf-8", "no-store")
 
             def _send(self, body: bytes, ctype: str, cache: str) -> None:
@@ -231,8 +237,9 @@ def _ctype(name: str) -> str:
     return mimetypes.guess_type(name)[0] or "application/octet-stream"
 
 
-def serve(project: Path, port: int = 8000, base: Optional[str] = None, open_browser: bool = True) -> None:
-    dev = DevServer(project, port, base=base)
+def serve(project: Path, port: int = 8000, base: Optional[str] = None, open_browser: bool = True,
+          devtools: bool = True) -> None:
+    dev = DevServer(project, port, base=base, devtools=devtools)
     print("pyxpo web: %s" % dev.url, flush=True)
     if open_browser and os.environ.get("PYXPO_WEB_BROWSER") != "0":
         import webbrowser

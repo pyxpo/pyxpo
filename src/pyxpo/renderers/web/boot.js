@@ -69,6 +69,7 @@
       insets: { top: 0, right: 0, bottom: 0, left: 0 },
       initial_url: location.origin + path + location.search,
     };
+    if (window.PYXPO_DEVICE) Object.assign(env, window.PYXPO_DEVICE());  // dev tools: emulated device
     py.FS.chdir("/app");
     py.globals.set("PYXPO_BOOT_ENV", JSON.stringify(env));
     await py.runPythonAsync(
