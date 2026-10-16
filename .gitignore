@@ -26,3 +26,6 @@ test-apps/
 wheelhouse/
 wheelhouse-packages/
 /out/
+
+# Example app build outputs
+examples/*/build/

@@ -1,0 +1,10 @@
+[project]
+name = "imagekit"
+version = "0.1.0"
+
+[tool.pyxpo]
+name = "imagekit"
+bundle_id = "com.example.imagekit"
+targets = ["android", "ios"]
+requires = []
+modules = ["image-manipulator", "image-picker", "media-library", "sharing"]

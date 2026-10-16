@@ -1,4 +1,4 @@
-# Native Windows desktop app: builds the WinUI shell (tools/build_windows_shell.ps1), builds test-apps/imagekit
+# Native Windows desktop app: builds the WinUI shell (tools/build_windows_shell.ps1), builds examples/imagekit
 # with it (`pyxpo build desktop`), starts the app and saves screenshots through the snapshot hook
 # (PYXPO_SNAPSHOT_DIR). The screenshots and the app log are uploaded as the `windows-desktop` artifact.
 name: windows
@@ -44,11 +44,11 @@ jobs:
         run: pwsh tools/build_windows_shell.ps1 -Python (Get-Command python).Source
 
       - name: build imagekit
-        working-directory: test-apps/imagekit
+        working-directory: examples/imagekit
         run: python -m pyxpo build desktop
 
       - name: run imagekit and take screenshots
-        working-directory: test-apps/imagekit
+        working-directory: examples/imagekit
         run: |
           $shots = Join-Path $env:RUNNER_TEMP "shots"
           New-Item -ItemType Directory -Force -Path $shots | Out-Null
