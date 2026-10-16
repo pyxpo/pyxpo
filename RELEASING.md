@@ -10,8 +10,8 @@ This is the full release runbook. Follow the steps in order.
 | Each module package | PyPI project `pyxpo-<name>` | `pkg/<name>/vX.Y.Z` (for example `pkg/image-picker/v0.1.1`) | `.github/workflows/release-packages.yml` |
 | CPython runtime tarballs | GitHub Release `runtime-<python>-<n>` | none (manual `gh release create`) | none |
 
-Module packages live in `packages/`: `file-system`, `image-manipulator`, `image-picker`, `media-library`,
-`secure-store`, `sharing`, `storage`. Each one has its own version and is released on its own.
+Module packages live in `packages/`: `application`, `camera`, `device`, `fetch`, `file-system`, `haptics`, `image-manipulator`, `image-picker`, `localization`, `location`, `media-library`, `network`, `notifications`,
+`secure-store`, `sharing`, `sqlite`, `storage`, `web-browser`. Each one has its own version and is released on its own.
 
 Where the versions live:
 
@@ -151,4 +151,4 @@ Offline or mirrored use: `PYXPO_RUNTIME_ARCHIVES=<dir with the tarballs>`, `PYXP
 ## Release history
 
 - 0.1.0a1 (2026-10-16): core `pyxpo` and all 7 packages, runtime `3.13.7-1`.
-- 0.1.0a2 (2026-10-16): core `pyxpo` only (async handlers, module constants, module views, AppState events; native contract 2). The 11 Tier 1 packages need it and are not on PyPI yet.
+- 0.1.0a2 (2026-10-16): core `pyxpo` only (async handlers, module constants, module views, AppState events; native contract 2). Then the 11 Tier 1 packages at 0.1.0a1 (each needs `pyxpo>=0.1.0a2`): haptics, device, application, localization, network, fetch, sqlite, web-browser, location, notifications, camera.
