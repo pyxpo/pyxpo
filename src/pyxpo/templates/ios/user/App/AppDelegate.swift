@@ -31,6 +31,10 @@ class SceneDelegate: UIResponder, UIWindowSceneDelegate {
         #endif
         w.makeKeyAndVisible()
         window = w
+        #if targetEnvironment(macCatalyst)
+        ws.title = Bundle.main.object(forInfoDictionaryKey: "CFBundleDisplayName") as? String ?? ""
+        ws.sizeRestrictions?.minimumSize = CGSize(width: 360, height: 480)
+        #endif
 
         let rt = PyxpoRuntime.shared()
         vc.view.layoutIfNeeded()
@@ -50,7 +54,7 @@ class SceneDelegate: UIResponder, UIWindowSceneDelegate {
         vc.onDevReload = { [weak ap] in ap?.devReload() }
         #endif
 
-        let bundle = Bundle.main.bundlePath
+        let bundle = Bundle.main.resourcePath ?? Bundle.main.bundlePath  // Contents/Resources in the Mac (Catalyst) app
         var appRoot = bundle + "/app_root"
         #if DEBUG
         if let url = ProcessInfo.processInfo.environment["PYXPO_DEV_URL"], !url.isEmpty {
@@ -59,6 +63,11 @@ class SceneDelegate: UIResponder, UIWindowSceneDelegate {
         #endif
         rt.start(withHome: bundle + "/python", paths: [appRoot, bundle + "/app_packages"], module: "pyxpo.router.entry")
     }
+
+    #if targetEnvironment(macCatalyst)
+    /// On the Mac, closing the window quits the app: the Python runtime serves one window and cannot start twice.
+    func sceneDidDisconnect(_ scene: UIScene) { exit(0) }
+    #endif
 
     /// Deep link while running (cold-start links are replayed once Python is up).
     func scene(_ scene: UIScene, openURLContexts contexts: Set<UIOpenURLContext>) {

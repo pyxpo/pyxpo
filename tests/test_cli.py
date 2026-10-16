@@ -19,12 +19,15 @@ def test_create_and_config(tmp_path):
 def test_run_desktop_smoke(tmp_path, monkeypatch):
     cli.main(["create", "demo", "--dir", str(tmp_path)])
     proj = tmp_path / "demo"
+    monkeypatch.setenv("PYXPO_RENDERER", "console")  # not the native Mac app build
     monkeypatch.setattr("sys.stdin", __import__("io").StringIO("1\n1\nq\n"))
     import sys
     monkeypatch.setattr(sys, "path", list(sys.path))
     for m in [m for m in sys.modules if m == "app" or m.startswith("app.")]:
         monkeypatch.delitem(sys.modules, m)
-    assert cli.main(["run", "desktop", "--dir", str(proj)]) == 0
+    for k in ("PYXPO_TARGET", "PYXPO_APP_NAME", "PYXPO_DEV_URL", "PYXPO_DEV_TOKEN"):  # run sets them; restore after
+        monkeypatch.delenv(k, raising=False)
+    assert cli.main(["run", "desktop", "--no-reload", "--dir", str(proj)]) == 0
 
 
 def test_add_lib(tmp_path, monkeypatch):

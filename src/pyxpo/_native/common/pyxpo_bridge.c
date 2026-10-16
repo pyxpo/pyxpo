@@ -1,6 +1,19 @@
 #define PY_SSIZE_T_CLEAN
 #include <Python.h>
+#ifdef _WIN32
+/* MSVC has no pthreads: the few calls used here map onto a slim lock and a condition variable. */
+#include <windows.h>
+typedef SRWLOCK pthread_mutex_t;
+typedef CONDITION_VARIABLE pthread_cond_t;
+#define PTHREAD_MUTEX_INITIALIZER SRWLOCK_INIT
+#define PTHREAD_COND_INITIALIZER CONDITION_VARIABLE_INIT
+#define pthread_mutex_lock(m) AcquireSRWLockExclusive(m)
+#define pthread_mutex_unlock(m) ReleaseSRWLockExclusive(m)
+#define pthread_cond_wait(c, m) SleepConditionVariableSRW((c), (m), INFINITE, 0)
+#define pthread_cond_broadcast(c) WakeAllConditionVariable(c)
+#else
 #include <pthread.h>
+#endif
 #include "pyxpo_bridge.h"
 
 static pyxpo_post_fn g_post = NULL;

@@ -1,0 +1,19 @@
+; Layout engine exports (pyxpo_layout.h). The host functions in pyxpo_host.c use __declspec(dllexport).
+LIBRARY pyxpo_native
+EXPORTS
+    px_tree_new
+    px_tree_free
+    px_node_create
+    px_node_delete
+    px_node_insert
+    px_node_remove
+    px_node_set_measured
+    px_node_mark_dirty
+    px_prop_id
+    px_node_set_num
+    px_node_set_str
+    px_node_reset
+    px_tree_calc
+    px_tree_changed_count
+    px_tree_changed_at
+    px_node_frame

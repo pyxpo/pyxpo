@@ -31,6 +31,8 @@ class Platform(metaclass=_PlatformMeta):
         o = _env.current._data["os"]
         if o in spec:
             return spec[o]
-        if "native" in spec and o in ("android", "ios"):
+        if o == "windows" and "desktop" in spec:
+            return spec["desktop"]
+        if "native" in spec and o in ("android", "ios", "windows"):
             return spec["native"]
         return spec.get("default")

@@ -36,8 +36,39 @@ static void post_to_main(const char *json) {
             void (*send)(id, SEL, id) = (void (*)(id, SEL, id))[hooks methodForSelector:run];
             send(hooks, run, n.userInfo);
         }
+#if DEBUG
+        [PyxpoRuntime startSnapshotWatcher];
+#endif
     }];
 }
+
+#if DEBUG
+/* Test hook: with PYXPO_SNAPSHOT_DIR set, writing a name into <dir>/req saves the key window as <dir>/<name>.png.
+   Lets tools see the Mac app without screen-recording permission. */
++ (void)startSnapshotWatcher {
+    const char *d = getenv("PYXPO_SNAPSHOT_DIR");
+    if (!d) return;
+    NSString *dir = [NSString stringWithUTF8String:d];
+    NSString *req = [dir stringByAppendingPathComponent:@"req"];
+    [NSTimer scheduledTimerWithTimeInterval:0.3 repeats:YES block:^(NSTimer *t) {
+        NSString *name = [[NSString stringWithContentsOfFile:req encoding:NSUTF8StringEncoding error:nil]
+                          stringByTrimmingCharactersInSet:NSCharacterSet.whitespaceAndNewlineCharacterSet];
+        if (!name.length) return;
+        [[NSFileManager defaultManager] removeItemAtPath:req error:nil];
+        UIWindow *w = nil;
+        for (UIScene *s in UIApplication.sharedApplication.connectedScenes)
+            if ([s isKindOfClass:UIWindowScene.class])
+                for (UIWindow *x in ((UIWindowScene *)s).windows) if (x.isKeyWindow || !w) w = x;
+        if (!w) return;
+        UIGraphicsImageRenderer *r = [[UIGraphicsImageRenderer alloc] initWithBounds:w.bounds];
+        UIImage *img = [r imageWithActions:^(UIGraphicsImageRendererContext *c) {
+            [w drawViewHierarchyInRect:w.bounds afterScreenUpdates:NO];
+        }];
+        [UIImagePNGRepresentation(img) writeToFile:[dir stringByAppendingPathComponent:[name stringByAppendingString:@".png"]]
+                                        atomically:YES];
+    }];
+}
+#endif
 
 + (instancetype)shared {
     static PyxpoRuntime *inst;
@@ -97,6 +128,13 @@ static void post_to_main(const char *json) {
     PyConfig_Clear(&config);
     if (PyStatus_Exception(status)) goto fail_nocfg;
     pyxpo_bridge_mark_running();
+    /* Python sends print() to the unified log on Apple platforms. `pyxpo run desktop` starts the Mac app from a
+       terminal and sets PYXPO_STDIO, so output goes to that terminal instead. */
+    if (getenv("PYXPO_STDIO")) {
+        PyRun_SimpleString("import io, sys\n"
+                           "sys.stdout = io.TextIOWrapper(io.FileIO(1, 'w', closefd=False), line_buffering=True)\n"
+                           "sys.stderr = io.TextIOWrapper(io.FileIO(2, 'w', closefd=False), line_buffering=True)\n");
+    }
 
     /* Same as `python -m pyxpo.router.entry`: the entry calls run_app(). */
     PyObject *runpy = PyImport_ImportModule("runpy");

@@ -79,6 +79,11 @@ SCHEMA = table({
         "background_color": HEX, "user_interface_style": STYLE, "orientation": ORIENT,
         "splash": table({"image": PNG, "background_color": HEX, "dark": table({"image": PNG, "background_color": HEX})}),
     }),
+    "windows": table({
+        "title": T("str", "Window title; default the app name."),
+        "size": T("list", "Window size [width, height] in pixels at 100% scale; default [1024, 768].",
+                  item=T("int", min=1)),
+    }, "Native Windows desktop app."),
     "build_properties": table({
         "android": table({
             "enable_minify_in_release_builds": T("bool"),

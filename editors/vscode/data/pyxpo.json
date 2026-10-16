@@ -837,6 +837,25 @@
      "type": "string"
     },
     "type": "array"
+   },
+   "windows": {
+    "additionalProperties": false,
+    "description": "Native Windows desktop app.",
+    "properties": {
+     "size": {
+      "description": "Window size [width, height] in pixels at 100% scale; default [1024, 768].",
+      "items": {
+       "minimum": 1,
+       "type": "integer"
+      },
+      "type": "array"
+     },
+     "title": {
+      "description": "Window title; default the app name.",
+      "type": "string"
+     }
+    },
+    "type": "object"
    }
   },
   "type": "object"
@@ -1067,7 +1086,7 @@
    "kind": "function"
   },
   "run_app": {
-   "doc": "Run the app on the current platform. Desktop target uses the console renderer.",
+   "doc": "Run the app on the current platform. Desktop target draws into a browser app window (PYXPO_RENDERER=console:\ntext tree in the terminal).",
    "kind": "function"
   },
   "useAnimatedValue": {

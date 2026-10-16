@@ -15,9 +15,17 @@ The first mobile build downloads the prebuilt CPython runtime (about 20-60 MB pe
 ## Develop pyxpo itself
 ```
 tools/dev_install.sh    # .venv with core + every module package in packages/, all editable
-.venv/bin/pyxpo create demo && cd demo && ../.venv/bin/pyxpo run desktop   # type 1 + Enter to press the button, q to quit
+.venv/bin/pyxpo create demo && cd demo && ../.venv/bin/pyxpo run desktop   # native Mac window, see below
 .venv/bin/pytest
 ```
+
+`pyxpo run desktop` on a Mac builds the app as a native Mac app (UIKit through Mac Catalyst, same shell as iOS) and
+opens it with hot reload. It needs Xcode and the Catalyst slice of the runtime. The first launch asks for any privacy
+permission the app uses (Photos, camera), as on a phone. `pyxpo build desktop` builds the `.app` only.
+On Windows, the same commands build a native WinUI 3 app (`build/windows/<Name>/<Name>.exe`) from the prebuilt
+Windows shell; see [windows/README.md](windows/README.md) to build the shell and for its limits.
+`pyxpo run desktop --preview` skips the native build and shows the app in a browser window, and
+`PYXPO_RENDERER=console` uses the text renderer (type 1 + Enter to press a button, q to quit).
 
 A project is an `app/` folder of routes, like Expo Router:
 

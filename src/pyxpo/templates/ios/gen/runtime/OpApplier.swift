@@ -749,6 +749,13 @@ final class OpApplier {
             spec.gradStops = st.map { CGFloat(truncating: $0) }
             spec.gradAngle = CGFloat(truncating: (g["angle"] as? NSNumber) ?? 180)
         }
+        if v is UIImageView {
+            // The picture is the layer's contents, which every sublayer covers: paint the fill on the layer itself
+            // (drawn under the contents), and clip to the corners as React Native does for images.
+            v.layer.backgroundColor = spec.bg?.cgColor
+            spec.bg = nil
+            spec.clip = spec.clip || spec.radii.contains { $0 > 0 }
+        }
         let op = num(s, "shadow_opacity", s["shadow_radius"] != nil || s["shadow_color"] != nil ? 1 : 0)
         let elev = num(s, "elevation")
         let L = v.layer

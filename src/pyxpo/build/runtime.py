@@ -22,7 +22,7 @@ from typing import Any, Dict, Iterable, List, Optional
 MANIFEST = Path(__file__).resolve().parent / "runtime_manifest.json"
 REPO = Path(__file__).resolve().parents[3]
 STAMP = ".pyxpo-runtime.json"
-ENV_DIST = {"ios": "PYXPO_IOS_DIST", "android": "PYXPO_ANDROID_DIST"}
+ENV_DIST = {"ios": "PYXPO_IOS_DIST", "android": "PYXPO_ANDROID_DIST", "windows": "PYXPO_WINDOWS_DIST"}
 
 
 class BuildError(Exception):

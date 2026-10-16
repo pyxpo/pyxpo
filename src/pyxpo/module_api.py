@@ -32,8 +32,10 @@ class NotSupportedError(RuntimeError):
 
 
 def platform() -> str:
-    """`"ios"`, `"android"` or `"desktop"`."""
-    return _env.current._data.get("os") or "desktop"
+    """`"ios"`, `"android"` or `"desktop"`. The native Windows app reports `"desktop"`: modules answer there
+    through their desktop backends."""
+    o = _env.current._data.get("os")
+    return "desktop" if o in (None, "windows") else o
 
 
 def require_supported(feature: str, *, ios: bool = True, android: bool = True) -> None:

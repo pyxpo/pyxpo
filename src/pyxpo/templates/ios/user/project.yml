@@ -41,7 +41,7 @@ targets:
       - script: |
           [ -n "$PYXPO_STAGED" ] && exit 0
           export PATH="/opt/homebrew/bin:/usr/local/bin:$PATH"
-          KIND=device; [ "$PLATFORM_NAME" = iphonesimulator ] && KIND=simulator
+          KIND=device; [ "$PLATFORM_NAME" = iphonesimulator ] && KIND=simulator; [ "$PLATFORM_NAME" = macosx ] && KIND=catalyst
           REL=; [ "$CONFIGURATION" = Release ] && REL=--release
           "${PYXPO_PYTHON:-python3}" -m pyxpo stage ios --dir "$PROJECT_DIR/.." --kind "$KIND" $REL
         name: Stage Python app

@@ -1,0 +1,78 @@
+# Native Windows desktop app: builds the WinUI shell (tools/build_windows_shell.ps1), builds test-apps/imagekit
+# with it (`pyxpo build desktop`), starts the app and saves screenshots through the snapshot hook
+# (PYXPO_SNAPSHOT_DIR). The screenshots and the app log are uploaded as the `windows-desktop` artifact.
+name: windows
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - "windows/**"
+      - "src/pyxpo/build/windows.py"
+      - "src/pyxpo/renderers/**"
+      - "src/pyxpo/_native/common/**"
+      - "tools/build_windows_shell.ps1"
+      - ".github/workflows/windows.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  desktop:
+    runs-on: windows-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+          architecture: x64
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: "8.0.x"
+
+      - name: install pyxpo and the packages (editable)
+        shell: bash
+        run: sh tools/dev_install.sh
+        env:
+          PYTHON: python
+
+      - name: unit tests (Windows build and channel)
+        run: python -m pytest -q -p no:cacheprovider tests/test_windows.py
+
+      - name: build the shell
+        run: pwsh tools/build_windows_shell.ps1 -Python (Get-Command python).Source
+
+      - name: build imagekit
+        working-directory: test-apps/imagekit
+        run: python -m pyxpo build desktop
+
+      - name: run imagekit and take screenshots
+        working-directory: test-apps/imagekit
+        run: |
+          $shots = Join-Path $env:RUNNER_TEMP "shots"
+          New-Item -ItemType Directory -Force -Path $shots | Out-Null
+          $exe = Get-ChildItem build\windows\*\*.exe | Where-Object { $_.Name -notlike "createdump*" } | Select-Object -First 1
+          Write-Host "app: $($exe.FullName)"
+          $env:PYXPO_SNAPSHOT_DIR = $shots
+          $env:PYXPO_STDIO = "1"
+          $log = Join-Path $shots "app.log"
+          $p = Start-Process -FilePath $exe.FullName -WorkingDirectory $exe.DirectoryName -PassThru `
+                 -RedirectStandardOutput $log -RedirectStandardError (Join-Path $shots "app.err.log")
+          Start-Sleep -Seconds 15
+          if ($p.HasExited) { Get-Content $log, (Join-Path $shots "app.err.log"); throw "app exited with $($p.ExitCode)" }
+          Set-Content -Path (Join-Path $shots "req") -Value "home" -NoNewline
+          $png = Join-Path $shots "home.png"
+          for ($i = 0; $i -lt 60 -and -not (Test-Path $png); $i++) { Start-Sleep -Milliseconds 500 }
+          Stop-Process -Id $p.Id -Force
+          Get-Content $log, (Join-Path $shots "app.err.log") -ErrorAction SilentlyContinue
+          if (-not (Test-Path $png)) { throw "no screenshot" }
+          $size = (Get-Item $png).Length
+          Write-Host "home.png: $size bytes"
+          if ($size -lt 5000) { throw "screenshot looks empty" }
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: windows-desktop
+          path: ${{ runner.temp }}/shots/

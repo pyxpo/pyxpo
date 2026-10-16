@@ -7,8 +7,9 @@ import runpy
 import secrets
 import shutil
 import sys
+import threading
 from pathlib import Path
-from typing import List, Optional
+from typing import Dict, List, Optional
 
 from . import native_config
 from .config import load_config, set_requires
@@ -46,13 +47,18 @@ def cmd_run(args: argparse.Namespace) -> int:
     if args.target != "desktop":
         print("pyxpo run %s: not yet implemented (milestone 3)" % args.target, file=sys.stderr)
         return 2
+    if not getattr(args, "preview", False) and _native_windows_available():
+        return _windows(args, run=True)
+    if not getattr(args, "preview", False) and _native_desktop_available():
+        return _ios(args, run=True, kind="catalyst")
     project = Path(args.dir or ".").resolve()
     try:
-        load_config(project)
+        cfg = load_config(project)
     except (FileNotFoundError, ValueError) as e:
         print("error: %s" % e, file=sys.stderr)
         return 2
     os.environ["PYXPO_TARGET"] = "desktop"
+    os.environ.setdefault("PYXPO_APP_NAME", str(cfg.get("name") or project.name))
     sys.path.insert(0, str(project))
     if not getattr(args, "no_reload", False):
         from .component import enable_registry
@@ -128,14 +134,73 @@ def _android_dev(droid, project: Path, args: argparse.Namespace) -> None:
         droid._run([adb, "reverse", "--remove", "tcp:" + port])
 
 
-def _ios(args: argparse.Namespace, run: bool) -> int:
+def _native_desktop_available() -> bool:
+    """The native desktop app is the iOS shell built for Mac Catalyst: needs macOS, Xcode and a Catalyst CPython."""
+    if sys.platform != "darwin" or os.environ.get("PYXPO_RENDERER"):
+        return False
+    from .build import ios
+
+    return ios.find_slice("catalyst") is not None
+
+
+def _native_windows_available() -> bool:
+    """The native Windows app needs Windows and the prebuilt shell (dist/windows or PYXPO_WINDOWS_DIST)."""
+    if sys.platform != "win32" or os.environ.get("PYXPO_RENDERER"):
+        return False
+    from .build import windows
+
+    return windows.shell_available()
+
+
+def _windows(args: argparse.Namespace, run: bool) -> int:
+    from .build import windows
+
+    project = Path(args.dir or ".").resolve()
+    try:
+        exe = windows.build(project, release=getattr(args, "release", False))
+        if not run:
+            return 0
+        return _serve_desktop_app(args, project, lambda extras: windows.run(exe, extras))
+    except (windows.BuildError, FileNotFoundError, ValueError) as e:
+        print("error: %s" % e, file=sys.stderr)
+        return 1
+    except OSError as e:
+        print("error: %s (is another `pyxpo run` using the dev port? try --port N or --no-reload)" % e, file=sys.stderr)
+        return 1
+
+
+def _serve_desktop_app(args: argparse.Namespace, project: Path, start) -> int:
+    """Starts a desktop app process with hot reload (unless --no-reload); serves until the window closes or Ctrl-C."""
+    extras: Dict[str, str] = {}
+    dev = None
+    if not getattr(args, "no_reload", False):
+        from .dev.server import DevServer
+
+        token = secrets.token_hex(16)
+        dev = DevServer(str(project), _dev_port(args, project), token)
+        extras = {"PYXPO_DEV_URL": dev.url, "PYXPO_DEV_TOKEN": token}
+    proc = start(extras)
+    try:
+        if dev:
+            # Closing the window ends the process: stop serving then too, not only on Ctrl-C.
+            threading.Thread(target=lambda: (proc.wait(), dev._stop.set()), daemon=True).start()
+            print("hot reload on %s; edit app/ files, Ctrl-C to stop" % dev.url, flush=True)
+            dev.serve_forever()
+        else:
+            proc.wait()
+    finally:
+        proc.terminate()
+    return 0
+
+
+def _ios(args: argparse.Namespace, run: bool, kind: str = "simulator") -> int:
     from .build import ios
 
     project = Path(args.dir or ".").resolve()
     try:
         cfg = load_config(project)
         app_id = native_config.resolve(cfg, project)["ios"]["bundle_id"]
-        app = ios.build(project, release=getattr(args, "release", False))
+        app = ios.build(project, release=getattr(args, "release", False), kind=kind)
         if not run:
             return 0
         extras = {}
@@ -146,8 +211,11 @@ def _ios(args: argparse.Namespace, run: bool) -> int:
             token = secrets.token_hex(16)
             dev = DevServer(str(project), _dev_port(args, project), token)
             extras = {"PYXPO_DEV_URL": dev.url, "PYXPO_DEV_TOKEN": token}
-        proc = ios.install_and_run(app, app_id, extras)
+        proc = ios.run_mac(app, extras) if kind == "catalyst" else ios.install_and_run(app, app_id, extras)
         try:
+            if dev and kind == "catalyst":
+                # Closing the Mac window ends the process: stop serving then too, not only on Ctrl-C.
+                threading.Thread(target=lambda: (proc.wait(), dev._stop.set()), daemon=True).start()
             if dev:
                 print("hot reload on %s; edit app/ files, Ctrl-C to stop" % dev.url, flush=True)
                 dev.serve_forever()
@@ -169,6 +237,10 @@ def cmd_build(args: argparse.Namespace) -> int:
         return _android(args, run=False)
     if args.target == "ios":
         return _ios(args, run=False)
+    if args.target == "desktop":
+        if sys.platform == "win32":
+            return _windows(args, run=False)
+        return _ios(args, run=False, kind="catalyst")
     print("pyxpo build %s: not yet implemented (milestone 3)" % args.target, file=sys.stderr)
     return 2
 
@@ -351,9 +423,11 @@ def build_parser() -> argparse.ArgumentParser:
     r.add_argument("--dir")
     r.add_argument("--no-reload", action="store_true", help="disable hot reload")
     r.add_argument("--port", type=int, help="hot reload server port (default: dev_port or 8765)")
+    r.add_argument("--preview", action="store_true",
+                   help="desktop only: quick preview in a browser window instead of building the native Mac or Windows app")
     r.set_defaults(fn=cmd_run)
     b = sub.add_parser("build", help="build a mobile package")
-    b.add_argument("target", choices=["android", "ios"])
+    b.add_argument("target", choices=["android", "ios", "desktop"])
     b.add_argument("--release", action="store_true")
     b.add_argument("--dir")
     b.set_defaults(fn=cmd_build)
@@ -366,7 +440,7 @@ def build_parser() -> argparse.ArgumentParser:
     st = sub.add_parser("stage", help="refresh the Python app inside ejected native projects (run by Gradle/Xcode)")
     st.add_argument("target", choices=["android", "ios"])
     st.add_argument("--release", action="store_true")
-    st.add_argument("--kind", choices=["simulator", "device"], default="simulator", help="iOS only")
+    st.add_argument("--kind", choices=["simulator", "device", "catalyst"], default="simulator", help="iOS only")
     st.add_argument("--dir")
     st.set_defaults(fn=cmd_stage)
     rt = sub.add_parser("runtime", help="manage the prebuilt CPython runtime cache")

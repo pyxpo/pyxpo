@@ -27,7 +27,7 @@ def require_linked(native: str, module: str, package: Optional[str] = None) -> N
     real build means nothing is linked); the desktop dev environment reports none and is skipped.
     """
     env = _env.current._data
-    if env.get("os") in (None, "desktop"):
+    if env.get("os") in (None, "desktop", "windows"):
         return
     if native not in (env.get("modules") or []):
         raise ModuleNotLinkedError(

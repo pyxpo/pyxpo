@@ -5,22 +5,21 @@
 - Done+committed: runtime, bridge, shells, CLI, hot reload, router, prebuild, distribution, app config + plugins + build_properties, native module system, packages image-manipulator, image-picker, media-library, sharing, storage, file-system, secure-store (e2e both OS). Release 0.1.0a1 on PyPI (8 dists).
 - 0.1.0a2 core + 11 Tier 1 packages (0.1.0a1) on PyPI, Oct 16. All pushed. PyPI install smoke: fresh venv + pyxpo create + all 11 modules, build + run 11/11 OK on Android emu and iOS sim. wheelhouse/ gitignored (tracked a1 wheel broke CI).
 
-## Tier 1 packages (all built, Oct 16) — committed + pushed
-- Core changes (constants, module views, launch observer, AppState, gradle_properties) all committed.
-- Each package: packages/<name> (py + ios swift + android kt), tests/test_pkg_<name>.py (FakeBridge), add name to autolink.OFFICIAL, e2e via test-apps/tier1kit selftest (pattern: test-apps/storagekit tools/*_selftest.sh).
-- Status: haptics, device, application, localization, network, fetch, sqlite, web-browser, location: done, unit + e2e iOS/Android (details in each README). fetch test server tools/fetch_server.py :8765. web-browser Android 15+: BAL + freezer, test closes tab via host `tabback`.
-- tier1kit harness: tools/ios_selftest.sh|android_selftest.sh [sections]; NOBUILD=1 (Python changes need rebuild); host actions via cache/t1_req -> t1_ack. Android web-browser prep sets Chrome flags (skip first-run). Android python stdout: logcat tag python.stdout.
+## Tier 1 packages: done, committed + pushed (Oct 16). Pattern: packages/<name>, tests/test_pkg_<name>.py, autolink.OFFICIAL, e2e via test-apps/tier1kit tools/*_selftest.sh.
 
 ## Remote push + remount fix: committed, tag v0.1.0a3 pushed
 - notifications FCM/APNs token, plugin, tools/send_push.py. Android activity remount fix (process-wide runtime, `remount` event).
 - Release run 38893625537 waits for user approval (pypi env). Then tag pkg/notifications/v0.1.0a2, user approves again.
 - Later: real FCM e2e (~/.pyxpo-secrets/), missing packages batch, wheels CI.
 
-## VS Code extension (editors/vscode) — committed 93d9ed6 + pushed, Oct 16
-- TS, no deps beyond vscode types. src/pyscan.ts, analyze.ts, colors.ts, toml.ts, imports.ts (auto-import edits), extension.ts.
-- data/pyxpo.json (incl. `exports` = pyxpo.__all__) from tools/gen_vscode_data.py; tests/test_vscode_data.py fails when stale.
-- User bug "autocomplete not working": window in Restricted Mode, extension had no `capabilities.untrustedWorkspaces` so VS Code disabled it. Fixed (limited support; run commands + config validation need trust).
-- Dev-mode extensions skip trust: only `npm run test:e2e:vsix` (installs packaged vsix, harness ext runs suite) proves it. Without capability: 9/15 fail, same as user screenshot.
-- `npm test` 27/27; `test:e2e` and `test:e2e:vsix` 15/15 trusted + 15/15 Restricted Mode. vsix installed. Demo: scratchpad/pyxpo-demo (screen.py for auto-import).
-- Logo: python coiled around a phone, transparent. Source editors/vscode/images/icon.svg; render with headless Chrome to logo-512.png, `sips -z 128 128` to icon.png. Same svg in pyxpo-web public/logo.svg (header/footer) + src/app/icon.png (favicon).
-- Next: marketplace publish blocked: no vsce publisher login. User creates publisher `pyxpo` + Azure DevOps PAT (Marketplace: Manage), runs `npx @vscode/vsce login pyxpo` themselves; then `vsce publish`.
+## VS Code extension (editors/vscode): committed + pushed, 0.1.0 live on Marketplace (publisher pyxpo, hand upload; bump version each upload).
+- data/pyxpo.json from tools/gen_vscode_data.py; tests/test_vscode_data.py fails when stale. Restricted Mode needs `capabilities.untrustedWorkspaces`; prove with `npm run test:e2e:vsix`.
+
+## Desktop apps (Oct 17, uncommitted)
+- Web preview: `pyxpo run desktop --preview` (src/pyxpo/renderers/web, Chrome --app). Module calls via pkg `desktop.py` backends.
+- Mac native = Catalyst: tools/build_catalyst_python.sh adds slice; build/ios.py kind "catalyst"; imagekit renders. Tests: tests/test_build_catalyst.py.
+- Windows native = WinUI 3 C# shell (windows/PyxpoShell) + pyxpo_native.dll (windows/native) + CPython embeddable. build/windows.py stages build/windows/<Name>/. WindowsChannel: shell answers builtin calls, rest run in desktop.py. Docs windows/README.md. `[tool.pyxpo.windows]` title/size in schema.
+- Shell compiles on mac (dotnet build -p:EnableWindowsTargeting=true -p:WindowsAppSDKSelfContained=false -p:ApplicationManifest=), never run on real Windows. CI .github/workflows/windows.yml (build shell + imagekit, screenshot artifact) = first real test.
+- Tests: tests/test_windows.py 21 pass; full suite 538 pass.
+- Catalyst full check done: selftest 24/24, home + 7 tool screens + result screen OK, picker works. Fixed iOS bug: Image background_color (BoxLayer sublayer) covered the picture; now on layer.backgroundColor + corner clip (OpApplier.swift paintBox). Android/Windows not affected.
+- Next: user OK to commit + push, run windows workflow, fix what CI shows.

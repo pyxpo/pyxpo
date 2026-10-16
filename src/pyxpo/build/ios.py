@@ -6,6 +6,9 @@ import os
 import shutil
 import subprocess
 import sys
+import tempfile
+import threading
+import time
 from pathlib import Path
 from typing import Dict, List, Optional
 
@@ -21,8 +24,11 @@ TEMPLATE = Path(__file__).resolve().parent.parent / "templates" / "ios"
 WRAP_SCRIPT = Path(__file__).resolve().parent / "ios_wrap.py"
 
 STDLIB_SKIP = ("test", "idlelib", "tkinter", "turtledemo", "ensurepip", "lib2to3", "config-3.13")
-# sdk -> (stage slice name, pip platform tag)
-PIP_TAGS = {"simulator": "ios_15_0_arm64_iphonesimulator", "device": "ios_15_0_arm64_iphoneos"}
+# kind -> pip platform tag. "catalyst" is the native Mac desktop app (UIKit on macOS); there is no Catalyst wheel tag,
+# so it takes macOS wheels (pure-Python packages work; binary ones must not depend on AppKit-only APIs).
+PIP_TAGS = {"simulator": "ios_15_0_arm64_iphonesimulator", "device": "ios_15_0_arm64_iphoneos",
+            "catalyst": "macosx_11_0_arm64"}
+KINDS = tuple(PIP_TAGS)
 
 
 def tool_path(name: str) -> str:
@@ -33,14 +39,20 @@ def tool_path(name: str) -> str:
 
 
 def find_slice(kind: str) -> Optional[Path]:
-    """kind: 'simulator' or 'device'. Returns the xcframework slice dir, or None if not built."""
+    """kind: 'simulator', 'device' or 'catalyst'. Returns the xcframework slice dir, or None if not built."""
     xc = DIST / "Python.xcframework"
     if not xc.is_dir():
         return None
     for d in sorted(xc.iterdir()):
-        if d.is_dir() and d.name.startswith("ios-") and (d.name.endswith("simulator") == (kind == "simulator")):
+        if d.is_dir() and d.name.startswith("ios-") and _slice_kind(d.name) == kind:
             return d
     return None
+
+
+def _slice_kind(name: str) -> str:
+    if name.endswith("maccatalyst"):
+        return "catalyst"
+    return "simulator" if name.endswith("simulator") else "device"
 
 
 GEN = "pyxpo-gen"
@@ -69,11 +81,14 @@ def xcconfig_text(nc: Dict[str, object], has_entitlements: bool = False, extra: 
         lines.append("DEVELOPMENT_TEAM = %s" % nc["team_id"])
     base = '"$(inherited)" "$(PROJECT_DIR)/%s/runtime" "$(PROJECT_DIR)/%s/native"' % (GEN, GEN)
     lines.append("HEADER_SEARCH_PATHS = " + base)
-    for kind, sdk in (("simulator", "iphonesimulator*"), ("device", "iphoneos*")):
+    for kind, sdk in (("simulator", "iphonesimulator*"), ("device", "iphoneos*"), ("catalyst", "macosx*")):
         sl = find_slice(kind)
         if sl is not None:
             lines.append('HEADER_SEARCH_PATHS[sdk=%s] = %s "$(PROJECT_DIR)/%s/Python.xcframework/%s/Python.framework/Headers"'
                          % (sdk, base, GEN, sl.name))
+    if find_slice("catalyst") is not None:  # the native Mac desktop app (`pyxpo run desktop`)
+        lines += ["SUPPORTS_MACCATALYST = YES", "SUPPORTS_MAC_DESIGNED_FOR_IPHONE_IPAD = NO",
+                  "PYXPO_DEVICE_FAMILY[sdk=macosx*] = 1,2,6", "DERIVE_MACCATALYST_PRODUCT_BUNDLE_IDENTIFIER = NO"]
     return "\n".join(lines) + "\n"
 
 
@@ -278,19 +293,71 @@ def build(project: Path, release: bool = False, kind: str = "simulator") -> Path
     stage(native, project, cfg, release, kind)
 
     _run(["xcodegen", "generate", "--spec", native / "project.yml", "--project", native], cwd=str(native))
-    sdk = "iphonesimulator" if kind == "simulator" else "iphoneos"
     cfgname = "Release" if release else "Debug"
     derived = project / "build" / "ios" / "DerivedData"
-    cmd = ["xcodebuild", "-project", native / "PyxpoApp.xcodeproj", "-scheme", "PyxpoApp", "-sdk", sdk,
-           "-configuration", cfgname, "-derivedDataPath", derived, "build"]
-    if kind == "simulator":
-        cmd += ["ARCHS=arm64", "ONLY_ACTIVE_ARCH=YES"]
+    cmd = ["xcodebuild", "-project", native / "PyxpoApp.xcodeproj", "-scheme", "PyxpoApp",
+           "-configuration", cfgname, "-derivedDataPath", derived]
+    if kind == "catalyst":
+        products = "%s-maccatalyst" % cfgname
+        cmd += ["-destination", "platform=macOS,variant=Mac Catalyst,arch=arm64", "build"]
+        if not nc["team_id"]:  # xcodegen's target presets beat the xcconfig, so sign to run locally from here
+            cmd += ["CODE_SIGN_IDENTITY=-", "CODE_SIGN_STYLE=Manual", "DEVELOPMENT_TEAM="]
+    else:
+        sdk = "iphonesimulator" if kind == "simulator" else "iphoneos"
+        products = "%s-%s" % (cfgname, sdk)
+        cmd += ["-sdk", sdk, "build"]
+        if kind == "simulator":
+            cmd += ["ARCHS=arm64", "ONLY_ACTIVE_ARCH=YES"]
     _run(cmd, env=dict(os.environ, PYXPO_STAGED="1"))
-    app = derived / "Build" / "Products" / ("%s-%s" % (cfgname, sdk)) / ("%s.app" % nc["product_name"])
+    app = derived / "Build" / "Products" / products / ("%s.app" % nc["product_name"])
     if not app.is_dir():
         raise BuildError("app not produced: %s" % app)
     print("built %s" % app)
     return app
+
+
+class MacApp:
+    """The Catalyst app, started through LaunchServices (`open`) so macOS treats it as its own app: privacy prompts
+    (Photos, camera) belong to the app, not to the terminal that ran pyxpo. Its output goes to a log file that a thread
+    copies to this terminal. Same wait()/terminate() calls as a Popen."""
+
+    def __init__(self, app: Path, extras: Optional[Dict[str, str]] = None) -> None:
+        self.exe = app / "Contents" / "MacOS" / app.stem
+        # launchd opens the log for the app; a path on an external volume makes the launch fail (-10810).
+        self.log = Path(tempfile.mkdtemp(prefix="pyxpo-mac-")) / (app.stem + ".log")
+        self.log.write_bytes(b"")
+        env = {k: v for k, v in os.environ.items() if k.startswith("PYXPO_")}
+        env.update(extras or {}, PYXPO_STDIO="1")
+        args = ["open", "-n", "-W", "--stdout", str(self.log), "--stderr", str(self.log)]
+        for k, v in sorted(env.items()):
+            args += ["--env", "%s=%s" % (k, v)]
+        print("> open " + str(app))
+        self.proc = subprocess.Popen(args + [str(app)])
+        threading.Thread(target=self._echo, daemon=True, name="pyxpo-mac-log").start()
+
+    def _echo(self) -> None:
+        with open(self.log, "rb") as f:
+            while True:
+                chunk = f.read()
+                if chunk:
+                    sys.stdout.buffer.write(chunk)
+                    sys.stdout.flush()
+                elif self.proc.poll() is not None:
+                    return
+                else:
+                    time.sleep(0.2)
+
+    def wait(self) -> int:
+        return self.proc.wait()
+
+    def terminate(self) -> None:
+        if self.proc.poll() is None:
+            subprocess.run(["pkill", "-f", str(self.exe)], check=False)
+            self.proc.terminate()
+
+
+def run_mac(app: Path, extras: Optional[Dict[str, str]] = None) -> MacApp:
+    return MacApp(app, extras)
 
 
 def install_and_run(app: Path, app_id: str, extras: Optional[Dict[str, str]] = None) -> "subprocess.Popen":

@@ -365,13 +365,17 @@ def create_app(root: Any, channel: Channel, **props: Any) -> App:
 
 
 def run_app(root: Any, channel: Optional[Channel] = None, **props: Any) -> None:
-    """Run the app on the current platform. Desktop target uses the console renderer."""
+    """Run the app on the current platform. Desktop target draws into a browser app window (PYXPO_RENDERER=console:
+    text tree in the terminal)."""
     if _hot.reloading:  # app module re-executed by the reloader: do not start a second app
         _hot.captured = (root, props)
         return
     _hot.entry = os.path.realpath(sys._getframe(1).f_code.co_filename)
     target = os.environ.get("PYXPO_TARGET", "desktop")
-    if channel is None and target != "desktop":
+    if channel is None and target == "windows":
+        from .channel_native import WindowsChannel
+        channel = WindowsChannel()
+    elif channel is None and target != "desktop":
         from .channel_native import NativeChannel
         channel = NativeChannel()
 
@@ -380,9 +384,13 @@ def run_app(root: Any, channel: Optional[Channel] = None, **props: Any) -> None:
         renderer = None
         ch = channel
         if ch is None:
-            from .renderers.console import ConsoleRenderer
             ch = LocalChannel()
-            renderer = ConsoleRenderer(ch)
+            if os.environ.get("PYXPO_RENDERER") == "console":
+                from .renderers.console import ConsoleRenderer
+                renderer = ConsoleRenderer(ch)
+            else:
+                from .renderers.web import WebRenderer
+                renderer = WebRenderer(ch, title=os.environ.get("PYXPO_APP_NAME") or "pyxpo")
         app = App(root, ch, loop, **props)
         app.start()
         if os.environ.get("PYXPO_DEV_URL"):
@@ -391,7 +399,9 @@ def run_app(root: Any, channel: Optional[Channel] = None, **props: Any) -> None:
                 client.start(app, loop, _hot.entry)
             except ImportError:
                 pass
-        if renderer is not None:
+        if renderer is not None and hasattr(renderer, "serve"):
+            await renderer.serve(open_window=os.environ.get("PYXPO_DESKTOP_BROWSER") != "0")
+        elif renderer is not None:
             await renderer.run()
         else:
             await asyncio.Event().wait()

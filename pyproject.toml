@@ -45,7 +45,7 @@ where = ["src"]
 version = { attr = "pyxpo.__version__" }
 
 [tool.setuptools.package-data]
-pyxpo = ["templates/**/*", "_native/**/*", "build/runtime_manifest.json"]
+pyxpo = ["templates/**/*", "_native/**/*", "build/runtime_manifest.json", "renderers/web/*.html", "renderers/web/*.js"]
 
 [tool.setuptools.exclude-package-data]
 "*" = ["__pycache__", "*.pyc"]

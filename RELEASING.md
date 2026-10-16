@@ -125,6 +125,19 @@ approving it. Nothing is uploaded until you approve.
 
 ## Publish a new CPython runtime (only when CPython or its build changes)
 
+The `ios` asset also carries the Mac Catalyst slice that the native desktop app (`pyxpo run desktop`) needs. Add it
+to `dist/ios/Python.xcframework` before packaging, after the iOS slices exist:
+
+```
+tools/build_catalyst_python.sh .cache/Python-3.13.7   # adds ios-arm64-maccatalyst (no ssl/lzma yet)
+```
+
+Without that slice, `pyxpo run desktop` falls back to the browser preview.
+
+The Windows shell is not a runtime asset yet. Build it on Windows with `pwsh tools/build_windows_shell.ps1`, or run
+the `windows` workflow (Actions tab, Run workflow), which also checks that `test-apps/imagekit` starts and draws.
+Users point `PYXPO_WINDOWS_DIST` at the shell folder. See windows/README.md.
+
 ```
 python tools/package_runtime.py ios dist/ios out/ --host-python .cache/Python-3.13.7/cross-build/build/python.exe
 python tools/package_runtime.py android-arm64-v8a dist/android/arm64-v8a out/

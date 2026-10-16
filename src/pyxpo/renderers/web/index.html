@@ -1,0 +1,86 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{{TITLE}}</title>
+<style>
+  html, body { margin: 0; height: 100%; overflow: hidden; background: #fff; }
+  body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; -webkit-font-smoothing: antialiased; }
+  * { -webkit-tap-highlight-color: transparent; }
+  #root, .v, .t, .img, .sv, .ns, .in, .btn, .path, .sw, .sl, .sp {
+    box-sizing: border-box; position: relative; flex-shrink: 0; min-width: 0; min-height: 0; margin: 0;
+  }
+  #root { position: absolute; inset: 0; display: flex; flex-direction: column; overflow: hidden; }
+  .v, .sv, .ns { display: flex; flex-direction: column; align-items: stretch; }
+  .t { display: block; color: #000; font-size: 14px; font-weight: 400; line-height: normal; white-space: pre-wrap;
+       overflow-wrap: break-word; user-select: text; cursor: text; }
+  .t.clamp { display: -webkit-box; -webkit-box-orient: vertical; overflow: hidden; }
+  .sv { overflow: auto; overscroll-behavior: contain; }
+  .sv.h { overflow-y: hidden; }
+  .sv:not(.h) { overflow-x: hidden; }
+  .sv.noind { scrollbar-width: none; }
+  .sv.noind::-webkit-scrollbar { display: none; }
+  .ns { overflow: hidden; }
+  .ns > * { position: absolute !important; inset: 0; background-color: #fff; }
+  .ns > .hidden { visibility: hidden; }
+  @keyframes px-in { from { transform: translateX(100%); } to { transform: none; } }
+  @keyframes px-out { from { transform: none; } to { transform: translateX(100%); } }
+  @keyframes px-under-in { from { transform: none; } to { transform: translateX(-30%); } }
+  .ns > .push { animation: px-in .28s cubic-bezier(.2,.8,.2,1); box-shadow: -8px 0 24px rgba(0,0,0,.12); }
+  .ns > .pop { animation: px-out .24s cubic-bezier(.4,0,1,1) forwards; z-index: 10; pointer-events: none; }
+  .img { display: block; overflow: hidden; }
+  .img > img { width: 100%; height: 100%; display: block; object-fit: cover; pointer-events: none; user-select: none; }
+  .in { font: inherit; font-size: 14px; color: #000; border: 0; outline: none; background: transparent; padding: 0;
+        resize: none; }
+  .btn { border: 0; background: none; color: #007aff; font-size: 17px; padding: 8px; cursor: pointer; font-family: inherit; }
+  .btn:disabled { color: #999; cursor: default; }
+  .press { cursor: pointer; user-select: none; }
+  .press .t { cursor: inherit; user-select: none; }
+  .path { display: block; }
+  .path > svg { width: 100%; height: 100%; display: block; overflow: visible; }
+  .sp { display: flex; align-items: center; justify-content: center; min-width: 20px; min-height: 20px; }
+  .sp::after { content: ""; width: 20px; height: 20px; border-radius: 50%; border: 2.5px solid currentColor;
+               border-right-color: transparent; animation: px-spin .8s linear infinite; }
+  .sp.large::after { width: 36px; height: 36px; border-width: 3.5px; }
+  .sp.stopped::after { display: none; }
+  @keyframes px-spin { to { transform: rotate(360deg); } }
+  .sw { width: 51px; height: 31px; border-radius: 16px; background: #e5e5ea; transition: background .2s; cursor: pointer; }
+  .sw::after { content: ""; position: absolute; top: 2px; left: 2px; width: 27px; height: 27px; border-radius: 50%;
+               background: var(--thumb, #fff); box-shadow: 0 2px 4px rgba(0,0,0,.2); transition: transform .2s; }
+  .sw.on { background: var(--on, #34c759); }
+  .sw.on::after { transform: translateX(20px); }
+  .sw.off { background: var(--off, #e5e5ea); }
+  .sw.dis { opacity: .5; cursor: default; }
+  .sl { height: 40px; display: flex; align-items: center; }
+  .sl > input { width: 100%; margin: 0; accent-color: var(--min, #007aff); }
+  #alert { position: fixed; inset: 0; z-index: 100000; display: none; align-items: center; justify-content: center;
+           background: rgba(0,0,0,.4); }
+  #alert.show { display: flex; }
+  #alert .box { width: 270px; border-radius: 14px; background: rgba(250,250,250,.97); text-align: center; overflow: hidden;
+                font-size: 13px; box-shadow: 0 10px 40px rgba(0,0,0,.3); }
+  #alert h3 { margin: 18px 16px 4px; font-size: 17px; font-weight: 600; }
+  #alert p { margin: 0 16px 18px; }
+  #alert button { display: block; width: 100%; padding: 11px; border: 0; border-top: 1px solid #ddd; background: none;
+                  color: #007aff; font-size: 17px; cursor: pointer; }
+  #alert button:hover { background: #eee; }
+  #lost { position: fixed; inset: 0; z-index: 100001; display: none; align-items: center; justify-content: center;
+          background: rgba(255,255,255,.85); font-size: 15px; color: #333; }
+  #lost.show { display: flex; }
+  @media (prefers-color-scheme: dark) {
+    html, body { background: #000; }
+    #alert .box { background: rgba(44,44,46,.97); color: #fff; }
+    #alert button { border-top-color: #444; color: #0a84ff; }
+    #alert button:hover { background: #3a3a3c; }
+    #lost { background: rgba(0,0,0,.85); color: #ddd; }
+  }
+</style>
+</head>
+<body>
+<div id="root"></div>
+<div id="alert"><div class="box"><h3></h3><p></p><div class="btns"></div></div></div>
+<div id="lost">App stopped. Run pyxpo run desktop again.</div>
+<script>window.PYXPO_TOKEN = "{{TOKEN}}";</script>
+<script src="/app.js"></script>
+</body>
+</html>
