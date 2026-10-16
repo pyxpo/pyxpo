@@ -1,0 +1,1725 @@
+{
+ "components": {
+  "ActivityIndicator": {
+   "doc": "Platform spinner. `size`: \"small\" | \"large\" | number of dp.",
+   "props": [
+    "animating",
+    "size",
+    "color",
+    "style",
+    "hides_when_stopped",
+    "test_id"
+   ]
+  },
+  "Button": {
+   "doc": "Minimal platform-styled button (RN `Button`): `title`, `onPress`, `color` (fill), `disabled`.",
+   "props": [
+    "title",
+    "on_press",
+    "color",
+    "disabled",
+    "accessibility_label",
+    "test_id",
+    "style"
+   ]
+  },
+  "FlatList": {
+   "doc": "RN FlatList. `renderItem({\"item\", \"index\", \"separators\"})`; `ref.current` has scrollToIndex / scrollToOffset /\nscrollToEnd. `getItemLayout(data, index) -> {\"length\", \"offset\", \"index\"}` (or `item_size`) enables windowing.",
+   "props": [
+    "data",
+    "render_item",
+    "key_extractor",
+    "get_item_layout",
+    "item_size",
+    "horizontal",
+    "num_columns",
+    "item_separator_component",
+    "list_header_component",
+    "list_footer_component",
+    "list_empty_component",
+    "column_wrapper_style",
+    "on_end_reached",
+    "on_end_reached_threshold",
+    "initial_num_to_render",
+    "max_to_render_per_batch",
+    "window_size",
+    "extra_data",
+    "refreshing",
+    "on_refresh",
+    "style",
+    "content_container_style",
+    "on_scroll",
+    "test_id"
+   ]
+  },
+  "Image": {
+   "doc": "Image from `source`: a path, an http(s) URL, a data: URI, `asset:name`, or `{\"uri\": ...}`.\nRN props: resizeMode, tintColor (style), onLoad, onError, onLoadStart, onLoadEnd, blurRadius, fadeDuration.",
+   "props": [
+    "resize_mode",
+    "tint_color",
+    "on_load",
+    "on_error",
+    "on_load_start",
+    "on_load_end",
+    "blur_radius",
+    "fade_duration",
+    "source",
+    "style",
+    "test_id"
+   ]
+  },
+  "ImageBackground": {
+   "doc": "Image drawn behind its children (RN `ImageBackground`).",
+   "props": [
+    "source",
+    "style",
+    "image_style",
+    "resize_mode",
+    "test_id"
+   ]
+  },
+  "KeyboardAvoidingView": {
+   "doc": "Moves its content above the keyboard. `behavior`: \"padding\" | \"height\" | \"position\"; without one the view\nis a plain View (as in RN).",
+   "props": [
+    "behavior",
+    "keyboard_vertical_offset",
+    "content_container_style",
+    "enabled",
+    "style",
+    "test_id"
+   ]
+  },
+  "Modal": {
+   "doc": "Layer above the whole app. `animationType`: none | fade | slide. Android back fires `onRequestClose`;\n`onShow` runs once the layer is on screen, `onDismiss` after it is gone. A non-transparent modal has a\ndimmed backdrop.",
+   "props": [
+    "visible",
+    "animation_type",
+    "transparent",
+    "on_request_close",
+    "on_show",
+    "on_dismiss",
+    "style",
+    "test_id"
+   ]
+  },
+  "Picker": {
+   "doc": "`<Picker selectedValue onValueChange(value, index)>` with `Picker.Item` children. Tapping opens a native\nsingle-choice dialog (`prompt` is its title).",
+   "props": [
+    "selected_value",
+    "on_value_change",
+    "enabled",
+    "prompt",
+    "style",
+    "item_style",
+    "test_id"
+   ]
+  },
+  "Pressable": {
+   "doc": "Touchable view. `style` may be a function of the press state; so may the single child.\n\nProps: onPress, onPressIn, onPressOut, onLongPress, delayLongPress (ms, default 500), disabled, hitSlop,\nandroid_ripple ({\"color\", \"borderless\", \"radius\"}), testID, accessibility*. A disabled Pressable fires nothing.",
+   "props": [
+    "on_press",
+    "on_long_press",
+    "on_press_in",
+    "on_press_out",
+    "disabled",
+    "style",
+    "delay_long_press",
+    "hit_slop",
+    "android_ripple",
+    "test_id"
+   ]
+  },
+  "RefreshControl": {
+   "doc": "Pull-to-refresh. Only meaningful as `ScrollView(refreshControl=RefreshControl(refreshing=..., onRefresh=...))`\n(also FlatList / SectionList). Props: refreshing, onRefresh, colors, tintColor, progressBackgroundColor.",
+   "props": [
+    "refreshing",
+    "on_refresh",
+    "colors",
+    "tint_color",
+    "progress_background_color",
+    "style",
+    "test_id"
+   ]
+  },
+  "SafeAreaView": {
+   "doc": "View inset by the system bars, notch and home indicator (`react-native-safe-area-context` API).\n`mode`: \"padding\" (default) or \"margin\".",
+   "props": [
+    "edges",
+    "mode",
+    "style",
+    "test_id"
+   ]
+  },
+  "ScrollView": {
+   "doc": "Scrollable container. RN props: horizontal, contentContainerStyle, onScroll, scrollEventThrottle,\nshowsVerticalScrollIndicator, showsHorizontalScrollIndicator, bounces, pagingEnabled, scrollEnabled,\nkeyboardShouldPersistTaps, keyboardDismissMode, stickyHeaderIndices, refreshControl, contentOffset,\nonContentSizeChange, onScrollBeginDrag, onScrollEndDrag, onMomentumScrollEnd, nestedScrollEnabled.\n`ref.current` has scrollTo({x, y, animated}) and scrollToEnd({animated}).",
+   "props": [
+    "horizontal",
+    "content_container_style",
+    "on_scroll",
+    "scroll_event_throttle",
+    "shows_vertical_scroll_indicator",
+    "shows_horizontal_scroll_indicator",
+    "bounces",
+    "paging_enabled",
+    "scroll_enabled",
+    "keyboard_should_persist_taps",
+    "keyboard_dismiss_mode",
+    "sticky_header_indices",
+    "refresh_control",
+    "content_offset",
+    "on_content_size_change",
+    "on_scroll_begin_drag",
+    "on_scroll_end_drag",
+    "on_momentum_scroll_end",
+    "nested_scroll_enabled",
+    "style",
+    "test_id"
+   ]
+  },
+  "SectionList": {
+   "doc": "RN SectionList: `sections=[{\"title\", \"data\", \"renderItem\"?, \"keyExtractor\"?}]`. `renderItem` gets\n`{\"item\", \"index\", \"section\", \"separators\"}`; the section renderers get `{\"section\"}`. Sticky headers are not\nsupported yet.",
+   "props": [
+    "sections",
+    "render_item",
+    "render_section_header",
+    "render_section_footer",
+    "key_extractor",
+    "style",
+    "test_id"
+   ]
+  },
+  "Slider": {
+   "doc": "Platform slider (`@react-native-community/slider` API). Controlled: update `value` in `onValueChange`.",
+   "props": [
+    "value",
+    "minimum_value",
+    "maximum_value",
+    "step",
+    "on_value_change",
+    "on_sliding_complete",
+    "disabled",
+    "minimum_track_tint_color",
+    "maximum_track_tint_color",
+    "thumb_tint_color",
+    "style",
+    "test_id"
+   ]
+  },
+  "StatusBar": {
+   "doc": "Declarative status bar; the newest mounted one wins. `barStyle`: \"default\" | \"light-content\" |\n\"dark-content\". `backgroundColor` / `translucent` are Android only.",
+   "props": [
+    "bar_style",
+    "hidden",
+    "background_color",
+    "translucent",
+    "animated",
+    "style",
+    "test_id"
+   ]
+  },
+  "Switch": {
+   "doc": "Platform switch. `trackColor` / `thumbColor` take one colour or RN's `{False: off, True: on}`.",
+   "props": [
+    "value",
+    "on_value_change",
+    "disabled",
+    "track_color",
+    "thumb_color",
+    "style",
+    "test_id"
+   ]
+  },
+  "Text": {
+   "doc": "",
+   "props": [
+    "number_of_lines",
+    "allow_font_scaling",
+    "style",
+    "test_id"
+   ]
+  },
+  "TextInput": {
+   "doc": "Single- or multi-line text field. RN props: value, defaultValue, onChangeText, onChange,\nonSubmitEditing, onFocus, onBlur, onEndEditing, onSelectionChange, onKeyPress, onContentSizeChange, placeholder,\nplaceholderTextColor, multiline, numberOfLines, maxLength, editable, secureTextEntry, keyboardType, returnKeyType,\nautoCapitalize, autoCorrect, autoFocus, selectTextOnFocus, selectionColor, textAlign, style. `ref.current` has\nfocus(), blur(), clear(), setSelection(start, end).",
+   "props": [
+    "value",
+    "default_value",
+    "on_change_text",
+    "on_change",
+    "on_submit_editing",
+    "on_focus",
+    "on_blur",
+    "on_end_editing",
+    "on_selection_change",
+    "on_key_press",
+    "on_content_size_change",
+    "placeholder",
+    "placeholder_text_color",
+    "multiline",
+    "number_of_lines",
+    "max_length",
+    "editable",
+    "secure_text_entry",
+    "keyboard_type",
+    "return_key_type",
+    "auto_capitalize",
+    "auto_correct",
+    "auto_focus",
+    "select_text_on_focus",
+    "selection_color",
+    "text_align",
+    "style",
+    "test_id"
+   ]
+  },
+  "TouchableHighlight": {
+   "doc": "Shows `underlayColor` behind the content and dims the content to `activeOpacity` while pressed.",
+   "props": [
+    "underlay_color",
+    "active_opacity",
+    "disabled",
+    "style",
+    "on_press",
+    "on_long_press",
+    "on_press_in",
+    "on_press_out",
+    "test_id"
+   ]
+  },
+  "TouchableNativeFeedback": {
+   "doc": "Android ripple feedback. `background` is `{\"color\", \"borderless\"}` (see TouchableNativeFeedback.Ripple).",
+   "props": [
+    "background",
+    "disabled",
+    "style",
+    "on_press",
+    "on_long_press",
+    "on_press_in",
+    "on_press_out",
+    "test_id"
+   ]
+  },
+  "TouchableOpacity": {
+   "doc": "Dims to `activeOpacity` (default 0.2) while pressed.",
+   "props": [
+    "active_opacity",
+    "disabled",
+    "style",
+    "on_press",
+    "on_long_press",
+    "on_press_in",
+    "on_press_out",
+    "test_id"
+   ]
+  },
+  "TouchableWithoutFeedback": {
+   "doc": "Handles presses and shows nothing.",
+   "props": [
+    "disabled",
+    "on_press",
+    "on_long_press",
+    "on_press_in",
+    "on_press_out",
+    "style",
+    "test_id"
+   ]
+  },
+  "View": {
+   "doc": "Layout container (flexbox). RN props: style, onLayout, pointerEvents, hitSlop, testID, nativeID,\naccessibility*, plus the raw touch events onTouchStart/Move/End.",
+   "props": [
+    "style",
+    "on_layout",
+    "pointer_events",
+    "hit_slop",
+    "test_id",
+    "native_id"
+   ]
+  },
+  "VirtualizedList": {
+   "doc": "RN VirtualizedList: FlatList over any `data` read through `getItem(data, index)` / `getItemCount(data)`.",
+   "props": [
+    "data",
+    "get_item",
+    "get_item_count",
+    "render_item",
+    "style",
+    "test_id"
+   ]
+  }
+ },
+ "config": {
+  "additionalProperties": false,
+  "description": "pyxpo app configuration",
+  "properties": {
+   "abis": {
+    "items": {
+     "type": "string"
+    },
+    "type": "array"
+   },
+   "allow_4kb_libs": {
+    "type": "boolean"
+   },
+   "android": {
+    "additionalProperties": false,
+    "properties": {
+     "adaptive_icon": {
+      "additionalProperties": false,
+      "properties": {
+       "background_color": {
+        "description": "#RGB, #RRGGBB or #RRGGBBAA (CSS order).",
+        "pattern": "^#(?:[0-9a-fA-F]{3}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$",
+        "type": "string"
+       },
+       "background_image": {
+        "description": "PNG image path, relative to the project.",
+        "type": "string"
+       },
+       "foreground_image": {
+        "description": "PNG image path, relative to the project.",
+        "type": "string"
+       },
+       "monochrome_image": {
+        "description": "PNG image path, relative to the project.",
+        "type": "string"
+       }
+      },
+      "type": "object"
+     },
+     "allow_backup": {
+      "type": "boolean"
+     },
+     "background_color": {
+      "description": "#RGB, #RRGGBB or #RRGGBBAA (CSS order).",
+      "pattern": "^#(?:[0-9a-fA-F]{3}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$",
+      "type": "string"
+     },
+     "blocked_permissions": {
+      "items": {
+       "type": "string"
+      },
+      "type": "array"
+     },
+     "compile_sdk": {
+      "minimum": 24,
+      "type": "integer"
+     },
+     "icon": {
+      "description": "PNG image path, relative to the project.",
+      "type": "string"
+     },
+     "intent_filters": {
+      "items": {
+       "type": "object"
+      },
+      "type": "array"
+     },
+     "key_alias": {
+      "type": "string"
+     },
+     "keystore": {
+      "type": "string"
+     },
+     "min_sdk": {
+      "minimum": 24,
+      "type": "integer"
+     },
+     "orientation": {
+      "description": "Screen orientation lock.",
+      "enum": [
+       "default",
+       "portrait",
+       "landscape"
+      ]
+     },
+     "package": {
+      "type": "string"
+     },
+     "permissions": {
+      "items": {
+       "type": "string"
+      },
+      "type": "array"
+     },
+     "predictive_back_gesture_enabled": {
+      "type": "boolean"
+     },
+     "software_keyboard_layout_mode": {
+      "enum": [
+       "resize",
+       "pan"
+      ]
+     },
+     "splash": {
+      "additionalProperties": false,
+      "properties": {
+       "background_color": {
+        "description": "#RGB, #RRGGBB or #RRGGBBAA (CSS order).",
+        "pattern": "^#(?:[0-9a-fA-F]{3}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$",
+        "type": "string"
+       },
+       "dark": {
+        "additionalProperties": false,
+        "properties": {
+         "background_color": {
+          "description": "#RGB, #RRGGBB or #RRGGBBAA (CSS order).",
+          "pattern": "^#(?:[0-9a-fA-F]{3}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$",
+          "type": "string"
+         },
+         "image": {
+          "description": "PNG image path, relative to the project.",
+          "type": "string"
+         }
+        },
+        "type": "object"
+       },
+       "image": {
+        "description": "PNG image path, relative to the project.",
+        "type": "string"
+       }
+      },
+      "type": "object"
+     },
+     "target_sdk": {
+      "minimum": 24,
+      "type": "integer"
+     },
+     "user_interface_style": {
+      "description": "Light/dark appearance.",
+      "enum": [
+       "automatic",
+       "light",
+       "dark"
+      ]
+     },
+     "uses_cleartext_traffic": {
+      "type": "boolean"
+     },
+     "version_code": {
+      "minimum": 1,
+      "type": "integer"
+     }
+    },
+    "type": "object"
+   },
+   "background_color": {
+    "description": "#RGB, #RRGGBB or #RRGGBBAA (CSS order).",
+    "pattern": "^#(?:[0-9a-fA-F]{3}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$",
+    "type": "string"
+   },
+   "build_number": {
+    "description": "Build number (CFBundleVersion / versionCode).",
+    "minimum": 1,
+    "type": "integer"
+   },
+   "build_properties": {
+    "additionalProperties": false,
+    "properties": {
+     "android": {
+      "additionalProperties": false,
+      "properties": {
+       "enable_minify_in_release_builds": {
+        "type": "boolean"
+       },
+       "enable_shrink_resources_in_release_builds": {
+        "type": "boolean"
+       },
+       "extra_proguard_rules": {
+        "type": "string"
+       },
+       "packaging_options": {
+        "additionalProperties": false,
+        "properties": {
+         "exclude": {
+          "items": {
+           "type": "string"
+          },
+          "type": "array"
+         },
+         "pick_first": {
+          "items": {
+           "type": "string"
+          },
+          "type": "array"
+         }
+        },
+        "type": "object"
+       }
+      },
+      "type": "object"
+     }
+    },
+    "type": "object"
+   },
+   "bundle_id": {
+    "description": "Reverse-DNS app id.",
+    "type": "string"
+   },
+   "dev_port": {
+    "maximum": 65535,
+    "minimum": 1,
+    "type": "integer"
+   },
+   "extra": {
+    "description": "Free-form values shipped inside the app (never put secrets here).",
+    "type": "object"
+   },
+   "icon": {
+    "description": "PNG image path, relative to the project.",
+    "type": "string"
+   },
+   "ios": {
+    "additionalProperties": false,
+    "properties": {
+     "associated_domains": {
+      "items": {
+       "type": "string"
+      },
+      "type": "array"
+     },
+     "background_color": {
+      "description": "#RGB, #RRGGBB or #RRGGBBAA (CSS order).",
+      "pattern": "^#(?:[0-9a-fA-F]{3}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$",
+      "type": "string"
+     },
+     "build_number": {
+      "type": [
+       "integer",
+       "string"
+      ]
+     },
+     "bundle_identifier": {
+      "type": "string"
+     },
+     "config": {
+      "additionalProperties": false,
+      "properties": {
+       "uses_non_exempt_encryption": {
+        "type": "boolean"
+       }
+      },
+      "type": "object"
+     },
+     "deployment_target": {
+      "type": "string"
+     },
+     "entitlements": {
+      "description": "Raw entitlements.",
+      "type": "object"
+     },
+     "icon": {
+      "description": "PNG path, or {light, dark, tinted} table.",
+      "oneOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "object"
+       }
+      ]
+     },
+     "infoPlist": {
+      "description": "Module Info.plist defaults (native-module convention).",
+      "type": "object"
+     },
+     "info_plist": {
+      "description": "Raw Info.plist keys (merged last).",
+      "type": "object"
+     },
+     "orientation": {
+      "description": "Screen orientation lock.",
+      "enum": [
+       "default",
+       "portrait",
+       "landscape"
+      ]
+     },
+     "require_full_screen": {
+      "type": "boolean"
+     },
+     "splash": {
+      "additionalProperties": false,
+      "properties": {
+       "background_color": {
+        "description": "#RGB, #RRGGBB or #RRGGBBAA (CSS order).",
+        "pattern": "^#(?:[0-9a-fA-F]{3}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$",
+        "type": "string"
+       },
+       "dark": {
+        "additionalProperties": false,
+        "properties": {
+         "background_color": {
+          "description": "#RGB, #RRGGBB or #RRGGBBAA (CSS order).",
+          "pattern": "^#(?:[0-9a-fA-F]{3}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$",
+          "type": "string"
+         },
+         "image": {
+          "description": "PNG image path, relative to the project.",
+          "type": "string"
+         }
+        },
+        "type": "object"
+       },
+       "image": {
+        "description": "PNG image path, relative to the project.",
+        "type": "string"
+       }
+      },
+      "type": "object"
+     },
+     "supports_tablet": {
+      "type": "boolean"
+     },
+     "team_id": {
+      "type": "string"
+     },
+     "user_interface_style": {
+      "description": "Light/dark appearance.",
+      "enum": [
+       "automatic",
+       "light",
+       "dark"
+      ]
+     },
+     "uses_apple_sign_in": {
+      "type": "boolean"
+     }
+    },
+    "type": "object"
+   },
+   "module_options": {
+    "description": "Per-module options, keyed by module name.",
+    "type": "object"
+   },
+   "modules": {
+    "items": {
+     "type": "string"
+    },
+    "type": "array"
+   },
+   "name": {
+    "description": "Display name.",
+    "type": "string"
+   },
+   "navigation_bar": {
+    "additionalProperties": false,
+    "description": "Android only.",
+    "properties": {
+     "hidden": {
+      "type": "boolean"
+     },
+     "style": {
+      "description": "Icon style.",
+      "enum": [
+       "auto",
+       "light",
+       "dark"
+      ]
+     }
+    },
+    "type": "object"
+   },
+   "orientation": {
+    "description": "Screen orientation lock.",
+    "enum": [
+     "default",
+     "portrait",
+     "landscape"
+    ]
+   },
+   "plugins": {
+    "description": "Config plugins: './file.py', 'pkg.mod[:fn]' or ['entry', {options}].",
+    "items": {},
+    "type": "array"
+   },
+   "requires": {
+    "items": {
+     "type": "string"
+    },
+    "type": "array"
+   },
+   "scheme": {
+    "description": "Deep-link scheme(s).",
+    "oneOf": [
+     {
+      "type": "string"
+     },
+     {
+      "items": {
+       "type": "string"
+      },
+      "type": "array"
+     }
+    ]
+   },
+   "slug": {
+    "description": "URL-safe app id; default derived from name.",
+    "type": "string"
+   },
+   "splash": {
+    "additionalProperties": false,
+    "properties": {
+     "background_color": {
+      "description": "#RGB, #RRGGBB or #RRGGBBAA (CSS order).",
+      "pattern": "^#(?:[0-9a-fA-F]{3}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$",
+      "type": "string"
+     },
+     "dark": {
+      "additionalProperties": false,
+      "properties": {
+       "background_color": {
+        "description": "#RGB, #RRGGBB or #RRGGBBAA (CSS order).",
+        "pattern": "^#(?:[0-9a-fA-F]{3}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$",
+        "type": "string"
+       },
+       "image": {
+        "description": "PNG image path, relative to the project.",
+        "type": "string"
+       }
+      },
+      "type": "object"
+     },
+     "image": {
+      "description": "PNG image path, relative to the project.",
+      "type": "string"
+     },
+     "image_width": {
+      "description": "Logical width in points/dp.",
+      "minimum": 1,
+      "type": "integer"
+     },
+     "resize_mode": {
+      "enum": [
+       "contain",
+       "cover",
+       "native"
+      ]
+     }
+    },
+    "type": "object"
+   },
+   "status_bar": {
+    "additionalProperties": false,
+    "properties": {
+     "hidden": {
+      "type": "boolean"
+     },
+     "style": {
+      "description": "Icon style.",
+      "enum": [
+       "auto",
+       "light",
+       "dark"
+      ]
+     }
+    },
+    "type": "object"
+   },
+   "targets": {
+    "items": {
+     "type": "string"
+    },
+    "type": "array"
+   },
+   "user_interface_style": {
+    "description": "Light/dark appearance.",
+    "enum": [
+     "automatic",
+     "light",
+     "dark"
+    ]
+   },
+   "version": {
+    "description": "User-visible version (MARKETING_VERSION / versionName).",
+    "type": "string"
+   },
+   "wheel_index": {
+    "items": {
+     "type": "string"
+    },
+    "type": "array"
+   }
+  },
+  "type": "object"
+ },
+ "exports": {
+  "ActivityIndicator": {
+   "doc": "Platform spinner. `size`: \"small\" | \"large\" | number of dp.",
+   "kind": "component"
+  },
+  "Alert": {
+   "doc": "",
+   "kind": "class"
+  },
+  "Animated": {
+   "doc": "Animated: native-driven animations (Value, timing, spring, decay, composition) and Easing.",
+   "kind": "class"
+  },
+  "App": {
+   "doc": "Owns a reconciler and a channel. Batches setState into one flush per loop tick.",
+   "kind": "class"
+  },
+  "AppState": {
+   "doc": "`AppState.currentState` is \"active\" or \"background\"; `change` listeners get the new state.",
+   "kind": "class"
+  },
+  "Appearance": {
+   "doc": "",
+   "kind": "class"
+  },
+  "BackHandler": {
+   "doc": "",
+   "kind": "class"
+  },
+  "Button": {
+   "doc": "Minimal platform-styled button (RN `Button`): `title`, `onPress`, `color` (fill), `disabled`.",
+   "kind": "component"
+  },
+  "Channel": {
+   "doc": "Python <-> native transport. Both directions carry JSON strings.",
+   "kind": "class"
+  },
+  "Clipboard": {
+   "doc": "",
+   "kind": "class"
+  },
+  "Component": {
+   "doc": "",
+   "kind": "class"
+  },
+  "Constants": {
+   "doc": "Read-only app constants. Everything in `extra` ships in plain text; never put secrets there.",
+   "kind": "class"
+  },
+  "Dimensions": {
+   "doc": "",
+   "kind": "class"
+  },
+  "Easing": {
+   "doc": "",
+   "kind": "class"
+  },
+  "Element": {
+   "doc": "Immutable-by-convention description of a UI node. `type` is a host name (str) or a Component.",
+   "kind": "class"
+  },
+  "ErrorBoundary": {
+   "doc": "`ErrorBoundary(*children, fallback=lambda error, reset: ..., on_error=None)`.",
+   "kind": "function"
+  },
+  "FlatList": {
+   "doc": "RN FlatList. `renderItem({\"item\", \"index\", \"separators\"})`; `ref.current` has scrollToIndex / scrollToOffset /\nscrollToEnd. `getItemLayout(data, index) -> {\"length\", \"offset\", \"index\"}` (or `item_size`) enables windowing.",
+   "kind": "component"
+  },
+  "HookError": {
+   "doc": "Unspecified run-time error.",
+   "kind": "class"
+  },
+  "I18nManager": {
+   "doc": "Layout direction flags (LTR only for now).",
+   "kind": "class"
+  },
+  "Image": {
+   "doc": "Image from `source`: a path, an http(s) URL, a data: URI, `asset:name`, or `{\"uri\": ...}`.\nRN props: resizeMode, tintColor (style), onLoad, onError, onLoadStart, onLoadEnd, blurRadius, fadeDuration.",
+   "kind": "component"
+  },
+  "ImageBackground": {
+   "doc": "Image drawn behind its children (RN `ImageBackground`).",
+   "kind": "component"
+  },
+  "Keyboard": {
+   "doc": "",
+   "kind": "class"
+  },
+  "KeyboardAvoidingView": {
+   "doc": "Moves its content above the keyboard. `behavior`: \"padding\" | \"height\" | \"position\"; without one the view\nis a plain View (as in RN).",
+   "kind": "component"
+  },
+  "Linking": {
+   "doc": "",
+   "kind": "class"
+  },
+  "LocalChannel": {
+   "doc": "In-process channel connecting an App to a renderer (mock/console).",
+   "kind": "class"
+  },
+  "Modal": {
+   "doc": "Layer above the whole app. `animationType`: none | fade | slide. Android back fires `onRequestClose`;\n`onShow` runs once the layer is on screen, `onDismiss` after it is gone. A non-transparent modal has a\ndimmed backdrop.",
+   "kind": "component"
+  },
+  "PanResponder": {
+   "doc": "",
+   "kind": "class"
+  },
+  "Picker": {
+   "doc": "`<Picker selectedValue onValueChange(value, index)>` with `Picker.Item` children. Tapping opens a native\nsingle-choice dialog (`prompt` is its title).",
+   "kind": "component"
+  },
+  "PixelRatio": {
+   "doc": "",
+   "kind": "class"
+  },
+  "Platform": {
+   "doc": "`Platform.OS` (\"android\" | \"ios\" | ...), `Platform.select({...})`.",
+   "kind": "class"
+  },
+  "Pressable": {
+   "doc": "Touchable view. `style` may be a function of the press state; so may the single child.",
+   "kind": "component"
+  },
+  "RefreshControl": {
+   "doc": "Pull-to-refresh. Only meaningful as `ScrollView(refreshControl=RefreshControl(refreshing=..., onRefresh=...))`\n(also FlatList / SectionList). Props: refreshing, onRefresh, colors, tintColor, progressBackgroundColor.",
+   "kind": "component"
+  },
+  "SafeAreaView": {
+   "doc": "View inset by the system bars, notch and home indicator (`react-native-safe-area-context` API).\n`mode`: \"padding\" (default) or \"margin\".",
+   "kind": "component"
+  },
+  "ScrollView": {
+   "doc": "Scrollable container. RN props: horizontal, contentContainerStyle, onScroll, scrollEventThrottle,\nshowsVerticalScrollIndicator, showsHorizontalScrollIndicator, bounces, pagingEnabled, scrollEnabled,\nkeyboardShouldPersistTaps, keyboardDismissMode, stickyHeaderIndices, refreshControl, contentOffset,\nonContentSizeChange, onScrollBeginDrag, onScrollEndDrag, onMomentumScrollEnd, nestedScrollEnabled.\n`ref.current` has scrollTo({x, y, animated}) and scrollToEnd({animated}).",
+   "kind": "component"
+  },
+  "SectionList": {
+   "doc": "RN SectionList: `sections=[{\"title\", \"data\", \"renderItem\"?, \"keyExtractor\"?}]`. `renderItem` gets\n`{\"item\", \"index\", \"section\", \"separators\"}`; the section renderers get `{\"section\"}`. Sticky headers are not\nsupported yet.",
+   "kind": "component"
+  },
+  "Slider": {
+   "doc": "Platform slider (`@react-native-community/slider` API). Controlled: update `value` in `onValueChange`.",
+   "kind": "component"
+  },
+  "SplashScreen": {
+   "doc": "expo-splash-screen shape. The splash hides itself after the first render unless `prevent_auto_hide()` ran first.",
+   "kind": "class"
+  },
+  "StatusBar": {
+   "doc": "Declarative status bar; the newest mounted one wins. `barStyle`: \"default\" | \"light-content\" |\n\"dark-content\". `backgroundColor` / `translucent` are Android only.",
+   "kind": "component"
+  },
+  "StyleSheet": {
+   "doc": "Like React Native's StyleSheet: validates once, returns plain dicts (`styles.title` or `styles[\"title\"]`).\nStyle keys may be camelCase (`fontSize`) or snake_case (`font_size`).",
+   "kind": "class"
+  },
+  "Switch": {
+   "doc": "Platform switch. `trackColor` / `thumbColor` take one colour or RN's `{False: off, True: on}`.",
+   "kind": "component"
+  },
+  "Text": {
+   "doc": "",
+   "kind": "component"
+  },
+  "TextInput": {
+   "doc": "Single- or multi-line text field. RN props: value, defaultValue, onChangeText, onChange,\nonSubmitEditing, onFocus, onBlur, onEndEditing, onSelectionChange, onKeyPress, onContentSizeChange, placeholder,\nplaceholderTextColor, multiline, numberOfLines, maxLength, editable, secureTextEntry, keyboardType, returnKeyType,\nautoCapitalize, autoCorrect, autoFocus, selectTextOnFocus, selectionColor, textAlign, style. `ref.current` has\nfocus(), blur(), clear(), setSelection(start, end).",
+   "kind": "component"
+  },
+  "ToastAndroid": {
+   "doc": "",
+   "kind": "class"
+  },
+  "TouchableHighlight": {
+   "doc": "Shows `underlayColor` behind the content and dims the content to `activeOpacity` while pressed.",
+   "kind": "component"
+  },
+  "TouchableNativeFeedback": {
+   "doc": "Android ripple feedback. `background` is `{\"color\", \"borderless\"}` (see TouchableNativeFeedback.Ripple).",
+   "kind": "component"
+  },
+  "TouchableOpacity": {
+   "doc": "Dims to `activeOpacity` (default 0.2) while pressed.",
+   "kind": "component"
+  },
+  "TouchableWithoutFeedback": {
+   "doc": "Handles presses and shows nothing.",
+   "kind": "component"
+  },
+  "Vibration": {
+   "doc": "",
+   "kind": "class"
+  },
+  "View": {
+   "doc": "Layout container (flexbox). RN props: style, onLayout, pointerEvents, hitSlop, testID, nativeID,\naccessibility*, plus the raw touch events onTouchStart/Move/End.",
+   "kind": "component"
+  },
+  "VirtualizedList": {
+   "doc": "RN VirtualizedList: FlatList over any `data` read through `getItem(data, index)` / `getItemCount(data)`.",
+   "kind": "component"
+  },
+  "component": {
+   "doc": "",
+   "kind": "function"
+  },
+  "createContext": {
+   "doc": "",
+   "kind": "function"
+  },
+  "create_app": {
+   "doc": "Mount without an event loop (synchronous flushes). Used by tests and tooling.",
+   "kind": "function"
+  },
+  "create_context": {
+   "doc": "",
+   "kind": "function"
+  },
+  "memo": {
+   "doc": "Skip re-rendering `comp` when its props are unchanged (shallow ==). Use `use_callback` for handlers.",
+   "kind": "function"
+  },
+  "processColor": {
+   "doc": "Return color as 0xAARRGGBB int. Accepts int, #rgb, #rgba, #rrggbb, #rrggbbaa, rgb(), rgba(), names.",
+   "kind": "function"
+  },
+  "run_app": {
+   "doc": "Run the app on the current platform. Desktop target uses the console renderer.",
+   "kind": "function"
+  },
+  "useAnimatedValue": {
+   "doc": "A Value that lives as long as the component. Freed natively on unmount.",
+   "kind": "hook"
+  },
+  "useAsync": {
+   "doc": "Run fn (coroutine fn, or blocking fn in a worker thread) when deps change. Returns (loading, value, error).",
+   "kind": "hook"
+  },
+  "useCallback": {
+   "doc": "",
+   "kind": "hook"
+  },
+  "useColorScheme": {
+   "doc": "\"light\" or \"dark\".",
+   "kind": "hook"
+  },
+  "useContext": {
+   "doc": "",
+   "kind": "hook"
+  },
+  "useDebugValue": {
+   "doc": "No-op (React DevTools label).",
+   "kind": "hook"
+  },
+  "useDeferredValue": {
+   "doc": "pyxpo has no concurrent rendering: the value is returned as is.",
+   "kind": "hook"
+  },
+  "useEffect": {
+   "doc": "Run fn after commit. deps=None: every render. deps=[]: once. fn may return a cleanup callable.",
+   "kind": "hook"
+  },
+  "useId": {
+   "doc": "A string id that is stable for the life of the component and unique within the app.",
+   "kind": "hook"
+  },
+  "useImperativeHandle": {
+   "doc": "Expose `create()` on a parent's ref (`ref.current`, or a callable ref). Cleared on unmount.",
+   "kind": "hook"
+  },
+  "useLayoutEffect": {
+   "doc": "Same timing as `use_effect`: native layout is measured asynchronously, so there is no earlier point to run.",
+   "kind": "hook"
+  },
+  "useMemo": {
+   "doc": "",
+   "kind": "hook"
+  },
+  "useReducer": {
+   "doc": "`state, dispatch = use_reducer(reducer, initial_arg, init=None)`. dispatch is stable; a reducer result that is\nthe same as the current state does not re-render.",
+   "kind": "hook"
+  },
+  "useRef": {
+   "doc": "",
+   "kind": "hook"
+  },
+  "useSafeAreaFrame": {
+   "doc": "`{\"x\", \"y\", \"width\", \"height\"}` of the safe-area root in dp.",
+   "kind": "hook"
+  },
+  "useSafeAreaInsets": {
+   "doc": "`{\"top\", \"right\", \"bottom\", \"left\"}` in dp.",
+   "kind": "hook"
+  },
+  "useState": {
+   "doc": "",
+   "kind": "hook"
+  },
+  "useSyncExternalStore": {
+   "doc": "Read an external store. `subscribe(on_change)` returns an unsubscribe callable; `get_snapshot()` returns the\ncurrent value (it must return the same object while the store is unchanged).",
+   "kind": "hook"
+  },
+  "useTransition": {
+   "doc": "`(is_pending, start_transition)`. pyxpo renders synchronously, so is_pending is always False.",
+   "kind": "hook"
+  },
+  "useWindowDimensions": {
+   "doc": "`{\"width\", \"height\", \"scale\", \"fontScale\"}`, re-rendering on rotation / resize.",
+   "kind": "hook"
+  },
+  "use_animated_value": {
+   "doc": "A Value that lives as long as the component. Freed natively on unmount.",
+   "kind": "hook"
+  },
+  "use_async": {
+   "doc": "Run fn (coroutine fn, or blocking fn in a worker thread) when deps change. Returns (loading, value, error).",
+   "kind": "hook"
+  },
+  "use_callback": {
+   "doc": "",
+   "kind": "hook"
+  },
+  "use_color_scheme": {
+   "doc": "\"light\" or \"dark\".",
+   "kind": "hook"
+  },
+  "use_context": {
+   "doc": "",
+   "kind": "hook"
+  },
+  "use_debug_value": {
+   "doc": "No-op (React DevTools label).",
+   "kind": "hook"
+  },
+  "use_deferred_value": {
+   "doc": "pyxpo has no concurrent rendering: the value is returned as is.",
+   "kind": "hook"
+  },
+  "use_effect": {
+   "doc": "Run fn after commit. deps=None: every render. deps=[]: once. fn may return a cleanup callable.",
+   "kind": "hook"
+  },
+  "use_id": {
+   "doc": "A string id that is stable for the life of the component and unique within the app.",
+   "kind": "hook"
+  },
+  "use_imperative_handle": {
+   "doc": "Expose `create()` on a parent's ref (`ref.current`, or a callable ref). Cleared on unmount.",
+   "kind": "hook"
+  },
+  "use_layout_effect": {
+   "doc": "Same timing as `use_effect`: native layout is measured asynchronously, so there is no earlier point to run.",
+   "kind": "hook"
+  },
+  "use_memo": {
+   "doc": "",
+   "kind": "hook"
+  },
+  "use_reducer": {
+   "doc": "`state, dispatch = use_reducer(reducer, initial_arg, init=None)`. dispatch is stable; a reducer result that is\nthe same as the current state does not re-render.",
+   "kind": "hook"
+  },
+  "use_ref": {
+   "doc": "",
+   "kind": "hook"
+  },
+  "use_safe_area_frame": {
+   "doc": "`{\"x\", \"y\", \"width\", \"height\"}` of the safe-area root in dp.",
+   "kind": "hook"
+  },
+  "use_safe_area_insets": {
+   "doc": "`{\"top\", \"right\", \"bottom\", \"left\"}` in dp.",
+   "kind": "hook"
+  },
+  "use_state": {
+   "doc": "",
+   "kind": "hook"
+  },
+  "use_sync_external_store": {
+   "doc": "Read an external store. `subscribe(on_change)` returns an unsubscribe callable; `get_snapshot()` returns the\ncurrent value (it must return the same object while the store is unchanged).",
+   "kind": "hook"
+  },
+  "use_transition": {
+   "doc": "`(is_pending, start_transition)`. pyxpo renders synchronously, so is_pending is always False.",
+   "kind": "hook"
+  },
+  "use_window_dimensions": {
+   "doc": "`{\"width\", \"height\", \"scale\", \"fontScale\"}`, re-rendering on rotation / resize.",
+   "kind": "hook"
+  }
+ },
+ "named_colors": {
+  "black": "#000000",
+  "blue": "#0000ff",
+  "brown": "#a52a2a",
+  "cyan": "#00ffff",
+  "gray": "#808080",
+  "green": "#008000",
+  "grey": "#808080",
+  "lime": "#00ff00",
+  "magenta": "#ff00ff",
+  "maroon": "#800000",
+  "navy": "#000080",
+  "orange": "#ffa500",
+  "pink": "#ffc0cb",
+  "purple": "#800080",
+  "red": "#ff0000",
+  "silver": "#c0c0c0",
+  "teal": "#008080",
+  "transparent": "#00000000",
+  "white": "#ffffff",
+  "yellow": "#ffff00"
+ },
+ "pyxpo": "0.1.0a3",
+ "style": {
+  "keys": {
+   "align_content": {
+    "doc": "Lines across the main axis when `flex_wrap` makes more than one.",
+    "kind": "enum",
+    "values": [
+     "flex-start",
+     "center",
+     "flex-end",
+     "stretch",
+     "space-between",
+     "space-around",
+     "space-evenly"
+    ]
+   },
+   "align_items": {
+    "doc": "Children across the main axis.",
+    "kind": "enum",
+    "values": [
+     "flex-start",
+     "center",
+     "flex-end",
+     "stretch",
+     "baseline"
+    ]
+   },
+   "align_self": {
+    "doc": "This view across its parent's main axis (overrides the parent's `align_items`).",
+    "kind": "enum",
+    "values": [
+     "auto",
+     "flex-start",
+     "center",
+     "flex-end",
+     "stretch",
+     "baseline"
+    ]
+   },
+   "allow_font_scaling": {
+    "doc": "Text follows the system font size (default True).",
+    "kind": "bool"
+   },
+   "aspect_ratio": {
+    "doc": "Width / height.",
+    "kind": "number"
+   },
+   "background_color": {
+    "doc": "Color: #rgb, #rrggbb, #rrggbbaa, rgb(), rgba() or a name.",
+    "kind": "color"
+   },
+   "border_bottom_color": {
+    "doc": "Border color (`border_bottom_color`).",
+    "kind": "color"
+   },
+   "border_bottom_left_radius": {
+    "doc": "Corner radius (`border_bottom_left_radius`).",
+    "kind": "number"
+   },
+   "border_bottom_right_radius": {
+    "doc": "Corner radius (`border_bottom_right_radius`).",
+    "kind": "number"
+   },
+   "border_bottom_width": {
+    "doc": "Border width (`border_bottom_width`).",
+    "kind": "number"
+   },
+   "border_color": {
+    "doc": "Border color (`border_color`).",
+    "kind": "color"
+   },
+   "border_left_color": {
+    "doc": "Border color (`border_left_color`).",
+    "kind": "color"
+   },
+   "border_left_width": {
+    "doc": "Border width (`border_left_width`).",
+    "kind": "number"
+   },
+   "border_radius": {
+    "doc": "Corner radius (`border_radius`).",
+    "kind": "number"
+   },
+   "border_right_color": {
+    "doc": "Border color (`border_right_color`).",
+    "kind": "color"
+   },
+   "border_right_width": {
+    "doc": "Border width (`border_right_width`).",
+    "kind": "number"
+   },
+   "border_top_color": {
+    "doc": "Border color (`border_top_color`).",
+    "kind": "color"
+   },
+   "border_top_left_radius": {
+    "doc": "Corner radius (`border_top_left_radius`).",
+    "kind": "number"
+   },
+   "border_top_right_radius": {
+    "doc": "Corner radius (`border_top_right_radius`).",
+    "kind": "number"
+   },
+   "border_top_width": {
+    "doc": "Border width (`border_top_width`).",
+    "kind": "number"
+   },
+   "border_width": {
+    "doc": "Border width (`border_width`).",
+    "kind": "number"
+   },
+   "bottom": {
+    "doc": "Offset from the parent edge (`bottom`).",
+    "kind": "number"
+   },
+   "color": {
+    "doc": "Color: #rgb, #rrggbb, #rrggbbaa, rgb(), rgba() or a name.",
+    "kind": "color"
+   },
+   "column_gap": {
+    "doc": "Space between children (`column_gap`).",
+    "kind": "number"
+   },
+   "display": {
+    "doc": "`none` hides the view and takes it out of layout.",
+    "kind": "enum",
+    "values": [
+     "flex",
+     "none"
+    ]
+   },
+   "elevation": {
+    "doc": "Android shadow depth.",
+    "kind": "number"
+   },
+   "end": {
+    "doc": "Offset from the parent edge (`end`).",
+    "kind": "number"
+   },
+   "flex": {
+    "doc": "Share of the free space along the main axis (RN meaning: positive grows and shrinks).",
+    "kind": "number"
+   },
+   "flex_basis": {
+    "doc": "Size along the main axis before growing or shrinking.",
+    "kind": "number"
+   },
+   "flex_direction": {
+    "doc": "Main axis: `column` (default) or `row`.",
+    "kind": "enum",
+    "values": [
+     "column",
+     "row",
+     "column-reverse",
+     "row-reverse"
+    ]
+   },
+   "flex_grow": {
+    "doc": "Flex factor (`flex_grow`).",
+    "kind": "number"
+   },
+   "flex_shrink": {
+    "doc": "Flex factor (`flex_shrink`).",
+    "kind": "number"
+   },
+   "flex_wrap": {
+    "doc": "Wrap children onto more lines.",
+    "kind": "enum",
+    "values": [
+     "nowrap",
+     "wrap",
+     "wrap-reverse"
+    ]
+   },
+   "font_family": {
+    "doc": "A system family or a font loaded with `use_fonts` / `[tool.pyxpo]` fonts.",
+    "kind": "string"
+   },
+   "font_size": {
+    "doc": "Style key `font_size`.",
+    "kind": "number"
+   },
+   "font_style": {
+    "doc": "Style key `font_style`.",
+    "kind": "enum",
+    "values": [
+     "normal",
+     "italic"
+    ]
+   },
+   "font_weight": {
+    "doc": "`normal`, `bold` or 100..900.",
+    "kind": "enum",
+    "values": [
+     "normal",
+     "bold",
+     "100",
+     "200",
+     "300",
+     "400",
+     "500",
+     "600",
+     "700",
+     "800",
+     "900"
+    ]
+   },
+   "gap": {
+    "doc": "Space between children (rows and columns).",
+    "kind": "number"
+   },
+   "height": {
+    "doc": "Size (`height`).",
+    "kind": "number"
+   },
+   "justify_content": {
+    "doc": "Children along the main axis.",
+    "kind": "enum",
+    "values": [
+     "flex-start",
+     "center",
+     "flex-end",
+     "space-between",
+     "space-around",
+     "space-evenly"
+    ]
+   },
+   "left": {
+    "doc": "Offset from the parent edge (`left`).",
+    "kind": "number"
+   },
+   "letter_spacing": {
+    "doc": "Style key `letter_spacing`.",
+    "kind": "number"
+   },
+   "line_height": {
+    "doc": "Line height in dp/pt.",
+    "kind": "number"
+   },
+   "linear_gradient": {
+    "doc": "Background gradient: `{\"colors\": [...], \"angle\": 180, \"stops\": [0, 1]}`. Angle 0 points up, 90 right, 180 down (default). `stops` are optional, 0..1, one per color.",
+    "kind": "gradient"
+   },
+   "margin": {
+    "doc": "Outer space (`margin`).",
+    "kind": "number"
+   },
+   "margin_bottom": {
+    "doc": "Outer space (`margin_bottom`).",
+    "kind": "number"
+   },
+   "margin_horizontal": {
+    "doc": "Outer space (`margin_horizontal`).",
+    "kind": "number"
+   },
+   "margin_left": {
+    "doc": "Outer space (`margin_left`).",
+    "kind": "number"
+   },
+   "margin_right": {
+    "doc": "Outer space (`margin_right`).",
+    "kind": "number"
+   },
+   "margin_top": {
+    "doc": "Outer space (`margin_top`).",
+    "kind": "number"
+   },
+   "margin_vertical": {
+    "doc": "Outer space (`margin_vertical`).",
+    "kind": "number"
+   },
+   "max_height": {
+    "doc": "Size (`max_height`).",
+    "kind": "number"
+   },
+   "max_width": {
+    "doc": "Size (`max_width`).",
+    "kind": "number"
+   },
+   "min_height": {
+    "doc": "Size (`min_height`).",
+    "kind": "number"
+   },
+   "min_width": {
+    "doc": "Size (`min_width`).",
+    "kind": "number"
+   },
+   "number_of_lines": {
+    "doc": "Text: cut after this many lines (0 = no limit).",
+    "kind": "number"
+   },
+   "opacity": {
+    "doc": "0 (invisible) to 1.",
+    "kind": "number"
+   },
+   "overflow": {
+    "doc": "`hidden` clips children to the view's bounds.",
+    "kind": "enum",
+    "values": [
+     "visible",
+     "hidden",
+     "scroll"
+    ]
+   },
+   "padding": {
+    "doc": "Inner space (`padding`).",
+    "kind": "number"
+   },
+   "padding_bottom": {
+    "doc": "Inner space (`padding_bottom`).",
+    "kind": "number"
+   },
+   "padding_horizontal": {
+    "doc": "Inner space (`padding_horizontal`).",
+    "kind": "number"
+   },
+   "padding_left": {
+    "doc": "Inner space (`padding_left`).",
+    "kind": "number"
+   },
+   "padding_right": {
+    "doc": "Inner space (`padding_right`).",
+    "kind": "number"
+   },
+   "padding_top": {
+    "doc": "Inner space (`padding_top`).",
+    "kind": "number"
+   },
+   "padding_vertical": {
+    "doc": "Inner space (`padding_vertical`).",
+    "kind": "number"
+   },
+   "position": {
+    "doc": "`absolute` places the view by `top`/`right`/`bottom`/`left` inside its parent.",
+    "kind": "enum",
+    "values": [
+     "relative",
+     "absolute"
+    ]
+   },
+   "right": {
+    "doc": "Offset from the parent edge (`right`).",
+    "kind": "number"
+   },
+   "rotate": {
+    "doc": "Rotation: `\"45deg\"` or radians.",
+    "kind": "string"
+   },
+   "row_gap": {
+    "doc": "Space between children (`row_gap`).",
+    "kind": "number"
+   },
+   "scale": {
+    "doc": "Transform shortcut (`scale`).",
+    "kind": "number"
+   },
+   "scale_x": {
+    "doc": "Transform shortcut (`scale_x`).",
+    "kind": "number"
+   },
+   "scale_y": {
+    "doc": "Transform shortcut (`scale_y`).",
+    "kind": "number"
+   },
+   "shadow_color": {
+    "doc": "iOS shadow (`shadow_color`).",
+    "kind": "color"
+   },
+   "shadow_offset_x": {
+    "doc": "iOS shadow (`shadow_offset_x`).",
+    "kind": "number"
+   },
+   "shadow_offset_y": {
+    "doc": "iOS shadow (`shadow_offset_y`).",
+    "kind": "number"
+   },
+   "shadow_opacity": {
+    "doc": "iOS shadow (`shadow_opacity`).",
+    "kind": "number"
+   },
+   "shadow_radius": {
+    "doc": "iOS shadow (`shadow_radius`).",
+    "kind": "number"
+   },
+   "start": {
+    "doc": "Offset from the parent edge (`start`).",
+    "kind": "number"
+   },
+   "text_align": {
+    "doc": "Style key `text_align`.",
+    "kind": "enum",
+    "values": [
+     "auto",
+     "left",
+     "center",
+     "right"
+    ]
+   },
+   "text_decoration": {
+    "doc": "`underline`, `line-through` or both.",
+    "kind": "enum",
+    "values": [
+     "none",
+     "underline",
+     "line-through",
+     "underline line-through"
+    ]
+   },
+   "text_shadow_color": {
+    "doc": "Text shadow (`text_shadow_color`).",
+    "kind": "color"
+   },
+   "text_shadow_offset_x": {
+    "doc": "Text shadow (`text_shadow_offset_x`).",
+    "kind": "number"
+   },
+   "text_shadow_offset_y": {
+    "doc": "Text shadow (`text_shadow_offset_y`).",
+    "kind": "number"
+   },
+   "text_shadow_radius": {
+    "doc": "Text shadow (`text_shadow_radius`).",
+    "kind": "number"
+   },
+   "text_transform": {
+    "doc": "Style key `text_transform`.",
+    "kind": "enum",
+    "values": [
+     "none",
+     "uppercase",
+     "lowercase",
+     "capitalize"
+    ]
+   },
+   "top": {
+    "doc": "Offset from the parent edge (`top`).",
+    "kind": "number"
+   },
+   "transform": {
+    "doc": "List of single-key dicts, as in RN: `[{\"rotate\": \"45deg\"}, {\"scale\": 1.2}]`.",
+    "kind": "transform"
+   },
+   "translate_x": {
+    "doc": "Transform shortcut (`translate_x`).",
+    "kind": "number"
+   },
+   "translate_y": {
+    "doc": "Transform shortcut (`translate_y`).",
+    "kind": "number"
+   },
+   "width": {
+    "doc": "Size (`width`).",
+    "kind": "number"
+   },
+   "z_index": {
+    "doc": "Stacking order among siblings.",
+    "kind": "number"
+   }
+  },
+  "unsupported": [
+   "border_style",
+   "direction",
+   "font_variant",
+   "include_font_padding",
+   "resize_mode",
+   "text_align_vertical",
+   "tint_color"
+  ]
+ }
+}

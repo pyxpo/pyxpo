@@ -11,7 +11,15 @@
 - Status: haptics, device, application, localization, network, fetch, sqlite, web-browser, location: done, unit + e2e iOS/Android (details in each README). fetch test server tools/fetch_server.py :8765. web-browser Android 15+: BAL + freezer, test closes tab via host `tabback`.
 - tier1kit harness: tools/ios_selftest.sh|android_selftest.sh [sections]; NOBUILD=1 (Python changes need rebuild); host actions via cache/t1_req -> t1_ack. Android web-browser prep sets Chrome flags (skip first-run). Android python stdout: logcat tag python.stdout.
 
-## Remote push (uncommitted, Oct 16)
-- notifications: FCM (Android) + APNs (iOS) device token, token listener, unregister, plugin `pyxpo_notifications.plugin` (googleServicesFile, mode, enableBackgroundRemoteNotifications). NATIVE_CONTRACT 3 (Android onNewIntent). tools/send_push.py = FCM HTTP v1 sender (stdlib + openssl).
-- pytest 500 pass. Android + iOS notifications selftest ALL OK (local, tap, background, simctl push; token says not configured). Next: README/CHANGELOG, real FCM e2e (needs ~/.pyxpo-secrets/google-services.json + service-account.json).
-- Fixed core bug (uncommitted): Android activity recreate / back+relaunch in same process crashed (nativeStart twice, SIGABRT). Now PyxpoRuntime.get() is process-wide; new activity calls attach(applier, env) -> `remount` event -> Python App._native_remount (env update, anim native_reset, Mark(n) op, reload). OpApplier drops non-call ops until mark n. Verified on emu: font_scale recreate x2 + back/relaunch, same pid, UI back. Unit test test_native_remount_mounts_again_on_new_renderer.
+## Remote push + remount fix: committed, tag v0.1.0a3 pushed
+- notifications FCM/APNs token, plugin, tools/send_push.py. Android activity remount fix (process-wide runtime, `remount` event).
+- Release run 38893625537 waits for user approval (pypi env). Then tag pkg/notifications/v0.1.0a2, user approves again.
+- Later: real FCM e2e (~/.pyxpo-secrets/), missing packages batch, wheels CI.
+
+## VS Code extension (editors/vscode, uncommitted, Oct 16)
+- TS, no deps beyond vscode types. src/pyscan.ts, analyze.ts, colors.ts, toml.ts, imports.ts (auto-import edits), extension.ts.
+- data/pyxpo.json (incl. `exports` = pyxpo.__all__) from tools/gen_vscode_data.py; tests/test_vscode_data.py fails when stale.
+- User bug "autocomplete not working": window in Restricted Mode, extension had no `capabilities.untrustedWorkspaces` so VS Code disabled it. Fixed (limited support; run commands + config validation need trust).
+- Dev-mode extensions skip trust: only `npm run test:e2e:vsix` (installs packaged vsix, harness ext runs suite) proves it. Without capability: 9/15 fail, same as user screenshot.
+- `npm test` 27/27; `test:e2e` and `test:e2e:vsix` 15/15 trusted + 15/15 Restricted Mode. vsix installed. Demo: scratchpad/pyxpo-demo (screen.py for auto-import).
+- Next: user checks; commit when asked; marketplace publish needs user publisher account + go-ahead.

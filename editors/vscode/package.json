@@ -1,0 +1,165 @@
+{
+  "name": "pyxpo",
+  "displayName": "pyxpo",
+  "description": "pyxpo support: style and prop completion, color swatches, style checks, [tool.pyxpo] config help, run commands.",
+  "version": "0.1.0",
+  "publisher": "pyxpo",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/pyxpo/pyxpo"
+  },
+  "engines": {
+    "vscode": "^1.85.0"
+  },
+  "categories": [
+    "Programming Languages",
+    "Snippets",
+    "Linters"
+  ],
+  "keywords": [
+    "pyxpo",
+    "python",
+    "mobile",
+    "react native",
+    "expo"
+  ],
+  "activationEvents": [
+    "onLanguage:python",
+    "workspaceContains:**/pyproject.toml"
+  ],
+  "main": "./out/src/extension.js",
+  "contributes": {
+    "commands": [
+      {
+        "command": "pyxpo.run",
+        "title": "Run App...",
+        "category": "pyxpo"
+      },
+      {
+        "command": "pyxpo.runAndroid",
+        "title": "Run on Android",
+        "category": "pyxpo"
+      },
+      {
+        "command": "pyxpo.runIos",
+        "title": "Run on iOS",
+        "category": "pyxpo"
+      },
+      {
+        "command": "pyxpo.runDesktop",
+        "title": "Run on Desktop",
+        "category": "pyxpo"
+      },
+      {
+        "command": "pyxpo.prebuild",
+        "title": "Prebuild Native Projects",
+        "category": "pyxpo"
+      },
+      {
+        "command": "pyxpo.doctor",
+        "title": "Doctor (Check Toolchains)",
+        "category": "pyxpo"
+      },
+      {
+        "command": "pyxpo.config",
+        "title": "Show Resolved App Config",
+        "category": "pyxpo"
+      },
+      {
+        "command": "pyxpo.create",
+        "title": "Create New Project...",
+        "category": "pyxpo"
+      },
+      {
+        "command": "pyxpo.styleKeysCamel",
+        "title": "Convert Style Keys to camelCase",
+        "category": "pyxpo"
+      },
+      {
+        "command": "pyxpo.styleKeysSnake",
+        "title": "Convert Style Keys to snake_case",
+        "category": "pyxpo"
+      },
+      {
+        "command": "pyxpo.addImports",
+        "title": "Add Missing pyxpo Imports",
+        "category": "pyxpo"
+      }
+    ],
+    "configuration": {
+      "title": "pyxpo",
+      "properties": {
+        "pyxpo.pythonPath": {
+          "type": "string",
+          "default": "",
+          "markdownDescription": "Python used to run `python -m pyxpo`. Empty: the Python extension's interpreter, then `.venv` / `venv` in the project, then `python3`."
+        },
+        "pyxpo.styleNaming": {
+          "type": "string",
+          "enum": [
+            "auto",
+            "camelCase",
+            "snake_case"
+          ],
+          "default": "auto",
+          "markdownDescription": "Spelling of completed style keys and props. `auto` follows the file (camelCase when the file has no style keys yet, like the project templates)."
+        },
+        "pyxpo.diagnostics.enable": {
+          "type": "boolean",
+          "default": true,
+          "description": "Warn about unknown style keys, bad enum values and bad colors."
+        },
+        "pyxpo.validateConfig": {
+          "type": "boolean",
+          "default": true,
+          "markdownDescription": "Check `[tool.pyxpo]` with `python -m pyxpo config` when pyproject.toml is opened or saved (trusted workspaces only)."
+        },
+        "pyxpo.colorDecorators": {
+          "type": "boolean",
+          "default": true,
+          "description": "Show color swatches and the color picker for color strings."
+        },
+        "pyxpo.autoImport": {
+          "type": "boolean",
+          "default": true,
+          "description": "Suggest pyxpo components, hooks and helpers while typing and add their `from pyxpo import` line when picked."
+        }
+      }
+    },
+    "snippets": [
+      {
+        "language": "python",
+        "path": "./snippets/python.json"
+      }
+    ]
+  },
+  "scripts": {
+    "gen": "cd ../.. && python3 tools/gen_vscode_data.py",
+    "compile": "tsc -p .",
+    "watch": "tsc -w -p .",
+    "test": "tsc -p . && node --test out/test/*.test.js",
+    "package": "vsce package",
+    "test:e2e": "tsc -p . && node out/test/e2e/launch.js",
+    "test:e2e:vsix": "npm run package && tsc -p . && node out/test/e2e/launch.js --vsix=pyxpo-0.1.0.vsix"
+  },
+  "devDependencies": {
+    "@types/node": "^20.17.6",
+    "@types/vscode": "^1.85.0",
+    "@vscode/vsce": "^3.2.1",
+    "typescript": "^5.6.3"
+  },
+  "capabilities": {
+    "untrustedWorkspaces": {
+      "supported": "limited",
+      "description": "Completion, auto-import, hovers, colors and style diagnostics work everywhere. Validating [tool.pyxpo] and the run commands start the project's Python, so they need a trusted folder.",
+      "restrictedConfigurations": [
+        "pyxpo.pythonPath"
+      ]
+    },
+    "virtualWorkspaces": {
+      "supported": "limited",
+      "description": "Run commands and [tool.pyxpo] validation need files on disk."
+    }
+  }
+}

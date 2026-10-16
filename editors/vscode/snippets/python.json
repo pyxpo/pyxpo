@@ -1,0 +1,99 @@
+{
+  "pyxpo screen": {
+    "prefix": "pxscreen",
+    "description": "pyxpo screen: a component, its styles and the default export the router uses",
+    "body": [
+      "from pyxpo import StyleSheet, Text, View, component",
+      "",
+      "",
+      "@component",
+      "def ${1:Screen}():",
+      "    return View(",
+      "        Text(\"${2:Hello}\", style=styles.title),",
+      "        style=styles.container,",
+      "    )",
+      "",
+      "",
+      "styles = StyleSheet.create({",
+      "    \"container\": {\"flex\": 1, \"padding\": 16, \"gap\": 12},",
+      "    \"title\": {\"fontSize\": 20, \"fontWeight\": \"600\"},",
+      "})",
+      "",
+      "default = ${1:Screen}",
+      ""
+    ]
+  },
+  "pyxpo component": {
+    "prefix": "pxcomponent",
+    "description": "pyxpo function component",
+    "body": [
+      "@component",
+      "def ${1:Name}(${2}):",
+      "    return View(",
+      "        $0",
+      "    )"
+    ]
+  },
+  "pyxpo useState": {
+    "prefix": "pxstate",
+    "description": "State hook: value and setter",
+    "body": ["${1:value}, set${1/(.)/${1:/upcase}/} = useState(${2:None})"]
+  },
+  "pyxpo useEffect": {
+    "prefix": "pxeffect",
+    "description": "Effect hook with a cleanup",
+    "body": [
+      "def ${1:effect}():",
+      "    $0",
+      "    return None  # or a cleanup function",
+      "",
+      "useEffect(${1:effect}, [${2}])"
+    ]
+  },
+  "pyxpo StyleSheet": {
+    "prefix": "pxstyles",
+    "description": "styles = StyleSheet.create({...})",
+    "body": [
+      "styles = StyleSheet.create({",
+      "    \"${1:container}\": {${2:\"flex\": 1}},",
+      "})"
+    ]
+  },
+  "pyxpo View": {
+    "prefix": "pxview",
+    "description": "View with a style",
+    "body": ["View(", "    $0", "    style=${1:styles.container},", ")"]
+  },
+  "pyxpo Text": {
+    "prefix": "pxtext",
+    "description": "Text with a style",
+    "body": ["Text(\"${1}\", style=${2:styles.text})"]
+  },
+  "pyxpo Pressable": {
+    "prefix": "pxpress",
+    "description": "Pressable with a handler",
+    "body": [
+      "Pressable(",
+      "    Text(\"${1:Press me}\"),",
+      "    onPress=${2:lambda: None},",
+      "    style=${3:styles.button},",
+      ")"
+    ]
+  },
+  "pyxpo FlatList": {
+    "prefix": "pxlist",
+    "description": "FlatList with render_item and key_extractor",
+    "body": [
+      "FlatList(",
+      "    data=${1:items},",
+      "    renderItem=lambda info: Text(str(info[\"item\"])),",
+      "    keyExtractor=lambda item, index: str(${2:index}),",
+      ")"
+    ]
+  },
+  "pyxpo gradient": {
+    "prefix": "pxgradient",
+    "description": "linear_gradient style value (angle 0 up, 90 right, 180 down)",
+    "body": ["\"linearGradient\": {\"colors\": [\"${1:#4f46e5}\", \"${2:#06b6d4}\"], \"angle\": ${3:180}},"]
+  }
+}
