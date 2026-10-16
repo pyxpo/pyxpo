@@ -59,4 +59,7 @@ abstract class PxModule {
     /** Makes a view of one of [viewTypes]. `emit(name, value)` calls the view's `on_<name>` prop in Python (main thread). */
     open fun makeView(ctx: PxModuleContext, type: String, emit: (name: String, value: Any?) -> Unit): PxNativeView =
         throw UnsupportedOperationException("$name has no view type $type")
+
+    /** The running activity got a new intent (already its `intent`), for example a notification tap. Main thread. */
+    open fun onNewIntent(ctx: PxModuleContext, intent: Intent) {}
 }

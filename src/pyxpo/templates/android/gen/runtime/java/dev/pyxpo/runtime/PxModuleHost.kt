@@ -93,6 +93,12 @@ class PxModuleHost(override val activity: Activity, private val emitEvent: (Stri
         return true
     }
 
+    fun onNewIntent(intent: Intent) {
+        for (m in modules.values) {
+            try { m.onNewIntent(this, intent) } catch (e: Throwable) { android.util.Log.e("pyxpo", "${m.name}.onNewIntent", e) }
+        }
+    }
+
     /** The activity is going away: pending callbacks can never fire, so cancel them rather than hang Python. */
     fun cancelPending() {
         val r = ArrayList<(Int, Intent?) -> Unit>()

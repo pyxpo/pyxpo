@@ -21,6 +21,7 @@ def clean():
     N._received.clear()
     N._responses.clear()
     N._dropped.clear()
+    N._tokens.clear()
     N._handler = None
 
 
@@ -268,14 +269,30 @@ def test_channels():
         run(N.delete_notification_channel_async("alerts"))
 
 
-def test_push_not_supported():
-    with bridge("ios"):
-        with pytest.raises(NotSupportedError, match="remote push"):
+def test_push_token_and_listener():
+    with bridge("android") as fb:
+        tok = {"type": "android", "data": "fcm-token"}
+        fb.on("Notifications", "getDevicePushToken", lambda: tok)
+        fb.on("Notifications", "unregister", lambda: None)
+        assert run(N.getDevicePushTokenAsync()) == tok
+        got = []
+        sub = N.add_push_token_listener(got.append)
+        dispatch({"name": "Notifications.token", "data": {"type": "android", "data": "new"}})
+        assert got == [{"type": "android", "data": "new"}]
+        sub.remove()
+        dispatch({"name": "Notifications.token", "data": {"type": "android", "data": "newer"}})
+        assert len(got) == 1
+        run(N.unregisterForNotificationsAsync())
+        assert fb.calls[-1] == ("Notifications", "unregister", ())
+        with pytest.raises(NotSupportedError, match="get_device_push_token_async"):
             run(N.get_expo_push_token_async())
-        with pytest.raises(NotSupportedError):
-            run(N.getDevicePushTokenAsync())
-        with pytest.raises(NotSupportedError):
-            N.add_push_token_listener(lambda t: None)
+
+
+def test_push_desktop():
+    with pytest.raises(NotSupportedError):
+        run(N.get_device_push_token_async())
+    with pytest.raises(TypeError):
+        N.add_push_token_listener(None)
 
 
 def test_aliases_exported():

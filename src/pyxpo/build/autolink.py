@@ -278,9 +278,13 @@ def _gradle_str(s: str) -> str:
 
 
 def gradle_properties(mods: List[Module]) -> Dict[str, str]:
-    """Gradle properties the linked modules need: AndroidX libraries refuse to build without `android.useAndroidX`."""
+    """Gradle properties the linked modules need: AndroidX libraries (and Google's libraries built on them, like
+    Firebase and ML Kit) refuse to build without `android.useAndroidX`."""
     deps = [d for m in mods if m.android for d in m.android.get("dependencies", [])]
-    return {"android.useAndroidX": "true"} if any(d.startswith("androidx.") for d in deps) else {}
+    return {"android.useAndroidX": "true"} if any(d.startswith(ANDROIDX_GROUPS) for d in deps) else {}
+
+
+ANDROIDX_GROUPS = ("androidx.", "com.google.firebase:", "com.google.android.gms:", "com.google.mlkit:")
 
 
 def module_gradle(m: Module) -> str:
