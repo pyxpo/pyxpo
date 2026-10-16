@@ -114,6 +114,7 @@ def fake_shell(root: Path) -> Path:
     (root / windows.SHELL_EXE).write_bytes(b"MZ")
     (root / "pyxpo_native.dll").write_bytes(b"MZ")
     (root / "PyxpoShell.pdb").write_bytes(b"x")
+    (root / "PyxpoShell.pri").write_bytes(b"pri")
     (root / "pyxpo-app.json").write_text("{}")
     (root / "python").mkdir()
     (root / "python" / "python313.zip").write_bytes(b"PK")
@@ -166,6 +167,7 @@ def test_stage(tmp_path, monkeypatch):
     assert exe == out / "DemoApp.exe" and exe.read_bytes() == b"MZ"
     assert not (out / windows.SHELL_EXE).exists()
     assert not (out / "PyxpoShell.pdb").exists()
+    assert (out / "DemoApp.pri").read_bytes() == b"pri" and not (out / "PyxpoShell.pri").exists()
     assert (out / "pyxpo_native.dll").is_file() and (out / "python" / "python313.zip").is_file()
     assert (out / "app" / "app" / "main.py").is_file()
     assert (out / "app" / "pyxpo" / "__init__.py").is_file()

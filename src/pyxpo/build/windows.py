@@ -80,6 +80,10 @@ def stage(project: Path, release: bool = False, shell: Optional[Path] = None) ->
         shutil.rmtree(str(out))
     shutil.copytree(str(shell), str(out), ignore=lambda d, names: [n for n in names if n.endswith(SKIP)])
     (out / SHELL_EXE).rename(out / (name + ".exe"))
+    # An unpackaged WinUI app loads its XAML resources from `<exe name>.pri`: rename it with the exe.
+    pri = out / (Path(SHELL_EXE).stem + ".pri")
+    if pri.is_file():
+        pri.rename(out / (name + ".pri"))
 
     linked = autolink.link(cfg, project)
     root = out / "app"
