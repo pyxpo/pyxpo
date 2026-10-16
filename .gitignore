@@ -23,5 +23,6 @@ wheels/dist/
 test-apps/
 
 # Native module package builds (tools/build_packages.py)
+wheelhouse/
 wheelhouse-packages/
 /out/
