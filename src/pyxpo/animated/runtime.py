@@ -17,16 +17,29 @@ callbacks: Dict[int, Callable[[Dict[str, Any]], None]] = {}
 NOAPP = object()
 
 
+_token: Any = NOAPP
+
+
 def set_app(app: Any) -> None:
-    global _app, _drains
+    global _app, _drains, _token
     _app = app
+    _token = object() if app is not None else NOAPP
+    _drains += 1
+    _queue.clear()
+    callbacks.clear()
+
+
+def native_reset() -> None:
+    """The native side lost its node graph (new activity): every node registers again when next wired."""
+    global _drains, _token
+    _token = object() if _app is not None else NOAPP
     _drains += 1
     _queue.clear()
     callbacks.clear()
 
 
 def token() -> Any:
-    return _app if _app is not None else NOAPP
+    return _token
 
 
 def next_node_id() -> int:

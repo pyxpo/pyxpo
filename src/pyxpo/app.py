@@ -15,7 +15,7 @@ from .channel import Channel, LocalChannel
 from .component import Component, component
 from .element import Element
 from .hooks import reset_deps
-from .ops import Create, Delete, Insert, Remove, to_json
+from .ops import Create, Delete, Insert, Mark, Remove, to_json
 from .reconciler import Fiber, Reconciler
 from .style import normalize
 
@@ -141,6 +141,9 @@ class App:
             if self.dev_reload is not None:
                 self.dev_reload()
             return
+        if msg.get("event") == "remount":
+            self._native_remount(msg.get("payload") or {})
+            return
         if self.broken:
             return
         if msg.get("event") == "env":
@@ -194,6 +197,21 @@ class App:
         except Exception as e:  # noqa: BLE001
             self.on_error(e)
         self._request_flush()
+
+    def _native_remount(self, payload: Dict[str, Any]) -> None:
+        """Android made a new activity while Python kept running: its native tree is empty. Mount everything again."""
+        self._committed.clear()
+        self._error_shown = False
+        anim_runtime.native_reset()
+        try:
+            self.env.update(payload.get("env") or {})
+        except Exception as e:  # noqa: BLE001
+            self.on_error(e)
+        # Native drops tree ops for the old activity until this mark.
+        self.channel.post(to_json([Mark(int(payload.get("n", 0)))]))
+        err = self.reload()
+        if err is not None:
+            self.on_error(err)
 
     def _report(self, e: BaseException) -> None:
         self.on_error(e)

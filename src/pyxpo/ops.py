@@ -108,8 +108,15 @@ class ASet(Op):
     op = "aset"
 
 
+@dataclass
+class Mark(Op):
+    """Answers a native `remount` event: the ops after it target the new (empty) native tree."""
+    n: int
+    op = "mark"
+
+
 _BY_NAME = {c.op: c for c in (Create, Update, Insert, Remove, Delete, Call, ANode, ANodeDel, AListen, Animate, AStop,
-                              ASet)}
+                              ASet, Mark)}
 
 
 def op_from_dict(d: Dict[str, Any]) -> Op:

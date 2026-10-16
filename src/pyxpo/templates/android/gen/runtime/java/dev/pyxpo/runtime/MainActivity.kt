@@ -68,12 +68,11 @@ class MainActivity : Activity() {
         }
         setContentView(root)
         PxPerf.attach(this)
-        lateinit var rt: PyxpoRuntime
+        val rt = PyxpoRuntime.get(this)
         val applier = OpApplier(this, root) { json -> rt.sendEvent(json) }
         this.applier = applier
         // Hidden bars and bar styles hold from the first frame (splash too), not only after window focus.
         applier.applyStatusBar()
-        rt = PyxpoRuntime(this, applier)
         runtime = rt
         // Hot-reload endpoint is honoured in debuggable builds only.
         val dev = HashMap<String, String>()
@@ -87,6 +86,8 @@ class MainActivity : Activity() {
             dev["PYXPO_DEV_URL"] = url
             dev["PYXPO_DEV_TOKEN"] = intent?.getStringExtra("pyxpo_dev_token") ?: ""
         }
+        // Python already runs when the system made this activity again: it mounts the tree here instead.
+        rt.attach(applier, OpApplier.envJson(this, dm.widthPixels, dm.heightPixels, startup = false))
         rt.start(devEnv = dev)
     }
 
@@ -103,6 +104,8 @@ class MainActivity : Activity() {
 
     override fun onNewIntent(intent: android.content.Intent) {
         super.onNewIntent(intent)
+        setIntent(intent)
+        applier?.modules?.onNewIntent(intent)
         intent.data?.let { applier?.openURL(it.toString()) }
     }
 

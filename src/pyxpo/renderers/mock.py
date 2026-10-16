@@ -6,7 +6,7 @@ from typing import Any, Dict, List, Optional
 from ..channel import LocalChannel
 from ..animated import engine
 from ..style import flatten
-from ..ops import ANode, ANodeDel, AListen, Animate, AStop, ASet, Call, Create, Delete, Insert, Remove, Update, event_to_json, from_json
+from ..ops import ANode, ANodeDel, AListen, Animate, AStop, ASet, Call, Create, Delete, Insert, Mark, Remove, Update, event_to_json, from_json
 
 
 class MockError(RuntimeError):
@@ -45,6 +45,7 @@ class MockRenderer:
         self.driver = engine.Driver()
         self.clock = 0.0          # virtual ms, moved by advance()
         self.anim_ops = 0         # animation ops received (Python must not send per-frame ops for native anims)
+        self.marks: List[int] = []
         channel.set_native_handler(self.apply_json)
 
     def apply_json(self, payload: str) -> None:
@@ -99,6 +100,8 @@ class MockRenderer:
             del self.nodes[op.id]
         elif isinstance(op, Call):
             self.calls.append(op)
+        elif isinstance(op, Mark):
+            self.marks.append(op.n)
         elif isinstance(op, (ANode, ANodeDel, AListen, Animate, AStop, ASet)):
             self.anim_ops += 1
             d = self.driver

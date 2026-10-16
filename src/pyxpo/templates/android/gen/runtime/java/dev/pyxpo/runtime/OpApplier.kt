@@ -104,12 +104,19 @@ class OpApplier(
     }
 
     // -- ops ---------------------------------------------------------------------------------------
+    private var waitMark = 0  // > 0: ops before Python's `mark` with this number target the old activity's tree
+
+    fun awaitMark(n: Int) { waitMark = n }
+
     fun apply(batch: String) {
         val ops = JSONArray(batch)
         batching = true
         for (i in 0 until ops.length()) {
             val o = ops.getJSONObject(i)
-            when (o.getString("op")) {
+            val op = o.getString("op")
+            if (op == "mark") { if (o.getInt("n") == waitMark) waitMark = 0; continue }
+            if (waitMark > 0 && op != "call") continue
+            when (op) {
                 "create" -> create(o.getInt("id"), o.getString("type"), o.optJSONObject("props") ?: JSONObject())
                 "update" -> update(o.getInt("id"), o.optJSONObject("props") ?: JSONObject(), o.optJSONArray("removed"))
                 "insert" -> insert(o.getInt("parent"), o.getInt("id"), o.getInt("index"))
@@ -127,7 +134,7 @@ class OpApplier(
         }
         batching = false
         requestFlush()
-        splash.batchApplied()
+        if (waitMark == 0) splash.batchApplied()  // not on a batch dropped for the old activity
     }
 
     private var flushPending = false

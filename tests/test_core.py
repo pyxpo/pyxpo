@@ -220,3 +220,25 @@ def test_app_reload_resets_state_and_runs_dev_hook():
     app.dev_reload = lambda: (called.append(1), app.reload())[1]
     app._handle_event('{"id": 0, "event": "dev_reload"}')
     assert called and r.texts() == ["n0"]
+
+
+def test_native_remount_mounts_again_on_new_renderer():
+    from pyxpo import Animated
+    from pyxpo.animated.nodes import Value
+    shared = Value(0.5)  # lives outside the tree: must register again on the new native side
+
+    @component
+    def C():
+        n, set_n = use_state(0)
+        return View(Text("n", n), Button(title="add", on_press=lambda: set_n(n + 1)),
+                    Animated.View(style={"opacity": shared}))
+
+    app, r = mount(C)
+    r.press(r.find_text("add"))
+    assert r.texts() == ["n1"] and shared.id in r.driver.nodes
+    r2 = MockRenderer(app.channel)  # Android made a new activity: empty native tree, same Python
+    app._handle_event('{"id": 0, "event": "remount", "payload": {"n": 7, "env": {"color_scheme": "dark"}}}')
+    assert r2.marks == [7] and r2.texts() == ["n0"] and shared.id in r2.driver.nodes
+    assert app.env.get()["color_scheme"] == "dark"
+    r2.press(r2.find_text("add"))
+    assert r2.texts() == ["n1"]

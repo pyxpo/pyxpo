@@ -8,12 +8,39 @@ import android.util.Log
 import java.io.File
 import java.util.zip.ZipInputStream
 
-/** Extracts bundled Python assets, runs CPython on a dedicated thread, relays ops/events. */
-class PyxpoRuntime(private val ctx: Context, private val applier: OpApplier) {
+/**
+ * Extracts bundled Python assets, runs CPython on a dedicated thread, relays ops/events.
+ * One per process: CPython starts once. A new activity (theme overlay, config change) attaches its applier with [attach].
+ */
+class PyxpoRuntime private constructor(context: Context) {
+    companion object {
+        private var instance: PyxpoRuntime? = null  // UI thread only
+
+        /** The process runtime, made on first use. Main thread. */
+        fun get(context: Context): PyxpoRuntime = instance ?: PyxpoRuntime(context).also { instance = it }
+    }
+
+    private val ctx = context.applicationContext
     private val ui = Handler(Looper.getMainLooper())
     @Volatile private var started = false
+    private var applier: OpApplier? = null  // UI thread only
+    private var epoch = 0
 
     init { System.loadLibrary("pyxpo_jni") }
+
+    /**
+     * Points ops at a new activity's applier. Once Python runs, it gets a `remount` event: it mounts the whole tree
+     * again and answers with a `mark` op; the applier drops tree ops sent for the old activity until then.
+     */
+    fun attach(a: OpApplier, env: org.json.JSONObject) {
+        val old = applier
+        applier = a
+        if (old == null || !started) return
+        epoch++
+        a.awaitMark(epoch)
+        sendEvent(org.json.JSONObject().put("id", 0).put("event", "remount")
+            .put("payload", org.json.JSONObject().put("n", epoch).put("env", env)).toString())
+    }
 
     private external fun nativeSetEnv(k: String, v: String)
     private external fun nativeStart(home: String, paths: String, module: String): Int
@@ -25,7 +52,7 @@ class PyxpoRuntime(private val ctx: Context, private val applier: OpApplier) {
         ui.post {
             // first ops batch proves the Python handler is registered: flush events queued before startup
             if (!ready) { ready = true; for (e in pending) events.execute { nativeDispatchEvent(e) }; pending.clear() }
-            applier.apply(json)
+            applier?.apply(json)
         }
     }
 
