@@ -19,7 +19,7 @@ typedef struct {
 } StartArgs;
 
 static wchar_t *wdup(const wchar_t *s) { return s ? _wcsdup(s) : NULL; }
-static char *dup(const char *s) { return s ? _strdup(s) : NULL; }
+static char *sdup(const char *s) { return s ? _strdup(s) : NULL; }
 
 static void report(const char *what, PyStatus st) {
     fprintf(stderr, "pyxpo: %s: %s\n", what, st.err_msg ? st.err_msg : "?");
@@ -119,7 +119,7 @@ __declspec(dllexport) int pyxpo_host_start(const wchar_t *home, const wchar_t *p
     if (!a) return -1;
     a->home = wdup(home);
     a->paths = wdup(paths);
-    a->module = dup(module ? module : "pyxpo.router.entry");
+    a->module = sdup(module ? module : "pyxpo.router.entry");
     t = CreateThread(NULL, 8 * 1024 * 1024, python_main, a, STACK_SIZE_PARAM_IS_A_RESERVATION, NULL);
     if (!t) { free(a->home); free(a->paths); free(a->module); free(a); return -1; }
     CloseHandle(t);
