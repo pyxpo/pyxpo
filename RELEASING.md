@@ -152,3 +152,4 @@ Offline or mirrored use: `PYXPO_RUNTIME_ARCHIVES=<dir with the tarballs>`, `PYXP
 
 - 0.1.0a1 (2026-10-16): core `pyxpo` and all 7 packages, runtime `3.13.7-1`.
 - 0.1.0a2 (2026-10-16): core `pyxpo` only (async handlers, module constants, module views, AppState events; native contract 2). Then the 11 Tier 1 packages at 0.1.0a1 (each needs `pyxpo>=0.1.0a2`): haptics, device, application, localization, network, fetch, sqlite, web-browser, location, notifications, camera.
+- 0.1.0a3 (2026-10-16): core `pyxpo` (Android activity recreate no longer crashes: Python remounts on the new activity; native contract 3 with `PxModule.onNewIntent`). Then `pyxpo-notifications` 0.1.0a2 (remote push, needs `pyxpo>=0.1.0a3`).
