@@ -1,0 +1,99 @@
+<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="512" height="512" viewBox="0 0 512 512">
+  <!-- pyxpo: a python coiled around a phone (Python for app development) -->
+  <defs>
+    <radialGradient id="bg" cx="0.3" cy="0.2" r="0.95">
+      <stop offset="0" stop-color="#1F3B73"/>
+      <stop offset="1" stop-color="#0A1022"/>
+    </radialGradient>
+    <linearGradient id="frame" x1="0" y1="0" x2="1" y2="0.3">
+      <stop offset="0" stop-color="#EEF2FA"/>
+      <stop offset="0.45" stop-color="#8A95AB"/>
+      <stop offset="0.75" stop-color="#D5DCEA"/>
+      <stop offset="1" stop-color="#6E7890"/>
+    </linearGradient>
+    <linearGradient id="screen" x1="0" y1="0" x2="0.6" y2="1">
+      <stop offset="0" stop-color="#4A86FF"/>
+      <stop offset="1" stop-color="#1E3F9A"/>
+    </linearGradient>
+    <radialGradient id="headFill" cx="0.4" cy="0.35" r="0.7">
+      <stop offset="0" stop-color="#FFE68A"/>
+      <stop offset="0.6" stop-color="#F0B23A"/>
+      <stop offset="1" stop-color="#B9741A"/>
+    </radialGradient>
+    <filter id="shadow" x="-20%" y="-20%" width="140%" height="140%">
+      <feDropShadow dx="0" dy="6" stdDeviation="5" flood-color="#000" flood-opacity="0.45"/>
+    </filter>
+    <clipPath id="screenClip"><rect x="178" y="76" width="156" height="360" rx="30"/></clipPath>
+    <!-- where the coil is in front of the phone -->
+    <clipPath id="frontHigh"><rect x="145" y="0" width="367" height="276"/></clipPath>
+    <clipPath id="frontHighShadow"><rect x="145" y="0" width="367" height="292"/></clipPath>
+    <clipPath id="frontLow"><rect x="0" y="336" width="366" height="176"/></clipPath>
+
+    <path id="body" d="M58.2 449.5 L130 428 C190 410 280 372 352 360 C410 350 408 310 360 312 L150 300 C100 298 104 250 160 248
+                       C230 240 300 226 330 196 C350 174 352 140 318 130"/>
+    <!-- a round body lit from the top left, with python blotches -->
+    <g id="snake"><g mask="url(#tailMask)">
+      <use xlink:href="#body" fill="none" stroke="#2B1A05" stroke-width="40"/>
+      <use xlink:href="#body" fill="none" stroke="#B9741A" stroke-width="32"/>
+      <use xlink:href="#body" fill="none" stroke="#F0B23A" stroke-width="22" transform="translate(-1 -3)"/>
+      <use xlink:href="#body" fill="none" stroke="#7A4A10" stroke-opacity="0.6" stroke-width="16" stroke-linecap="round"
+           stroke-dasharray="4 30" stroke-dashoffset="-10"/>
+      <use xlink:href="#body" fill="none" stroke="#FFF3B0" stroke-opacity="0.8" stroke-width="5"
+           transform="translate(-2 -7)"/>
+      </g>
+      <use xlink:href="#tailShape" fill="none" stroke="#2B1A05" stroke-width="8" clip-path="url(#tailClip)"/>
+    </g>
+    <!-- the tail: the body runs on to the tip and this wedge cuts it to a taper -->
+    <path id="tailShape" d="M124.3 408.8 Q86 420.3 58.2 449.5 Q97.4 458.7 135.7 447.2"/>
+    <clipPath id="tailClip"><use xlink:href="#tailShape"/></clipPath>
+    <mask id="tailMask" maskUnits="userSpaceOnUse" x="0" y="0" width="512" height="512">
+      <rect width="512" height="512" fill="#FFFFFF"/>
+      <polygon points="138.6,456.7 121.4,399.3 25.6,428 42.8,485.4" fill="#000000"/>
+      <use xlink:href="#tailShape" fill="#FFFFFF"/>
+    </mask>
+  </defs>
+
+  <!-- the whole python, behind the phone -->
+  <g filter="url(#shadow)"><use xlink:href="#snake"/></g>
+
+  <!-- phone -->
+  <g filter="url(#shadow)">
+    <rect x="159" y="150" width="6" height="34" rx="3" fill="#8A95AB"/>
+    <rect x="159" y="196" width="6" height="34" rx="3" fill="#8A95AB"/>
+    <rect x="347" y="170" width="6" height="52" rx="3" fill="#8A95AB"/>
+    <rect x="164" y="62" width="184" height="388" rx="42" fill="url(#frame)"/>
+    <rect x="170" y="68" width="172" height="376" rx="37" fill="#05080F"/>
+  </g>
+  <rect x="178" y="76" width="156" height="360" rx="30" fill="url(#screen)"/>
+  <rect x="230" y="88" width="52" height="15" rx="7.5" fill="#05080F"/>
+  <!-- an app on the screen -->
+  <rect x="196" y="122" width="64" height="12" rx="6" fill="#FFFFFF" fill-opacity="0.85"/>
+  <rect x="196" y="148" width="56" height="48" rx="12" fill="#FFFFFF" fill-opacity="0.3"/>
+  <rect x="260" y="148" width="56" height="48" rx="12" fill="#FFFFFF" fill-opacity="0.3"/>
+  <rect x="196" y="384" width="120" height="30" rx="15" fill="#FFFFFF" fill-opacity="0.9"/>
+  <!-- glass reflection -->
+  <path d="M178 76 L300 76 L178 260 Z" fill="#FFFFFF" fill-opacity="0.1" clip-path="url(#screenClip)"/>
+
+  <!-- the parts of the coil in front of the phone -->
+  <g clip-path="url(#frontLow)"><g filter="url(#shadow)"><g clip-path="url(#frontLow)"><use xlink:href="#snake"/></g></g></g>
+  <g clip-path="url(#frontHighShadow)"><g filter="url(#shadow)"><g clip-path="url(#frontHigh)"><use xlink:href="#snake"/></g></g></g>
+
+  <!-- head over the top corner, pointing up-left at the screen -->
+  <g transform="translate(290 132) rotate(-8) scale(1.25)" filter="url(#shadow)">
+    <path d="M-46 0 L-60 0 M-60 0 L-69 -6 M-60 0 L-69 6" stroke="#E0384E" stroke-width="3.5" stroke-linecap="round"
+          fill="none"/>
+    <path d="M34 0 C32 -20 8 -26 -14 -21 C-32 -16 -44 -8 -47 0 C-44 8 -32 16 -14 21 C8 26 32 20 34 0 Z"
+          fill="url(#headFill)" stroke="#2B1A05" stroke-width="4"/>
+    <path d="M-6 -4 C4 -8 18 -6 26 0 C18 6 4 8 -6 4 Z" fill="#7A4A10" fill-opacity="0.55"/>
+    <path d="M-30 -10 C-20 -16 -6 -18 6 -16" stroke="#FFF3B0" stroke-opacity="0.8" stroke-width="3" fill="none"
+          stroke-linecap="round"/>
+    <ellipse cx="-20" cy="-13" rx="6.5" ry="5" fill="#2B1A05"/>
+    <ellipse cx="-20" cy="13" rx="6.5" ry="5" fill="#2B1A05"/>
+    <ellipse cx="-20" cy="-13" rx="1.4" ry="4" fill="#F0B23A"/>
+    <ellipse cx="-20" cy="13" rx="1.4" ry="4" fill="#F0B23A"/>
+    <circle cx="-22" cy="-15" r="1.4" fill="#FFFFFF"/>
+    <circle cx="-22" cy="11" r="1.4" fill="#FFFFFF"/>
+    <circle cx="-40" cy="-4" r="1.6" fill="#2B1A05"/>
+    <circle cx="-40" cy="4" r="1.6" fill="#2B1A05"/>
+  </g>
+</svg>

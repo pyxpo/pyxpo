@@ -161,5 +161,10 @@
       "supported": "limited",
       "description": "Run commands and [tool.pyxpo] validation need files on disk."
     }
+  },
+  "icon": "images/icon.png",
+  "galleryBanner": {
+    "color": "#14254F",
+    "theme": "dark"
   }
 }

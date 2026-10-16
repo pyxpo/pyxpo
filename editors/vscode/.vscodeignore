@@ -8,3 +8,5 @@ node_modules/**
 *.vsix
 .gitignore
 out/test/e2e/**
+images/icon.svg
+images/logo-512.png

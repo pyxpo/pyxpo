@@ -16,10 +16,11 @@
 - Release run 38893625537 waits for user approval (pypi env). Then tag pkg/notifications/v0.1.0a2, user approves again.
 - Later: real FCM e2e (~/.pyxpo-secrets/), missing packages batch, wheels CI.
 
-## VS Code extension (editors/vscode, uncommitted, Oct 16)
+## VS Code extension (editors/vscode) — committed 93d9ed6 + pushed, Oct 16
 - TS, no deps beyond vscode types. src/pyscan.ts, analyze.ts, colors.ts, toml.ts, imports.ts (auto-import edits), extension.ts.
 - data/pyxpo.json (incl. `exports` = pyxpo.__all__) from tools/gen_vscode_data.py; tests/test_vscode_data.py fails when stale.
 - User bug "autocomplete not working": window in Restricted Mode, extension had no `capabilities.untrustedWorkspaces` so VS Code disabled it. Fixed (limited support; run commands + config validation need trust).
 - Dev-mode extensions skip trust: only `npm run test:e2e:vsix` (installs packaged vsix, harness ext runs suite) proves it. Without capability: 9/15 fail, same as user screenshot.
 - `npm test` 27/27; `test:e2e` and `test:e2e:vsix` 15/15 trusted + 15/15 Restricted Mode. vsix installed. Demo: scratchpad/pyxpo-demo (screen.py for auto-import).
-- Next: user checks; commit when asked; marketplace publish needs user publisher account + go-ahead.
+- Logo: python coiled around a phone, transparent. Source editors/vscode/images/icon.svg; render with headless Chrome to logo-512.png, `sips -z 128 128` to icon.png. Same svg in pyxpo-web public/logo.svg (header/footer) + src/app/icon.png (favicon).
+- Next: marketplace publish blocked: no vsce publisher login. User creates publisher `pyxpo` + Azure DevOps PAT (Marketplace: Manage), runs `npx @vscode/vsce login pyxpo` themselves; then `vsce publish`.
