@@ -1,0 +1,15 @@
+{
+  "schemaVersion": 1,
+  "nativeContract": 2,
+  "name": "device",
+  "native": "Device",
+  "ios": {
+    "classes": ["DeviceModule"]
+  },
+  "android": {
+    "namespace": "dev.pyxpo.modules.device",
+    "classes": ["dev.pyxpo.modules.device.DeviceModule"],
+    "dependencies": [],
+    "minSdk": 24
+  }
+}
