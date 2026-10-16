@@ -151,3 +151,4 @@ Offline or mirrored use: `PYXPO_RUNTIME_ARCHIVES=<dir with the tarballs>`, `PYXP
 ## Release history
 
 - 0.1.0a1 (2026-10-16): core `pyxpo` and all 7 packages, runtime `3.13.7-1`.
+- 0.1.0a2 (2026-10-16): core `pyxpo` only (async handlers, module constants, module views, AppState events; native contract 2). The 11 Tier 1 packages need it and are not on PyPI yet.
