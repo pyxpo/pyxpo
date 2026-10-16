@@ -5,7 +5,8 @@
 # Usage: tools/dev_install.sh            (uses .venv/bin/python, creating .venv if needed)
 #        PYTHON=/path/to/python tools/dev_install.sh
 set -e
-ROOT=$(cd "$(dirname "$0")/.." && pwd)
+# Git Bash on Windows: `pwd -W` gives D:/a/x, which Windows pip understands (it rejects /d/a/x).
+ROOT=$(cd "$(dirname "$0")/.." && { pwd -W 2>/dev/null || pwd; })
 PY=${PYTHON:-$ROOT/.venv/bin/python}
 # PYTHON may be a bare command name (CI sets PYTHON=python): resolve it on PATH before the -x check.
 PY=$(command -v "$PY" || echo "$PY")
