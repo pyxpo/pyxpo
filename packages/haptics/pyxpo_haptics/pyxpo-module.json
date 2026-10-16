@@ -1,0 +1,15 @@
+{
+  "schemaVersion": 1,
+  "nativeContract": 1,
+  "name": "haptics",
+  "native": "Haptics",
+  "ios": {
+    "classes": ["HapticsModule"]
+  },
+  "android": {
+    "namespace": "dev.pyxpo.modules.haptics",
+    "classes": ["dev.pyxpo.modules.haptics.HapticsModule"],
+    "dependencies": [],
+    "minSdk": 24
+  }
+}
