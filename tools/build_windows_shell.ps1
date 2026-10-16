@@ -39,7 +39,14 @@ if ($LASTEXITCODE) { throw "dotnet publish failed" }
 # The shell's Strings/ resource makes the build write PyxpoShell.pri, which merges WinUI's own resource indexes;
 # without it XamlControlsResources cannot find themeresources.xaml and the app exits at start.
 $Pri = Join-Path $Out "PyxpoShell.pri"
-if (-not (Test-Path $Pri)) { throw "dotnet publish wrote no PyxpoShell.pri" }
+if (-not (Test-Path $Pri)) {
+    # Publish may leave the index in the intermediate folder: take it from there.
+    $Built = Get-ChildItem (Join-Path $Repo "windows\PyxpoShell") -Recurse -Filter *.pri |
+        Where-Object { $_.Name -in @("PyxpoShell.pri", "resources.pri") } | Sort-Object LastWriteTime -Descending
+    $Built | ForEach-Object { Write-Host "found: $($_.FullName)" }
+    if (-not $Built) { throw "the shell build wrote no PyxpoShell.pri" }
+    Copy-Item $Built[0].FullName $Pri
+}
 Copy-Item $Pri (Join-Path $Out "resources.pri") -Force
 Get-ChildItem $Out -Filter *.pri | ForEach-Object { Write-Host "resource index: $($_.Name)" }
 Get-ChildItem $Out -Filter *.pdb | Remove-Item -Force
