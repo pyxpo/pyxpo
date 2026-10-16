@@ -1,0 +1,14 @@
+{
+  "schemaVersion": 1,
+  "nativeContract": 2,
+  "name": "localization",
+  "native": "Localization",
+  "ios": {
+    "classes": ["LocalizationModule"]
+  },
+  "android": {
+    "namespace": "dev.pyxpo.modules.localization",
+    "classes": ["dev.pyxpo.modules.localization.LocalizationModule"],
+    "minSdk": 24
+  }
+}
