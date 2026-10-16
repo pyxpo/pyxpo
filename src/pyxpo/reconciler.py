@@ -47,6 +47,33 @@ def _host_ids(fiber: Fiber, out: List[int]) -> List[int]:
     return out
 
 
+def _stable(want: List[int], old_pos: Dict[int, int]) -> Set[int]:
+    """Ids of `want` that form a longest run whose old positions increase: these need no move (patience sort)."""
+    seq = [(old_pos[n], n) for n in want if n in old_pos]
+    tails: List[int] = []  # tails[k] = index in seq of the smallest tail of an increasing run of length k + 1
+    prev = [-1] * len(seq)
+    for i, (pos, _) in enumerate(seq):
+        lo, hi = 0, len(tails)
+        while lo < hi:
+            mid = (lo + hi) // 2
+            if seq[tails[mid]][0] < pos:
+                lo = mid + 1
+            else:
+                hi = mid
+        if lo:
+            prev[i] = tails[lo - 1]
+        if lo == len(tails):
+            tails.append(i)
+        else:
+            tails[lo] = i
+    out: Set[int] = set()
+    i = tails[-1] if tails else -1
+    while i >= 0:
+        out.add(seq[i][1])
+        i = prev[i]
+    return out
+
+
 def _neg_depth(p: Tuple[Fiber, Any, Any]) -> int:
     return -p[0].depth
 
@@ -452,23 +479,34 @@ class Reconciler:
             self._deletes.append(f.id)
 
     def _sync(self, host: Fiber) -> None:
-        """Make host.native match the desired host-children order using remove/insert ops."""
+        """Make host.native match the desired host-children order with the fewest moves.
+
+        Children that keep their relative order (the longest increasing run of their old positions) stay put; every
+        other kept child moves once and every new child is inserted once. Going right to left, each one lands just
+        before its already placed right neighbour, so the result is exact whatever order the moves happen in."""
         want = _host_ids(host, [])
         native = host.native
         if native == want:
             return
         wanted = set(want)
-        if any(n not in wanted for n in native):
+        if len(wanted) != len(native) or any(n not in wanted for n in native):
             for nid in [n for n in native if n not in wanted]:
                 self.ops.append(Remove(host.id, nid))
             native[:] = [n for n in native if n in wanted]
-        present = set(native)  # membership is O(1); only real moves pay the list shift
-        for i, nid in enumerate(want):
-            if i < len(native) and native[i] == nid:
-                continue
-            if nid in present:
-                self.ops.append(Remove(host.id, nid))
-                native.remove(nid)
-            self.ops.append(Insert(host.id, nid, i))
-            native.insert(i, nid)
-            present.add(nid)
+        if not native:  # first mount or full replace: plain appends
+            for i, nid in enumerate(want):
+                self.ops.append(Insert(host.id, nid, i))
+            native[:] = want
+            return
+        old_pos = {nid: i for i, nid in enumerate(native)}
+        stay = _stable(want, old_pos)
+        nxt: Optional[int] = None
+        for nid in reversed(want):
+            if nid not in stay:
+                if nid in old_pos:
+                    self.ops.append(Remove(host.id, nid))
+                    native.remove(nid)
+                i = native.index(nxt) if nxt is not None else len(native)
+                self.ops.append(Insert(host.id, nid, i))
+                native.insert(i, nid)
+            nxt = nid

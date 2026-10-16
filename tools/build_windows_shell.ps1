@@ -36,7 +36,10 @@ Copy-Item (Join-Path $Native "Release\pyxpo_native.dll") $Out
 dotnet publish (Join-Path $Repo "windows\PyxpoShell\PyxpoShell.csproj") -c Release -r win-x64 -o $Out
 if ($LASTEXITCODE) { throw "dotnet publish failed" }
 # A build renames the exe after the app; the resource index must not follow the exe name.
-Copy-Item (Join-Path $Out "PyxpoShell.pri") (Join-Path $Out "resources.pri") -Force
+# A code-only shell may get no .pri at all, or one already named resources.pri.
+$Pri = Join-Path $Out "PyxpoShell.pri"
+if (Test-Path $Pri) { Copy-Item $Pri (Join-Path $Out "resources.pri") -Force }
+Get-ChildItem $Out -Filter *.pri | ForEach-Object { Write-Host "resource index: $($_.Name)" }
 Get-ChildItem $Out -Filter *.pdb | Remove-Item -Force
 
 # 3. CPython embeddable distribution (stdlib zip, DLLs, extension modules)
