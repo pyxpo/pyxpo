@@ -14,7 +14,7 @@
   #root { position: absolute; inset: 0; display: flex; flex-direction: column; overflow: hidden; }
   .v, .sv, .ns { display: flex; flex-direction: column; align-items: stretch; }
   .t { display: block; color: #000; font-size: 14px; font-weight: 400; line-height: normal; white-space: pre-wrap;
-       overflow-wrap: break-word; user-select: text; cursor: text; }
+       overflow-wrap: break-word; user-select: text; }
   .t.clamp { display: -webkit-box; -webkit-box-orient: vertical; overflow: hidden; }
   .sv { overflow: auto; overscroll-behavior: contain; }
   .sv.h { overflow-y: hidden; }
@@ -37,6 +37,12 @@
   .btn:disabled { color: #999; cursor: default; }
   .press { cursor: pointer; user-select: none; }
   .press .t { cursor: inherit; user-select: none; }
+  .press:focus { outline: none; }
+  .press:focus-visible, a.lk:focus-visible { outline: 2px solid #3b82f6; outline-offset: 2px; }
+  a.lk { position: absolute; inset: 0; z-index: 1; border-radius: inherit; -webkit-user-drag: none; }
+  .press::after { content: ""; position: absolute; inset: 0; border-radius: inherit; pointer-events: none;
+                  background: rgba(128,128,128,.12); opacity: 0; transition: opacity .12s; }
+  @media (hover: hover) { .press:hover:not(:has(.press:hover))::after { opacity: 1; } }
   .path { display: block; }
   .path > svg { width: 100%; height: 100%; display: block; overflow: visible; }
   .sp { display: flex; align-items: center; justify-content: center; min-width: 20px; min-height: 20px; }

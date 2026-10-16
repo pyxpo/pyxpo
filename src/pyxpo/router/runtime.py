@@ -3,8 +3,15 @@ from __future__ import annotations
 
 from typing import Any, Callable, Dict, Optional
 
+from ..apis import _bridge
 from ..hooks import create_context
 from .store import Node, Store
+
+
+def on_web() -> bool:
+    """True when the app runs in a browser: navigators then behave like a web page, not a phone screen."""
+    app = _bridge.get_app()
+    return app is not None and app.env.get().get("os") == "web"
 
 
 def same(a: Any, b: Any) -> bool:

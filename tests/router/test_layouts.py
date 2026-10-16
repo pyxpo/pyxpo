@@ -116,3 +116,36 @@ def test_pressable_derives_accessibility_label_from_text():
                             Pressable(Text("x"), accessibility_label="Custom", on_press=lambda: None)), ch)
     labels = [n.props.get("accessibility_label") for n in r.find_all("View") if n.props.get("accessibility_label")]
     assert labels == ["Save now", "Custom"]
+
+
+def _stack_state(r):
+    ns = r.find_all("NavStack")[0]
+    hidden = [c for c in ns.children if (c.props.get("style") or {}).get("display") == "none"]
+    return ns, hidden
+
+
+def test_stack_on_web_is_page_navigation(tmp_app, monkeypatch):
+    import json
+    d = tmp_app({"_layout.py": LAYOUT, "index.py": INDEX, "details/[id].py": DETAILS})
+    app, r = mount(d)
+    r.press(r.find_text("Open"))
+    ns, _ = _stack_state(r)
+    assert ns.props["animated"] is True and ns.props["gesture"] is True
+    assert not any(p.props.get("href") for p in r.find_all("View"))
+    from pyxpo.router import router
+    router.push("/details/8")
+    assert len(_stack_state(r)[1]) == 1  # native: only the top and the page under it stay laid out
+
+    monkeypatch.setenv("PYXPO_ENV", json.dumps({"os": "web"}))
+    app, r = mount(d)
+    link = [v for v in r.find_all("View") if v.props.get("href")]
+    assert [v.props["href"] for v in link] == ["/details/7"]
+    r.press(r.find_text("Open"))
+    ns, hidden = _stack_state(r)
+    # No slide, no edge swipe; the page below stays mounted (its scroll is kept) and the page hides it.
+    assert ns.props["animated"] is False and ns.props["gesture"] is False
+    assert len(ns.children) == 2 and hidden == []
+    assert "id=7" in r.texts()
+    router.push("/details/8")
+    ns, hidden = _stack_state(r)
+    assert len(ns.children) == 3 and hidden == []

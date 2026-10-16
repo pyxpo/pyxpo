@@ -392,6 +392,7 @@
     }
     const pressable = !!(p.on_press || p.on_press_in || p.on_press_out || p.on_long_press);
     el.classList.toggle("press", pressable && n.type !== "Button");
+    if (n.type !== "Button") pressTarget(n, pressable);
     if (p.test_id) el.dataset.testid = p.test_id; else delete el.dataset.testid;
     if (p.accessibility_label) el.setAttribute("aria-label", p.accessibility_label); else el.removeAttribute("aria-label");
     applyStyle(n);
@@ -409,6 +410,35 @@
     }
     if (p.on_layout) observeLayout(n); else unobserveLayout(n);
     if (n.type === "ScrollView" && n.content) styleScrollContent(n);
+  }
+
+  // Pressables are keyboard reachable (Tab, then Enter or Space), like buttons on a web page. A pressable with an
+  // `href` (router Link on web) gets a real <a> over it: the browser then handles ctrl/cmd-click, middle-click, the
+  // status bar URL and "Copy link"; a plain click still goes through the press handlers.
+  const ROLES = new Set(["link", "tab", "checkbox", "radio", "switch", "menuitem"]);
+  function pressTarget(n, pressable) {
+    const p = n.props, el = n.el;
+    const href = pressable && typeof p.href === "string" ? p.href : null;
+    if (href) {
+      if (!n.a) {
+        n.a = document.createElement("a");
+        n.a.className = "lk";
+        n.a.draggable = false;
+      }
+      n.a.href = BASE + href;
+      if (p.accessibility_label) n.a.setAttribute("aria-label", p.accessibility_label); else n.a.removeAttribute("aria-label");
+      if (n.a.parentNode !== el) el.insertBefore(n.a, el.firstChild);
+    } else if (n.a) {
+      n.a.remove();
+      n.a = null;
+    }
+    if (pressable && !href) {
+      el.tabIndex = 0;
+      el.setAttribute("role", ROLES.has(p.accessibility_role) ? p.accessibility_role : "button");
+    } else {
+      el.removeAttribute("tabindex");
+      el.removeAttribute("role");
+    }
   }
 
   function styleScrollContent(sv) {
@@ -488,8 +518,19 @@
     const kids = ns.children;
     const top = kids[kids.length - 1];
     const under = kids[kids.length - 2];
-    for (const k of kids) k.el.classList.toggle("hidden", k !== top && !(pushed && k === under));
-    if (pushed && ns.props.animated !== false) {
+    const anim = pushed && ns.props.animated !== false;
+    for (const k of kids) {
+      // Back on web returns keyboard focus to where it was on that page, as a multi page site does.
+      if (k !== top && k.el.contains(document.activeElement)) k.lastFocus = document.activeElement;
+      if (k === top && k.el.inert && k.lastFocus && k.el.contains(k.lastFocus)) {
+        const f = k.lastFocus;
+        requestAnimationFrame(() => f.focus({ preventScroll: true }));
+      }
+      const hide = k !== top && !(anim && k === under);
+      k.el.classList.toggle("hidden", hide);
+      k.el.inert = k !== top;  // keyboard focus and screen readers stay on the top page
+    }
+    if (anim) {
       const el = pushed.el;
       el.classList.remove("push"); void el.offsetWidth; el.classList.add("push");
       el.addEventListener("animationend", () => {
@@ -644,6 +685,8 @@
     if (e.button !== 0) return;
     const t = e.target;
     if (t.closest && t.closest("input, textarea, button, #alert, .sw, .sl")) return;
+    // A modifier click on a link opens it in a new tab or window (the browser does it); no press in this page.
+    if ((e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) && t.closest && t.closest("a.lk")) return;
     const tn = owner(t, isTouch);
     if (tn) {
       touch = { n: tn };
@@ -683,6 +726,20 @@
   document.addEventListener("wheel", () => { if (press) { clearTimeout(press.timer); emit("press_out", press.n.id); press = null; } },
                             { passive: true });
 
+  document.addEventListener("click", (e) => {
+    const a = e.target.closest && e.target.closest("a.lk");
+    if (!a || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
+    e.preventDefault();  // the router navigates; a plain click must not load the page again
+    const n = a.parentNode && a.parentNode._px;
+    if (e.detail === 0 && n && n.props.on_press) emit("press", n.id);  // Enter on a focused link
+  });
+  document.addEventListener("keydown", (e) => {
+    if ((e.key === "Enter" || e.key === " ") && !e.repeat) {
+      const el = document.activeElement;
+      const n = el && el.classList && el.classList.contains("press") ? el._px : null;
+      if (n && n.props.on_press) { e.preventDefault(); emit("press", n.id); return; }
+    }
+  });
   document.addEventListener("keydown", (e) => {
     if (!WEB && e.key === "Escape" && !document.getElementById("alert").classList.contains("show")) emit("hardware_back", 0);
   });

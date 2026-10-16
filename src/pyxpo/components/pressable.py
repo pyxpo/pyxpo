@@ -40,7 +40,7 @@ class PressableState:
 _PRESSED, _IDLE = PressableState(True), PressableState(False)
 
 _FORWARD = ("test_id", "native_id", "on_layout", "hit_slop", "android_ripple", "delay_long_press", "pointer_events",
-            "on_touch_start", "on_touch_move", "on_touch_end")
+            "on_touch_start", "on_touch_move", "on_touch_end", "href")
 
 
 @component

@@ -38,6 +38,10 @@ site to `build/web/`.
   outside the longest increasing run. `app.js` applies the resulting ops to real DOM nodes.
 - The router keeps the address bar, the page title and browser history in step with navigation. Links, back and
   forward, refresh and deep links work as in any SPA.
+- Navigation behaves like a web site, not a phone. `Stack` swaps pages at once, with no slide and no edge swipe.
+  Pages below the top stay mounted, so Back restores their scroll position, state and keyboard focus. `Link` renders
+  a real anchor: ctrl/cmd-click, middle-click and "Copy link" work. Pressables show a hover state and can be reached
+  with Tab and pressed with Enter or Space.
 - Any static host works if unknown paths serve `index.html`. The build also writes `404.html` for hosts such as
   GitHub Pages.
 
