@@ -1,0 +1,15 @@
+{
+  "schemaVersion": 1,
+  "nativeContract": 1,
+  "name": "web-browser",
+  "native": "WebBrowser",
+  "ios": {
+    "classes": ["WebBrowserModule"]
+  },
+  "android": {
+    "namespace": "dev.pyxpo.modules.webbrowser",
+    "classes": ["dev.pyxpo.modules.webbrowser.WebBrowserModule"],
+    "dependencies": ["androidx.browser:browser:1.8.0"],
+    "minSdk": 24
+  }
+}
