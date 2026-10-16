@@ -8,6 +8,7 @@ import android.os.Looper
 import android.util.SparseArray
 import dev.pyxpo.moduleapi.PxModule
 import dev.pyxpo.moduleapi.PxModuleContext
+import dev.pyxpo.moduleapi.PxNativeView
 import dev.pyxpo.moduleapi.PxReply
 import org.json.JSONArray
 import org.json.JSONObject
@@ -21,6 +22,18 @@ class PxModuleHost(override val activity: Activity, private val emitEvent: (Stri
     private var nextCode = 0
 
     val names: List<String> get() = modules.keys.sorted()
+
+    private val views = HashMap<Int, PxNativeView>()
+
+    /** Makes a module view, or returns null when no linked module provides `type`. */
+    fun makeView(type: String, tag: Int, emit: (String, Any?) -> Unit): PxNativeView? {
+        val m = modules.values.firstOrNull { type in it.viewTypes } ?: return null
+        return m.makeView(this, type, emit).also { views[tag] = it }
+    }
+
+    fun dropView(tag: Int) { views.remove(tag)?.dispose() }
+
+    override fun view(tag: Int): PxNativeView? = views[tag]
 
     /** Returns false when no linked module has this name. */
     fun call(module: String, method: String, args: JSONArray, reply: PxReply): Boolean {

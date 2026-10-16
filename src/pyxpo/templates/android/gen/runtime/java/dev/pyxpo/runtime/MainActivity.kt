@@ -126,6 +126,16 @@ class MainActivity : Activity() {
         if (hasFocus) applier?.applyStatusBar()
     }
 
+    override fun onResume() {
+        super.onResume()
+        applier?.appState("active")
+    }
+
+    override fun onPause() {
+        applier?.appState("background")
+        super.onPause()
+    }
+
     override fun onDestroy() {
         applier?.modules?.cancelPending()
         super.onDestroy()

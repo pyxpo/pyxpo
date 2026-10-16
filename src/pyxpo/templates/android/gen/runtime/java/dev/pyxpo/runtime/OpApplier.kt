@@ -34,13 +34,13 @@ class OpApplier(
         private val LEAVES = setOf("Text", "Button", "TextInput", "Image") + PxControls.TYPES
 
         /** Env snapshot for the Python side. Sizes in dp. */
-        fun envJson(ctx: Context, wPx: Int, hPx: Int, ins: IntArray = IntArray(4), kbPx: Int = 0): JSONObject {
+        fun envJson(ctx: Context, wPx: Int, hPx: Int, ins: IntArray = IntArray(4), kbPx: Int = 0, startup: Boolean = true): JSONObject {
             val dm = ctx.resources.displayMetrics
             val cfg = ctx.resources.configuration
             val w = Math.round(wPx / dm.density * 100.0) / 100.0
             val h = Math.round(hPx / dm.density * 100.0) / 100.0
             val dark = (cfg.uiMode and Configuration.UI_MODE_NIGHT_MASK) == Configuration.UI_MODE_NIGHT_YES
-            return JSONObject()
+            val j = JSONObject()
                 .put("os", "android")
                 .put("window", JSONObject().put("width", w).put("height", h))
                 .put("screen", JSONObject().put("width", dm.widthPixels / dm.density.toDouble())
@@ -52,6 +52,18 @@ class OpApplier(
                     .put("right", ins[2] / dm.density.toDouble()).put("bottom", ins[3] / dm.density.toDouble()))
                 .put("keyboard", JSONObject().put("visible", kbPx > 0).put("height", kbPx / dm.density.toDouble()))
                 .put("modules", JSONArray(pxModules.map { it.name }))
+            if (startup) j.put("module_constants", moduleConstants(ctx))
+            return j
+        }
+
+        /** {module name: constants} for modules that export any. A module that fails is left out. */
+        private fun moduleConstants(ctx: Context): JSONObject {
+            val out = JSONObject()
+            for (m in pxModules) {
+                val c = try { m.constants(ctx) } catch (e: Throwable) { android.util.Log.e("pyxpo", "constants of ${m.name}", e); continue }
+                if (c.isNotEmpty()) (JSONObject.wrap(c) as? JSONObject)?.let { out.put(m.name, it) }
+            }
+            return out
         }
     }
 
@@ -149,7 +161,10 @@ class OpApplier(
             }
             "Modal" -> PxGroup(ctx).also { it.isClickable = true; it.isFocusable = true }
             "NavStack" -> PxNav(ctx).also { n -> n.onPop = { event("pop_gesture", id) } }
-            else -> PxGroup(ctx)
+            // A view type from a linked module (`pyxpo.module_api.native_view`); otherwise a plain container.
+            else -> modules.makeView(type, id) { n, value ->
+                event(n, id, JSONObject().put("value", JSONObject.wrap(value) ?: JSONObject.NULL))
+            }?.let { PxViewFrame(ctx, it.view) } ?: PxGroup(ctx)
         }
         views[id] = v
         types[id] = type
@@ -240,6 +255,7 @@ class OpApplier(
         if (imgDirty && v is ImageView) applyImage(id, v, props, r)  // once: it handles all three keys, set and removed
         if (v is EditText) applyInput(id, v, props, r)
         if (types[id] in PxControls.TYPES) controls.update(id, v, props, r)
+        modules.view(id)?.update(JSONObject(props.toString()).apply { remove("style") }, r - "style")
         if (v is PxPath) {
             if (props.has("path")) v.setCommands(props.optJSONArray("path")) else if ("path" in r) v.setCommands(null)
             if (props.has("viewbox")) v.setBox(props.optDouble("viewbox", 24.0).toFloat())
@@ -894,6 +910,7 @@ class OpApplier(
     /** Dev builds: ask Python to re-execute the app and remount (double-R). */
     /** Deep link: reaches `Linking.addEventListener("url")` and the router. */
     fun openURL(url: String) = event("url", 0, JSONObject().put("url", url))
+    fun appState(state: String) = event("app_state", 0, JSONObject().put("state", state))
 
     fun devReload() = event("dev_reload", 0)
 
@@ -943,6 +960,7 @@ class OpApplier(
         layoutListeners.remove(id); imgReq.remove(id)
         if (types.remove(id) == "ScrollView") layout.delete(id or CONTENT)
         controls.drop(id)
+        modules.dropView(id)
         layout.delete(id)
         styles.remove(id); frames.remove(id); pads.remove(id); painted.remove(id); defaultText.remove(id)
     }
@@ -1187,7 +1205,7 @@ class OpApplier(
     /** Sends the current window/scale/color scheme to Python when it changed. */
     fun sendEnv() {
         if (rootW <= 0) return
-        val j = envJson(ctx, rootW, rootH, insets, kbPx)
+        val j = envJson(ctx, rootW, rootH, insets, kbPx, startup = false)
         j.remove("os")
         val s = j.toString()
         if (s == sentEnv) return

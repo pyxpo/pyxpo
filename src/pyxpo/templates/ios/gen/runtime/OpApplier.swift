@@ -39,8 +39,8 @@ final class OpApplier {
 
     /// Env snapshot for the Python side (before the first op). Sizes in pt.
     static func envJson(window: CGSize, screen: CGSize, dark: Bool, insets: UIEdgeInsets = .zero,
-                        keyboard: CGFloat = 0) -> [String: Any] {
-        [
+                        keyboard: CGFloat = 0, startup: Bool = true) -> [String: Any] {
+        var j: [String: Any] = [
             "insets": ["left": Double(insets.left), "top": Double(insets.top), "right": Double(insets.right),
                        "bottom": Double(insets.bottom)],
             "keyboard": ["visible": keyboard > 0, "height": Double(keyboard)],
@@ -52,6 +52,8 @@ final class OpApplier {
             "color_scheme": dark ? "dark" : "light",
             "modules": PxModuleHost.names,
         ]
+        if startup { j["module_constants"] = PxModuleHost.constants }
+        return j
     }
 
     let splash = PxSplash()
@@ -94,6 +96,14 @@ final class OpApplier {
         }
         for name in [UIResponder.keyboardWillChangeFrameNotification, UIResponder.keyboardWillHideNotification] {
             NotificationCenter.default.addObserver(forName: name, object: nil, queue: .main, using: kbChange)
+        }
+        let states: [(Notification.Name, String)] = [(UIApplication.didBecomeActiveNotification, "active"),
+                                                     (UIApplication.willResignActiveNotification, "inactive"),
+                                                     (UIApplication.didEnterBackgroundNotification, "background")]
+        for (name, state) in states {
+            NotificationCenter.default.addObserver(forName: name, object: nil, queue: .main) { [weak self] _ in
+                self?.event("app_state", 0, ["state": state])
+            }
         }
     }
 
@@ -192,7 +202,10 @@ final class OpApplier {
         case "ScrollView": v = ScrollHost()
         case "NavStack":
             let n = PxNav(); n.onPop = { [weak self] in self?.event("pop_gesture", id) }; v = n
-        default: v = PxGroup()
+        default:
+            // A view type from a linked module (`pyxpo.module_api.native_view`); otherwise a plain container.
+            v = modules.makeView(type, id) { [weak self] n, val in self?.event(n, id, ["value": val ?? NSNull()]) }?.view
+                ?? PxGroup()
         }
         views[id] = v
         types[id] = type
@@ -281,6 +294,7 @@ final class OpApplier {
             }
         }
         if Self.controls.contains(types[id] ?? "") { applyControl(id, v, props, removed) }
+        if let nv = modules.view(id) { nv.update(props.filter { $0.key != "style" }, removed.filter { $0 != "style" }) }
         for k in removed {
             if k == "on_layout" { layoutListeners.remove(id) }
             if k == "test_id" { v.accessibilityIdentifier = nil }
@@ -494,6 +508,7 @@ final class OpApplier {
             if !((v.superview as? PxNav)?.lingering.contains(v) ?? false) { v.removeFromSuperview() }
         }
         binds.removeValue(forKey: id)
+        modules.dropView(id)
         layoutListeners.remove(id); imgReq.removeValue(forKey: id); touchKeys.removeValue(forKey: id)
         if types.removeValue(forKey: id) == "ScrollView" { px_node_delete(tree, Int32(id | Self.content)) }
         px_node_delete(tree, Int32(id))
@@ -927,7 +942,7 @@ final class OpApplier {
         if rootSize.width <= 0 { return }
         var j = Self.envJson(window: rootSize, screen: UIScreen.main.bounds.size,
                              dark: root.traitCollection.userInterfaceStyle == .dark,
-                             insets: root.safeAreaInsets, keyboard: kbHeight)
+                             insets: root.safeAreaInsets, keyboard: kbHeight, startup: false)
         j.removeValue(forKey: "os")
         guard let d = try? JSONSerialization.data(withJSONObject: j, options: [.sortedKeys]),
               let str = String(data: d, encoding: .utf8), str != sentEnv else { return }

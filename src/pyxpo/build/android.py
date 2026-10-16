@@ -111,7 +111,7 @@ def render_gen(native: Path, nc: Dict[str, object], project: Path, abis: List[st
     autolink.render_android(gen, linked.modules if linked else [])
     mods = config_plugins.load(nc, project)
     android_config.write(gen, nc, project, mods)
-    android_config.write_gradle_properties(native, mods)
+    android_config.write_gradle_properties(native, mods, autolink.gradle_properties(linked.modules if linked else []))
     mods.run_dangerous("android", project, native)
     try:
         (native / "local.properties").write_text("sdk.dir=%s\n" % find_sdk())

@@ -164,6 +164,21 @@ def test_gradle_properties_block_is_idempotent_and_keeps_user_lines(tmp_path):
     assert (native / "gradle.properties").read_text() == "android.useAndroidX=true\n"
 
 
+def test_gradle_properties_from_linked_modules(tmp_path):
+    from pyxpo.build import autolink
+    native = tmp_path / "android"
+    native.mkdir()
+    (native / "gradle.properties").write_text("android.useAndroidX=false\n")
+    mod = type("M", (), {"android": {"dependencies": ["androidx.browser:browser:1.8.0"]}})()
+    plain = type("M", (), {"android": {"dependencies": ["com.android.installreferrer:installreferrer:2.2"]}})()
+    assert autolink.gradle_properties([plain]) == {}
+    android_config.write_gradle_properties(native, cp.Mods(), autolink.gradle_properties([plain, mod]))
+    text = (native / "gradle.properties").read_text()
+    assert text.startswith("android.useAndroidX=false\n") and text.rstrip().split("\n")[-2] == "android.useAndroidX=true"
+    android_config.write_gradle_properties(native, cp.Mods(), autolink.gradle_properties([plain]))
+    assert (native / "gradle.properties").read_text() == "android.useAndroidX=false\n"
+
+
 def test_gradle_properties_not_created_without_mods(tmp_path):
     android_config.write_gradle_properties(tmp_path, cp.Mods())
     assert not (tmp_path / "gradle.properties").exists()

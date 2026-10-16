@@ -55,3 +55,20 @@ def test_packages_follow_packaging_hygiene():
         assert (pkg / "CHANGELOG.md").is_file(), pkg.name
         assert re.search(r'"pyxpo>=\d+\.\d+\.\d+(?:(?:a|b|rc)\d+)?,<\d+\.\d+"', text), pkg.name
         assert '"py.typed"' in text, pkg.name
+
+
+def test_module_constants(monkeypatch):
+    from pyxpo.module_testing import FakeBridge
+    assert api.constants("Device") == {}
+    with FakeBridge("android", constants={"Device": {"brand": "google", "nested": {"a": 1}}}):
+        c = api.constants("Device")
+        assert c == {"brand": "google", "nested": {"a": 1}}
+        c["brand"] = "x"  # a copy: callers cannot change the table
+        assert api.constants("Device")["brand"] == "google"
+        assert api.constants("Other") == {}
+    env = _env.Env({"os": "ios", "module_constants": {"A": {"k": 1}}})
+    env.update({"window": {"width": 1.0}})  # later env events carry no constants and must not clear them
+    monkeypatch.setattr(_env, "current", env)
+    assert api.constants("A") == {"k": 1}
+    monkeypatch.setattr(_env, "current", _env.Env({"os": "ios", "module_constants": ["bad"]}))
+    assert api.constants("A") == {}

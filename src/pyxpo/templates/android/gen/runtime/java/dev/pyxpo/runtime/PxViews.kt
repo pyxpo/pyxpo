@@ -3,6 +3,7 @@ package dev.pyxpo.runtime
 import android.content.Context
 import android.view.View
 import android.view.ViewGroup
+import android.widget.FrameLayout
 
 /** Container whose children are positioned by [OpApplier] from the shared layout engine, never by Android. */
 open class PxGroup(ctx: Context) : ViewGroup(ctx) {
@@ -20,6 +21,25 @@ open class PxGroup(ctx: Context) : ViewGroup(ctx) {
     }
 
     override fun onLayout(changed: Boolean, l: Int, t: Int, r: Int, b: Int) {}
+}
+
+/**
+ * Hosts a module view. Its [PxGroup] parent never lays children out, so a relayout the module view asks for
+ * (a camera preview adding its surface, for example) runs here at the frame the engine gave.
+ */
+class PxViewFrame(ctx: Context, child: View) : FrameLayout(ctx) {
+    private val relayout: Runnable? = Runnable {
+        measure(View.MeasureSpec.makeMeasureSpec(width, View.MeasureSpec.EXACTLY),
+                View.MeasureSpec.makeMeasureSpec(height, View.MeasureSpec.EXACTLY))
+        layout(left, top, right, bottom)
+    }
+
+    init { addView(child, LayoutParams(-1, -1)) }
+
+    override fun requestLayout() {
+        super.requestLayout()
+        relayout?.let { removeCallbacks(it); post(it) }  // null while FrameLayout's constructor runs
+    }
 }
 
 /** Root view: reports its pixel size so the engine can lay out against the real window. */

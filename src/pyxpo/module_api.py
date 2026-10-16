@@ -6,18 +6,23 @@ was written against and is compared with the `nativeContract` field of its `pyxp
 """
 from __future__ import annotations
 
-from typing import Any, Dict, Optional
+from typing import Any, Callable, Dict, Optional
 
 from ._keys import snake_aliases
+from .element import _host
 from .apis import _env
 from .apis._bridge import call
 from .modules import ModuleNotLinkedError, dispatch, on_event, require_linked
 
-NATIVE_CONTRACT = 1
+# 1: calls, events, permissions, presenter/activity hooks.
+# 2: adds module constants (`constants(native)`), read synchronously at startup, the iOS
+#    `PxAppLaunchObserver` hook (modules that start with the app), and module views (`native_view`).
+NATIVE_CONTRACT = 2
 
 __all__ = [
     "NATIVE_CONTRACT", "NotSupportedError", "ModuleNotLinkedError", "call", "on_event", "dispatch",
-    "require_linked", "snake_aliases", "platform", "permission_response", "require_supported",
+    "require_linked", "snake_aliases", "platform", "permission_response", "require_supported", "constants",
+    "native_view", "view_tag",
 ]
 
 
@@ -42,3 +47,30 @@ def permission_response(status: str, can_ask_again: bool = True, expires: str = 
     if status not in ("granted", "denied", "undetermined"):
         raise ValueError("bad permission status %r" % status)
     return {"status": status, "granted": status == "granted", "canAskAgain": can_ask_again, "expires": expires}
+
+
+def constants(native: str) -> Dict[str, Any]:
+    """Values the native module `native` exported at startup (its `constants`), or `{}` when it is not
+    linked, exports none, or the app runs on desktop. Read synchronously; they do not change while the app runs."""
+    table = _env.current._data.get("module_constants") or {}
+    value = table.get(native) if isinstance(table, dict) else None
+    return dict(value) if isinstance(value, dict) else {}
+
+
+def native_view(type_name: str) -> Callable[..., Any]:
+    """Element factory for a native view type that a linked module provides (iOS `PxViewModule.viewTypes`,
+    Android `PxModule.viewTypes`). Props reach the native view's `update` as JSON values; a callable
+    `on_<name>` prop is called with the value the native side emits as `<name>`. The layout engine sizes the
+    view from its `style`; it takes no children. Before the module is linked (desktop, or not listed in
+    `[tool.pyxpo] modules`) it renders as an empty View."""
+    if not type_name or not type_name[0].isupper():
+        raise ValueError("native view type must start with an uppercase letter, got %r" % type_name)
+    return _host(type_name)
+
+
+def view_tag(handle: Any) -> Optional[int]:
+    """The native tag of a mounted view: `ref.current` of a `native_view` element (or the ref itself). Pass it
+    to a module call so the native side finds the view with `ctx.view(tag)`. None when not mounted."""
+    cur = getattr(handle, "current", handle)
+    tag = getattr(cur, "_id", None)
+    return tag if isinstance(tag, int) else None

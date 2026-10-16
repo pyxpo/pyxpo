@@ -1,3 +1,4 @@
+#import <UIKit/UIKit.h>
 #import "PyxpoRuntime.h"
 #include <Python.h>
 #include "pyxpo_bridge.h"
@@ -23,6 +24,19 @@ static void post_to_main(const char *json) {
     dispatch_queue_t _eventQueue;
     BOOL _ready;                       /* guarded by @synchronized(self) */
     NSMutableArray<NSString *> *_pending;
+}
+
+/* Runs before main: lets linked modules start with the app (Swift `PxAppLaunchObserver`), whatever the user's AppDelegate. */
++ (void)load {
+    [[NSNotificationCenter defaultCenter] addObserverForName:UIApplicationDidFinishLaunchingNotification object:nil
+                                                       queue:nil usingBlock:^(NSNotification *n) {
+        Class hooks = NSClassFromString(@"PxAppLaunch");
+        SEL run = NSSelectorFromString(@"run:");
+        if ([hooks respondsToSelector:run]) {
+            void (*send)(id, SEL, id) = (void (*)(id, SEL, id))[hooks methodForSelector:run];
+            send(hooks, run, n.userInfo);
+        }
+    }];
 }
 
 + (instancetype)shared {

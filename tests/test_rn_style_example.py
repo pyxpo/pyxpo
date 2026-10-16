@@ -15,9 +15,13 @@ EXAMPLES = Path(__file__).parent.parent / "examples"
 @pytest.fixture(autouse=True)
 def _clean_modules():
     import sys
+
+    def clean():
+        for k in [k for k in sys.modules if k == "app" or k.startswith("app.")]:
+            del sys.modules[k]
+    clean()  # other tests (test_cli) may leave their own `app` package imported
     yield
-    for k in [k for k in sys.modules if k == "app" or k.startswith("app.")]:
-        del sys.modules[k]
+    clean()
 
 
 def test_rn_style_example_renders_and_adds():

@@ -19,6 +19,8 @@ DEFAULT_ENV: Dict[str, Any] = {
     "keyboard": {"visible": False, "height": 0.0},
     "initial_url": None,  # deep link the app was launched with
     "modules": [],  # native modules linked into this build
+    # {bridge module name: constants}, sent once at startup. None so the first snapshot replaces it whole.
+    "module_constants": None,
 }
 
 

@@ -6,7 +6,7 @@ manifest merger ranks above `main`, so their attributes win (`tools:replace` sta
 """
 import shutil
 from pathlib import Path
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Optional
 from xml.sax.saxutils import quoteattr
 
 from .. import config_plugins
@@ -181,9 +181,10 @@ def write(gen: Path, nc: Dict[str, Any], project: Path, mods: Any = None) -> Non
 MARK_BEGIN, MARK_END = "# >>> pyxpo config plugins (generated, do not edit) >>>", "# <<< pyxpo config plugins <<<"
 
 
-def write_gradle_properties(native: Path, mods: Any) -> None:
-    """Keeps a marked block in the user-owned `android/gradle.properties` in step with `with_gradle_properties` mods."""
-    props = mods.apply_gradle_properties({})
+def write_gradle_properties(native: Path, mods: Any, base: Optional[Dict[str, str]] = None) -> None:
+    """Keeps a marked block in the user-owned `android/gradle.properties` in step with `with_gradle_properties` mods.
+    `base` holds properties the linked modules need; the mods see and may change them."""
+    props = mods.apply_gradle_properties(dict(base or {}))
     f = Path(native) / "gradle.properties"
     text = f.read_text() if f.is_file() else ""
     if MARK_BEGIN in text and MARK_END in text:

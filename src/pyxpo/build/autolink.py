@@ -27,7 +27,7 @@ PLIST_KEY_RE = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
 SETTINGS_LINE = 'apply(from = "pyxpo-gen/modules.settings.gradle.kts")'
 APP_LINE = 'apply(from = "../pyxpo-gen/modules.app.gradle.kts")'
 # First-party modules, published separately; known here only to tell the user which package to install.
-OFFICIAL = ("file-system", "image-manipulator", "image-picker", "media-library", "secure-store", "sharing", "storage")
+OFFICIAL = ("application", "camera", "device", "fetch", "file-system", "haptics", "image-manipulator", "image-picker", "localization", "location", "media-library", "network", "notifications", "secure-store", "sharing", "sqlite", "storage", "web-browser")
 
 
 def dist_name(name: str) -> str:
@@ -275,6 +275,12 @@ def render_ios(gen: Path, mods: List[Module], options: Optional[Dict[str, Any]] 
 
 def _gradle_str(s: str) -> str:
     return s.replace("\\", "\\\\").replace('"', '\\"').replace("$", "\\$")
+
+
+def gradle_properties(mods: List[Module]) -> Dict[str, str]:
+    """Gradle properties the linked modules need: AndroidX libraries refuse to build without `android.useAndroidX`."""
+    deps = [d for m in mods if m.android for d in m.android.get("dependencies", [])]
+    return {"android.useAndroidX": "true"} if any(d.startswith("androidx.") for d in deps) else {}
 
 
 def module_gradle(m: Module) -> str:

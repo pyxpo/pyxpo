@@ -7,16 +7,19 @@ Use `with FakeBridge() as fb:` or the `fake_bridge` fixture from your own confte
 """
 from __future__ import annotations
 
-from typing import Any, Callable, Dict, List, Tuple
+from typing import Any, Callable, Dict, List, Optional, Tuple
 
 from .apis import _bridge, _env
 
 
 class FakeBridge:
-    def __init__(self, os_name: str = "ios", modules: Tuple[str, ...] = ()) -> None:
+    def __init__(self, os_name: str = "ios", modules: Tuple[str, ...] = (),
+                 constants: Optional[Dict[str, Dict[str, Any]]] = None) -> None:
+        """`constants` is {bridge module name: values} as native sends them at startup (`module_api.constants`)."""
         self.calls: List[Tuple[str, str, tuple]] = []
         self._handlers: Dict[Tuple[str, str], Callable[..., Any]] = {}
-        self._os, self._modules = os_name, list(modules)
+        self._os, self._modules = os_name, list(modules) + [m for m in (constants or {}) if m not in modules]
+        self._constants = dict(constants or {})
 
     def on(self, module: str, method: str, handler: Callable[..., Any]) -> "FakeBridge":
         self._modules.append(module) if module not in self._modules else None
@@ -44,7 +47,7 @@ class FakeBridge:
             call = staticmethod(self._call)
 
         _bridge.set_app(_App())
-        _env.current = _env.Env({"os": self._os, "modules": self._modules})
+        _env.current = _env.Env({"os": self._os, "modules": self._modules, "module_constants": self._constants})
         return self
 
     def __exit__(self, *exc: Any) -> None:
