@@ -25,6 +25,7 @@ class Runtime:
         self.store = store
         self.root_dir = root_dir
         self.options: Dict[str, Dict[str, Any]] = {}  # route key -> options set with setOptions / <Stack.Screen>
+        self.resolved: Dict[str, Dict[str, Any]] = {}  # route key -> merged options from the last navigator render
         self.on_change: Callable[[], None] = lambda: None
 
     def set_options(self, route_key: str, options: Optional[Dict[str, Any]]) -> None:

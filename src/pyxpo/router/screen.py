@@ -48,6 +48,7 @@ def route_options(rt: Runtime, route: Dict[str, Any], screen_options: Any, decla
         o = o(info) if callable(o) else o
         if o:
             out.update(o)
+    rt.resolved[route["key"]] = out
     return out
 
 

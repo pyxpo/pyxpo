@@ -32,7 +32,7 @@ from __future__ import annotations
 import copy
 from contextlib import contextmanager
 from typing import Any, Callable, Dict, Iterator, List, Optional, Tuple
-from urllib.parse import quote
+from urllib.parse import quote, urlencode
 
 from .discovery import Navigator, RouteTree, Screen
 from .matching import Href, Match, match
@@ -260,6 +260,16 @@ class Store:
                     v = params.get(val, [] if kind == "c" else "")
                     parts += [quote(x, safe="") for x in (v if isinstance(v, list) else [v])]
         return "/" + "/".join(p for p in parts if p)
+
+    @property
+    def href(self) -> str:
+        """`pathname` plus the focused route's params that are not path segments, as a query string."""
+        chain = self._chain(self._state)
+        if chain[-1][3].not_found:
+            return self.pathname
+        used = {val for *_, scr in chain for kind, val in scr.segments if kind != "s"}
+        query = [(k, v) for k, v in chain[-1][2]["params"].items() if k not in used and v is not None]
+        return self.pathname + ("?" + urlencode(query, doseq=True, quote_via=quote) if query else "")
 
     @property
     def segments(self) -> List[str]:

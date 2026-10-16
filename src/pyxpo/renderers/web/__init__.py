@@ -38,6 +38,8 @@ def _bindings(style: Any, out: Set[int]) -> None:
 class WebRenderer(MockRenderer):
     """Mirror tree + bridge to the page. `serve()` runs the HTTP server until the window closes."""
 
+    js_calls = _JS_CALLS  # modules the page answers itself; the rest go to `_native_call`
+
     def __init__(self, channel: LocalChannel, title: str = "pyxpo", size: Tuple[int, int] = (390, 844)) -> None:
         super().__init__(channel)
         self.title = title
@@ -62,7 +64,7 @@ class WebRenderer(MockRenderer):
             kind = op.get("op")
             if kind in _ANIM_OPS:
                 anim = True
-            elif kind == "call" and op["module"] not in _JS_CALLS:
+            elif kind == "call" and op["module"] not in self.js_calls:
                 self._native_call(op)
                 continue
             elif kind == "mark":
@@ -196,7 +198,8 @@ class WebRenderer(MockRenderer):
         if q.get("t") != self.token and headers.get("x-pyxpo-token") != self.token:
             return self._send(writer, 403, b"bad token")
         if u.path == "/" and method == "GET":
-            html = (_HERE / "index.html").read_text().replace("{{TITLE}}", self.title).replace("{{TOKEN}}", self.token)
+            scripts = '<script>window.PYXPO_TOKEN = "%s";</script>\n<script src="/app.js"></script>' % self.token
+            html = page_html(self.title, scripts, "App stopped. Run pyxpo run desktop again.")
             return self._send(writer, 200, html.encode(), "text/html; charset=utf-8")
         if u.path == "/stream" and method == "GET":
             await self._stream(writer)
@@ -238,6 +241,13 @@ class WebRenderer(MockRenderer):
                 await writer.drain()
         finally:
             self.clients.remove(q)
+
+
+def page_html(title: str, scripts: str, lost: str) -> str:
+    """The page shell shared by the desktop window and the web build."""
+    import html as _html
+    return ((_HERE / "index.html").read_text().replace("{{TITLE}}", _html.escape(title))
+            .replace("{{LOST}}", lost).replace("{{SCRIPTS}}", scripts))
 
 
 def _chrome() -> Optional[str]:

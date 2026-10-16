@@ -47,6 +47,7 @@ class Module:
         self.native: str = meta["native"]
         self.ios: Dict[str, Any] = meta.get("ios") or {}
         self.android: Dict[str, Any] = meta.get("android") or {}
+        self.web: Dict[str, Any] = meta.get("web") or {}
 
     def __repr__(self) -> str:
         return "Module(%s)" % self.name
@@ -81,6 +82,12 @@ def validate(meta: Any, where: str) -> Dict[str, Any]:
         raise bad("android.dependencies must be a list of strings")
     if not isinstance(android.get("minSdk", 24), int) or isinstance(android.get("minSdk"), bool):
         raise bad("android.minSdk must be an integer")
+    web = meta.get("web", {})
+    if not isinstance(web, dict):
+        raise bad("'web' must be a JSON object")
+    wpk = web.get("packages", [])
+    if not isinstance(wpk, list) or not all(isinstance(p, str) and p.strip() for p in wpk):
+        raise bad("web.packages must be a list of package names (installed in the browser with micropip)")
     if not isinstance(ios.get("infoPlist") or {}, dict):
         raise bad("ios.infoPlist must be a JSON object")
     for plat, spec in (("ios", ios), ("android", android)):

@@ -84,6 +84,13 @@ SCHEMA = table({
         "size": T("list", "Window size [width, height] in pixels at 100% scale; default [1024, 768].",
                   item=T("int", min=1)),
     }, "Native Windows desktop app."),
+    "web": table({
+        "title": T("str", "Page title; default the app name."),
+        "base": T("str", "Path the site is served under, such as /myapp; default the site root."),
+        "packages": T("list", "Extra packages the browser installs with micropip (pure Python or Pyodide builds).",
+                      item=T("str")),
+        "pyodide_url": T("str", "Where Pyodide loads from (a folder URL ending in /); default the jsDelivr CDN."),
+    }, "Web app (`pyxpo build web`): a static single page app on Pyodide."),
     "build_properties": table({
         "android": table({
             "enable_minify_in_release_builds": T("bool"),

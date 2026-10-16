@@ -44,6 +44,8 @@ def cmd_run(args: argparse.Namespace) -> int:
         return _android(args, run=True)
     if args.target == "ios":
         return _ios(args, run=True)
+    if args.target == "web":
+        return _web(args, run=True)
     if args.target != "desktop":
         print("pyxpo run %s: not yet implemented (milestone 3)" % args.target, file=sys.stderr)
         return 2
@@ -232,6 +234,23 @@ def _ios(args: argparse.Namespace, run: bool, kind: str = "simulator") -> int:
     return 0
 
 
+def _web(args: argparse.Namespace, run: bool) -> int:
+    """Static single page app in build/web/; `run` serves it with SPA fallback and reloads open pages on change."""
+    from .build import web
+    from .build.android import BuildError
+
+    project = Path(args.dir or ".").resolve()
+    try:
+        if not run:
+            web.build(project, release=getattr(args, "release", False), base=args.base)
+            return 0
+        web.serve(project, port=args.port or 8000, base=args.base, open_browser=not args.no_open)
+    except (BuildError, OSError) as e:
+        print("error: %s" % e, file=sys.stderr)
+        return 1
+    return 0
+
+
 def cmd_build(args: argparse.Namespace) -> int:
     if args.target == "android":
         return _android(args, run=False)
@@ -241,6 +260,8 @@ def cmd_build(args: argparse.Namespace) -> int:
         if sys.platform == "win32":
             return _windows(args, run=False)
         return _ios(args, run=False, kind="catalyst")
+    if args.target == "web":
+        return _web(args, run=False)
     print("pyxpo build %s: not yet implemented (milestone 3)" % args.target, file=sys.stderr)
     return 2
 
@@ -419,16 +440,19 @@ def build_parser() -> argparse.ArgumentParser:
     c.add_argument("--dir")
     c.set_defaults(fn=cmd_create)
     r = sub.add_parser("run", help="run the app")
-    r.add_argument("target", nargs="?", default="desktop", choices=["desktop", "android", "ios"])
+    r.add_argument("target", nargs="?", default="desktop", choices=["desktop", "android", "ios", "web"])
     r.add_argument("--dir")
     r.add_argument("--no-reload", action="store_true", help="disable hot reload")
     r.add_argument("--port", type=int, help="hot reload server port (default: dev_port or 8765)")
     r.add_argument("--preview", action="store_true",
                    help="desktop only: quick preview in a browser window instead of building the native Mac or Windows app")
+    r.add_argument("--base", help="web only: path the site is served under, such as /myapp")
+    r.add_argument("--no-open", action="store_true", help="web only: do not open a browser")
     r.set_defaults(fn=cmd_run)
     b = sub.add_parser("build", help="build a mobile package")
-    b.add_argument("target", choices=["android", "ios", "desktop"])
+    b.add_argument("target", choices=["android", "ios", "desktop", "web"])
     b.add_argument("--release", action="store_true")
+    b.add_argument("--base", help="web only: path the site is served under, such as /myapp")
     b.add_argument("--dir")
     b.set_defaults(fn=cmd_build)
     pb = sub.add_parser("prebuild", help="generate editable android/ and ios/ native projects")

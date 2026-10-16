@@ -78,6 +78,21 @@ def RouterRoot(tree: Optional[RouteTree] = None, root_dir: str = "", initial_hre
 
     use_effect(lambda: _events.on("url", on_url), [])
     use_effect(lambda: _on_hot_refresh(lambda: rt.store.set_tree(discover(root_dir))), [])
+    synced = use_ref(None)
+
+    def sync_history() -> None:
+        """Web: mirror the focused route into the address bar, browser history and document title."""
+        if _bridge.get_app().env.get().get("os") != "web":
+            return
+        chain = rt.store.focused_chain()
+        opts = rt.resolved.get(chain[-1][1]["key"]) or {} if chain else {}
+        title = opts.get("title") if isinstance(opts.get("title"), str) else None
+        cur = (rt.store.href, title)
+        if cur != synced.current:
+            synced.current = cur
+            _bridge.call("History", "sync", *cur)
+
+    use_effect(sync_history)  # every commit: navigators resolve screen titles while rendering below this root
     scheme = use_color_scheme()
     use_effect(lambda: StatusBar.set_bar_style("light-content" if scheme == "dark" else "dark-content"), [scheme])
     nav = rt.store.tree.root

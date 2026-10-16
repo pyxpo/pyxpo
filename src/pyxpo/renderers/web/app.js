@@ -1,8 +1,11 @@
-// pyxpo desktop page: applies native ops from Python to the DOM and posts events back.
+// pyxpo page: applies native ops from Python to the DOM and sends events back.
 // Same op and event contract as the iOS and Android shells (see OpApplier.swift).
+// Desktop window: Python runs in a local server (SSE /stream, POST /event). Web build: Python runs in this page on
+// Pyodide and boot.js sets window.PYXPO_WEB = {send(json), fileUrl(path), base}.
 (() => {
   "use strict";
   const TOKEN = window.PYXPO_TOKEN;
+  const WEB = window.PYXPO_WEB || null;
   const rootEl = document.getElementById("root");
   const nodes = new Map();        // id -> {id, type, el, props, children, parent}
   const aval = {};                // animated node id -> current value
@@ -25,6 +28,7 @@
     if (!outbox.length) return;
     const body = JSON.stringify(outbox);
     outbox = [];
+    if (WEB) { WEB.send(body); return; }
     fetch("/event", { method: "POST", body, headers: { "content-type": "application/json", "x-pyxpo-token": TOKEN } })
       .catch(() => {});
   }
@@ -49,7 +53,10 @@
     }
     return v;
   }
-  function fileUrl(p) { return "/file?t=" + encodeURIComponent(TOKEN) + "&p=" + encodeURIComponent(p); }
+  function fileUrl(p) {
+    if (WEB) return WEB.fileUrl(p);
+    return "/file?t=" + encodeURIComponent(TOKEN) + "&p=" + encodeURIComponent(p);
+  }
   function srcUrl(uri) {
     if (!uri) return "";
     if (/^(https?:|data:|blob:)/.test(uri)) return uri;
@@ -566,6 +573,20 @@
         reply(op, null);
       } else if (op.module === "Alert") {
         showAlert(a[0], a[1], a[2], (i) => reply(op, i));
+      } else if (m === "History.sync") {
+        historySync(a[0], a[1]);
+        reply(op, null);
+      } else if (m === "Clipboard.set_string") {
+        navigator.clipboard.writeText(String(a[0])).then(() => reply(op, null), (e) => reply(op, null, e));
+      } else if (m === "Clipboard.get_string") {
+        navigator.clipboard.readText().then((t) => reply(op, t), (e) => reply(op, null, e));
+      } else if (m === "Linking.open_url") {
+        reply(op, !!window.open(String(a[0]), "_blank", "noopener"));
+      } else if (m === "Linking.can_open_url") {
+        reply(op, /^(https?|mailto|tel|sms):/i.test(String(a[0])));
+      } else if (m === "Vibration.vibrate" && navigator.vibrate) {
+        navigator.vibrate(typeof a[0] === "number" ? a[0] : 400);
+        reply(op, null);
       } else {
         reply(op, null);  // StatusBar, SplashScreen, Back, Vibration: nothing to do in a window
       }
@@ -663,7 +684,7 @@
                             { passive: true });
 
   document.addEventListener("keydown", (e) => {
-    if (e.key === "Escape" && !document.getElementById("alert").classList.contains("show")) emit("hardware_back", 0);
+    if (!WEB && e.key === "Escape" && !document.getElementById("alert").classList.contains("show")) emit("hardware_back", 0);
   });
 
   // -- environment ------------------------------------------------------------------------------
@@ -683,18 +704,46 @@
   dark.addEventListener("change", sendEnv);
   window.addEventListener("focus", sendEnv);  // several windows on one app: the focused one sets the size
 
+  // -- browser history (web) --------------------------------------------------------------------
+  // Python owns navigation state; the address bar mirrors it. A Python navigation pushes an entry, a Python back
+  // to the previous entry's URL becomes history.back(), and the browser's own back/forward (or an edited URL with
+  // the same document) sends a `url` event that the router navigates to.
+  const BASE = WEB ? (WEB.base || "").replace(/\/$/, "") : "";
+  let ignorePops = 0;
+  function here() { return location.pathname + location.search; }
+  function norm(u) { const x = new URL(u, location.origin); return x.pathname + x.search; }
+  function historySync(href, title) {
+    if (title) document.title = title;
+    if (!WEB) return;
+    const url = norm(BASE + href);
+    const st = history.state || {};
+    if (url === here()) { history.replaceState(Object.assign({}, st, { px: 1 }), ""); return; }
+    if (st.prev === url) { ignorePops += 1; history.back(); return; }
+    history.pushState({ px: 1, prev: here() }, "", url);
+  }
+  if (WEB) {
+    window.addEventListener("popstate", () => {
+      if (ignorePops > 0) { ignorePops -= 1; return; }
+      let path = location.pathname;
+      if (BASE && path.startsWith(BASE)) path = path.slice(BASE.length) || "/";
+      emit("url", 0, { url: location.origin + path + location.search });
+    });
+  }
+
   // -- stream from Python -----------------------------------------------------------------------
   const lost = document.getElementById("lost");
   let es = null, fails = 0;
+  function receive(data) {
+    const msg = JSON.parse(data);
+    if (msg.reset) { reset(); if (msg.aval) Object.assign(aval, msg.aval); applyOps(msg.ops || [], true); sendEnv(); return; }
+    if (msg.ops) applyOps(msg.ops, !root.children.length);  // first paint: no push animations
+    if (msg.aval) applyValues(msg.aval);
+  }
+  if (WEB) { window.pyxpoPage = { receive }; return; }
   function connect() {
     es = new EventSource("/stream?t=" + encodeURIComponent(TOKEN));
     es.onopen = () => { fails = 0; lost.classList.remove("show"); };
-    es.onmessage = (ev) => {
-      const msg = JSON.parse(ev.data);
-      if (msg.reset) { reset(); if (msg.aval) Object.assign(aval, msg.aval); applyOps(msg.ops || [], true); sendEnv(); return; }
-      if (msg.ops) applyOps(msg.ops, false);
-      if (msg.aval) applyValues(msg.aval);
-    };
+    es.onmessage = (ev) => receive(ev.data);
     es.onerror = () => {
       fails += 1;
       if (fails > 2) lost.classList.add("show");

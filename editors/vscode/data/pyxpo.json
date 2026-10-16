@@ -832,6 +832,32 @@
     "description": "User-visible version (MARKETING_VERSION / versionName).",
     "type": "string"
    },
+   "web": {
+    "additionalProperties": false,
+    "description": "Web app (`pyxpo build web`): a static single page app on Pyodide.",
+    "properties": {
+     "base": {
+      "description": "Path the site is served under, such as /myapp; default the site root.",
+      "type": "string"
+     },
+     "packages": {
+      "description": "Extra packages the browser installs with micropip (pure Python or Pyodide builds).",
+      "items": {
+       "type": "string"
+      },
+      "type": "array"
+     },
+     "pyodide_url": {
+      "description": "Where Pyodide loads from (a folder URL ending in /); default the jsDelivr CDN.",
+      "type": "string"
+     },
+     "title": {
+      "description": "Page title; default the app name.",
+      "type": "string"
+     }
+    },
+    "type": "object"
+   },
    "wheel_index": {
     "items": {
      "type": "string"

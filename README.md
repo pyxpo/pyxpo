@@ -27,6 +27,38 @@ Windows shell; see [windows/README.md](windows/README.md) to build the shell and
 `pyxpo run desktop --preview` skips the native build and shows the app in a browser window, and
 `PYXPO_RENDERER=console` uses the text renderer (type 1 + Enter to press a button, q to quit).
 
+## Web
+
+`pyxpo run web` serves the app as a single page app at http://127.0.0.1:8000/ and reloads the page when a file in
+`app/`, `assets/` or `pyproject.toml` changes (`--port`, `--no-open`, `--base`). `pyxpo build web` writes a static
+site to `build/web/`.
+
+- The app's Python runs in the browser on [Pyodide](https://pyodide.org). There is no server.
+- The pyxpo reconciler is the virtual DOM. It diffs component trees with keyed children and moves only the nodes
+  outside the longest increasing run. `app.js` applies the resulting ops to real DOM nodes.
+- The router keeps the address bar, the page title and browser history in step with navigation. Links, back and
+  forward, refresh and deep links work as in any SPA.
+- Any static host works if unknown paths serve `index.html`. The build also writes `404.html` for hosts such as
+  GitHub Pages.
+
+```toml
+[tool.pyxpo.web]
+base = "/myapp"           # the site lives under this path (default: the site root)
+title = "My App"          # page title (default: the app name)
+packages = ["numpy"]      # extra packages the browser installs with micropip
+```
+
+`[tool.pyxpo] requires` are installed with micropip as well, so they must be pure Python or built for Pyodide.
+
+Native modules work on web when their package has a `web.py` backend. The backend defines `call(method, args)` and
+may return an awaitable. Helpers for backends are in `pyxpo.renderers.web.browser`: `choose_files`, `save_file` and
+`download`. The official image modules behave like this on web:
+
+- image-picker opens the browser's file chooser. It has no camera.
+- image-manipulator runs Pillow in the browser.
+- media-library downloads the file.
+- sharing uses the Web Share API, or downloads the files when the browser has no Web Share API.
+
 A project is an `app/` folder of routes, like Expo Router:
 
 ```

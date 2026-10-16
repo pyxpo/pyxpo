@@ -217,3 +217,15 @@ def test_reregister_changes_type(tree):
     assert names(tabs) == ["settings", "home"] and tabs["index"] == 1
     s.register_navigator(nav_path(tree, "(tabs)"), "slot")
     assert names(s.focused_chain()[1][0]) == ["home"]
+
+
+def test_href_adds_query_params_for_the_address_bar(tree):
+    s = Store(tree)
+    s.register_navigator(tree.root.path, "stack")
+    s.navigate({"pathname": "/user/[id]", "params": {"id": "a b", "tab": "x/y"}})
+    assert s.pathname == "/user/a%20b"
+    assert s.href == "/user/a%20b?tab=x%2Fy"   # path params stay in the path
+    s.navigate("/about")
+    assert s.href == "/about"
+    s.navigate("/nowhere")
+    assert s.href == s.pathname == "/nowhere"

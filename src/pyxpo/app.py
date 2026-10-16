@@ -372,6 +372,10 @@ def run_app(root: Any, channel: Optional[Channel] = None, **props: Any) -> None:
         return
     _hot.entry = os.path.realpath(sys._getframe(1).f_code.co_filename)
     target = os.environ.get("PYXPO_TARGET", "desktop")
+    if channel is None and target == "web":  # Pyodide: the browser owns the loop, so mount and return
+        from .renderers.web.browser import start
+        start(root, props)
+        return
     if channel is None and target == "windows":
         from .channel_native import WindowsChannel
         channel = WindowsChannel()
