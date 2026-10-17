@@ -21,13 +21,15 @@ def test_colors():
 
 
 def test_flatten_and_expand():
-    s = normalize([{"padding": 8, "padding_left": 2}, None, False, {"margin_vertical": 4, "gap": 3}])
+    s = normalize([{"padding": 8, "padding_left": 2}, None, False, 0, "", {"margin_vertical": 4, "gap": 3}])
     assert s["padding_top"] == 8 and s["padding_left"] == 2
     assert s["margin_top"] == 4 and s["margin_bottom"] == 4
     assert s["row_gap"] == 3 and s["column_gap"] == 3
     f = normalize({"flex": 1})
     assert f["flex_grow"] == 1 and f["flex_shrink"] == 1 and f["flex_basis"] == 0
     assert normalize({"background_color": "#000"})["background_color"] == 0xFF000000
+    with pytest.raises(StyleError):
+        normalize([{"flex": 1}, 3])
 
 
 def test_stylesheet_validates():

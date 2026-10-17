@@ -126,14 +126,15 @@ def _alpha(a: Any) -> int:
 
 
 def flatten(style: Any) -> Dict[str, Any]:
-    """Merge nested lists/tuples of style dicts (later wins). None/False/'' entries are skipped."""
+    """Merge nested lists/tuples of style dicts (later wins). Falsy entries (None, False, 0, '') are skipped, as
+    React Native does, so `pressed and depth and {...}` works when depth is 0."""
     out: Dict[str, Any] = {}
     _merge(out, style)
     return out
 
 
 def _merge(out: Dict[str, Any], style: Any) -> None:
-    if style is None or style is False or style == "":
+    if not isinstance(style, (dict, list, tuple)) and not style:
         return
     if isinstance(style, dict):
         for k, v in style.items():
@@ -229,7 +230,7 @@ _PLAIN_TYPES = frozenset((str, int, float, bool, type(None)))
 
 def _cache_key(style: Any) -> Any:
     """Hashable content key, or None for styles holding unhashable or animated values."""
-    if style is None or style is False or style == "":
+    if not isinstance(style, (dict, list, tuple)) and not style:
         return ()
     try:
         if isinstance(style, dict):
