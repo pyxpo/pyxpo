@@ -95,11 +95,15 @@ def build(project: Path, release: bool = False, base: Optional[str] = None, out:
         app_json.write(stage / "pyxpo", nc)
         (stage / "pyxpo" / "web_modules.json").write_text(
             json.dumps({m.native: m.pkg for m in linked.modules}, indent=2, sort_keys=True))
+        page = {m.native: m.root / "web.js" for m in linked.modules if (m.root / "web.js").is_file()}
+        (stage / "pyxpo" / "web_page_modules.json").write_text(json.dumps(sorted(page)))
         bundle = Path(tmp) / "app.zip"
         _zip(stage, bundle)
         h = hashlib.sha256(bundle.read_bytes())
         for name in ("app.js", "boot.js", "index.html"):
             h.update((_WEB / name).read_bytes())
+        for native in sorted(page):
+            h.update(page[native].read_bytes())
         version = h.hexdigest()[:12]
         if out.exists():
             shutil.rmtree(str(out))
@@ -109,7 +113,12 @@ def build(project: Path, release: bool = False, base: Optional[str] = None, out:
 
     for name in ("app.js", "boot.js"):
         shutil.copy2(str(_WEB / name), str(out / name))
+    if page:
+        (out / "modules").mkdir()
+    for native, src in page.items():
+        shutil.copy2(str(src), str(out / "modules" / ("%s.js" % native)))
     config = {"base": base, "bundle": bundle_name, "version": version, "packages": packages(cfg, linked.modules),
+              "scripts": ["modules/%s.js" % n for n in sorted(page)],
               "pyodide": str(web.get("pyodide_url") or PYODIDE_URL)}
     scripts = ('<script>window.PYXPO_CONFIG = %s;</script>\n<script src="%s/boot.js?v=%s"></script>'
                % (_script_json(config), base, version))

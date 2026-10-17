@@ -74,3 +74,39 @@ def test_image_manipulator_desktop_backend(tmp_path, monkeypatch):
     assert (out["width"], out["height"], out["format"]) == (20, 40, "jpeg")
     assert pil.open(out["uri"]).size == (20, 40)
     desktop.call("close", [h])
+
+
+def _page_pkg(tmp_path, monkeypatch, name="pxdemo_pagepkg"):
+    d = tmp_path / name
+    d.mkdir()
+    (d / "__init__.py").write_text("")
+    (d / "web.js").write_text("pyxpoPage.defineView('PxDemo', () => ({}));\n")
+    monkeypatch.syspath_prepend(str(tmp_path))
+    return d
+
+
+def test_page_js_finds_module_web_js(tmp_path, monkeypatch):
+    from pyxpo.renderers.web import page_js
+    d = _page_pkg(tmp_path, monkeypatch)
+    assert page_js({"Demo": "pxdemo_pagepkg", "Gone": "pxdemo_not_installed", "Json": "json"}) == {"Demo": d / "web.js"}
+
+
+def test_module_web_js_is_served_and_answers_calls_in_page(tmp_path, monkeypatch):
+    from pyxpo.renderers.web import backends
+    _page_pkg(tmp_path, monkeypatch)
+    monkeypatch.setattr(backends, "_linked", lambda: {"Demo": "pxdemo_pagepkg"})
+
+    async def main():
+        r = WebRenderer(LocalChannel())
+        assert "Demo" in r.js_calls and "Scroll" in r.js_calls
+        task = asyncio.ensure_future(r.serve(open_window=False))
+        while not r.port:
+            await asyncio.sleep(0.01)
+        p = r.port
+        js = await _request(p, "GET /module/Demo.js HTTP/1.1\r\nHost: 127.0.0.1:%d\r\n\r\n" % p)
+        other = await _request(p, "GET /module/Other.js HTTP/1.1\r\nHost: 127.0.0.1:%d\r\n\r\n" % p)
+        r.closed.set()
+        await task
+        return js, other
+
+    assert asyncio.run(main()) == (200, 403)

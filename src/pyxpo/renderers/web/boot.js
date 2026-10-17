@@ -56,6 +56,7 @@
       },
     };
     await script(BASE + "/app.js?v=" + cfg.version);
+    for (const src of cfg.scripts || []) await script(BASE + "/" + src + "?v=" + cfg.version);  // module web.js
 
     let path = location.pathname;
     if (BASE && path.startsWith(BASE)) path = path.slice(BASE.length) || "/";

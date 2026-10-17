@@ -28,6 +28,25 @@ _JS_CALLS = {"Scroll", "Keyboard", "Alert", "StatusBar", "SplashScreen", "Back",
 _FRAME = 1 / 60.0
 
 
+def page_js(linked: Dict[str, str]) -> Dict[str, Path]:
+    """{bridge module name: its `web.js`} for the linked packages ({native: package}) that ship one. The page loads
+    it after app.js: it adds the module's views (`pyxpoPage.defineView`) and answers its calls in the page
+    (`pyxpoPage.defineModule`)."""
+    import importlib.util
+    out: Dict[str, Path] = {}
+    for native, pkg in sorted(linked.items()):
+        try:
+            spec = importlib.util.find_spec(pkg)
+        except (ImportError, ValueError):
+            continue
+        for d in (spec.submodule_search_locations or []) if spec else []:
+            f = Path(d) / "web.js"
+            if f.is_file():
+                out[native] = f
+                break
+    return out
+
+
 def _bindings(style: Any, out: Set[int]) -> None:
     if isinstance(style, dict):
         for v in style.values():
@@ -55,6 +74,15 @@ class WebRenderer(MockRenderer):
             self._loop = None
         # made in serve(): on Python 3.9 an Event binds to the loop current at construction
         self.closed: Optional[asyncio.Event] = None
+        self.scripts = self._page_js()
+        self.js_calls = type(self).js_calls | set(self.scripts)
+
+    def _page_js(self) -> Dict[str, Path]:
+        try:
+            return page_js(backends._linked())
+        except Exception as e:  # noqa: BLE001  a broken module install must not stop the window
+            print("pyxpo desktop: module web.js: %s" % e, file=sys.stderr)
+            return {}
 
     # -- Python -> page ------------------------------------------------------------------------------
     def apply_json(self, payload: str) -> None:
@@ -195,10 +223,13 @@ class WebRenderer(MockRenderer):
             return self._send(writer, 403, b"bad host")
         if u.path == "/app.js":
             return self._send(writer, 200, (_HERE / "app.js").read_bytes(), "text/javascript; charset=utf-8")
+        if u.path.startswith("/module/") and u.path.endswith(".js") and u.path[8:-3] in self.scripts:
+            return self._send(writer, 200, self.scripts[u.path[8:-3]].read_bytes(), "text/javascript; charset=utf-8")
         if q.get("t") != self.token and headers.get("x-pyxpo-token") != self.token:
             return self._send(writer, 403, b"bad token")
         if u.path == "/" and method == "GET":
             scripts = '<script>window.PYXPO_TOKEN = "%s";</script>\n<script src="/app.js"></script>' % self.token
+            scripts += "".join('\n<script src="/module/%s.js"></script>' % n for n in self.scripts)
             html = page_html(self.title, scripts, "App stopped. Run pyxpo run desktop again.")
             return self._send(writer, 200, html.encode(), "text/html; charset=utf-8")
         if u.path == "/stream" and method == "GET":

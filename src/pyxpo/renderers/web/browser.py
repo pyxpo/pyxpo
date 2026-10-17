@@ -25,6 +25,7 @@ from . import WebRenderer, _JS_CALLS
 
 WEB_JS_CALLS = _JS_CALLS | {"History", "Clipboard", "Linking"}
 LINKED_FILE = Path(__file__).resolve().parents[2] / "web_modules.json"
+PAGE_FILE = Path(__file__).resolve().parents[2] / "web_page_modules.json"  # modules with a web.js in the page
 
 _mods: Optional[Dict[str, Any]] = None
 _running: Dict[str, Any] = {}  # keeps the app, renderer and JS proxies alive for the page's lifetime
@@ -45,6 +46,10 @@ def _web_modules() -> Dict[str, Any]:
     return _mods
 
 
+def _page_modules() -> List[str]:
+    return list(json.loads(PAGE_FILE.read_text())) if PAGE_FILE.is_file() else []
+
+
 class BrowserRenderer(WebRenderer):
     """Same mirror and animation driver as the desktop window; the transport is a direct JS call."""
 
@@ -54,6 +59,10 @@ class BrowserRenderer(WebRenderer):
         super().__init__(channel)
         self.page = page
         self._loop = loop
+        self.js_calls = WEB_JS_CALLS | set(_page_modules())  # boot.js loaded their web.js
+
+    def _page_js(self) -> Dict[str, Path]:
+        return {}
 
     def _broadcast(self, msg: Dict[str, Any]) -> None:
         self.page.receive(json.dumps(msg))
@@ -176,7 +185,7 @@ def boot(env_json: str) -> None:
     os.environ["PYXPO_TARGET"] = "web"
     env = json.loads(env_json)
     # Like a native shell, report what this build linked: `require_linked` checks module use against it.
-    env["modules"] = sorted(_web_modules())
+    env["modules"] = sorted(set(_web_modules()) | set(_page_modules()))
     os.environ["PYXPO_ENV"] = json.dumps(env)
     sys.setrecursionlimit(max(sys.getrecursionlimit(), 2000))
     from ...router import entry

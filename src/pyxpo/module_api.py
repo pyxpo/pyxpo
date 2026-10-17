@@ -62,9 +62,10 @@ def constants(native: str) -> Dict[str, Any]:
 
 def native_view(type_name: str) -> Callable[..., Any]:
     """Element factory for a native view type that a linked module provides (iOS `PxViewModule.viewTypes`,
-    Android `PxModule.viewTypes`). Props reach the native view's `update` as JSON values; a callable
-    `on_<name>` prop is called with the value the native side emits as `<name>`. The layout engine sizes the
-    view from its `style`; it takes no children. Before the module is linked (desktop, or not listed in
+    Android `PxModule.viewTypes`, web and desktop window `pyxpoPage.defineView` in the package's `web.js`).
+    Props reach the native view's `update` as JSON values; a callable `on_<name>` prop is called with the
+    value the native side emits as `<name>`. The layout engine sizes the view from its `style`; it takes no
+    children. Where the module is not linked (a platform it has no code for, or not listed in
     `[tool.pyxpo] modules`) it renders as an empty View."""
     if not type_name or not type_name[0].isupper():
         raise ValueError("native view type must start with an uppercase letter, got %r" % type_name)

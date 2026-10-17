@@ -12,6 +12,19 @@
   const bindings = new Map();     // animated node id -> Set(view id)
   const fonts = new Set();
 
+  // Module packages add view types and page-side module calls with their web.js, loaded after this file:
+  //   pyxpoPage.defineView("PxThing", (el, emit) => ({ update(props, removed) {}, dispose() {} }))
+  //   pyxpoPage.defineModule("Thing", (method, args, page) => value or Promise)   page.view(tag): a view instance
+  // A view gets every prop but `style` (the first update has them all); `emit(name, value)` calls its on_<name>.
+  const viewTypes = {};
+  const pageModules = {};
+  const page = window.pyxpoPage = Object.assign(window.pyxpoPage || {}, {
+    defineView(type, factory) { viewTypes[type] = factory; },
+    defineModule(name, handler) { pageModules[name] = handler; },
+    view(tag) { const n = nodes.get(tag); return n && n.view ? n.view : null; },
+    fileUrl(path) { return fileUrl(path); },
+  });
+
   const extraCss = document.createElement("style");
   extraCss.textContent = ".in::placeholder { color: var(--ph, #a0a0a8); }";
   document.head.appendChild(extraCss);
@@ -257,6 +270,9 @@
       n.range = r;
     } else if (type === "Path") {
       el.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" preserveAspectRatio="xMidYMid meet"><path/></svg>';
+    } else if (viewTypes[type]) {
+      try { n.view = viewTypes[type](el, (name, value) => emit(name, id, { value: value === undefined ? null : value })); }
+      catch (e) { console.error("pyxpo view " + type + " failed", e); }
     }
     el._px = n;
     n.el = el;
@@ -410,6 +426,19 @@
     }
     if (p.on_layout) observeLayout(n); else unobserveLayout(n);
     if (n.type === "ScrollView" && n.content) styleScrollContent(n);
+    if (n.view && n.view.update) {
+      const changed = Object.assign({}, props || {});
+      delete changed.style;
+      const gone = (removed || []).filter((k) => k !== "style");
+      if (Object.keys(changed).length || gone.length) {
+        try { n.view.update(changed, gone); } catch (e) { console.error("pyxpo view update failed", e); }
+      }
+    }
+  }
+
+  function disposeView(n) {
+    if (n.view && n.view.dispose) { try { n.view.dispose(); } catch (e) { console.error(e); } }
+    n.view = null;
   }
 
   // Pressables are keyboard reachable (Tab, then Enter or Space), like buttons on a web page. A pressable with an
@@ -544,6 +573,7 @@
     const n = nodes.get(id);
     if (!n) return;
     unobserveLayout(n);
+    disposeView(n);
     if (n.parent) detach(n);
     nodes.delete(id);
   }
@@ -552,7 +582,7 @@
   rootEl._px = root;
 
   function reset() {
-    for (const n of nodes.values()) unobserveLayout(n);
+    for (const n of nodes.values()) { unobserveLayout(n); disposeView(n); }
     nodes.clear();
     bindings.clear();
     root.children = [];
@@ -600,7 +630,9 @@
     const a = op.args || [];
     const m = op.module + "." + op.method;
     try {
-      if (m === "Scroll.to" || m === "Scroll.scroll_to") {
+      if (pageModules[op.module]) {
+        Promise.resolve(pageModules[op.module](op.method, a, page)).then((v) => reply(op, v), (e) => reply(op, null, e && e.message ? e.message : e));
+      } else if (m === "Scroll.to" || m === "Scroll.scroll_to") {
         const n = nodes.get(a[0]);
         if (n) n.el.scrollTo({ left: a[1] || 0, top: a[2] || 0, behavior: a[3] === false ? "auto" : "smooth" });
         reply(op, null);
@@ -805,7 +837,7 @@
     if (msg.ops) applyOps(msg.ops, !root.children.length);  // first paint: no push animations
     if (msg.aval) applyValues(msg.aval);
   }
-  if (WEB) { window.pyxpoPage = { receive, emit }; return; }
+  if (WEB) { Object.assign(page, { receive, emit }); return; }
   function connect() {
     es = new EventSource("/stream?t=" + encodeURIComponent(TOKEN));
     es.onopen = () => { fails = 0; lost.classList.remove("show"); };
