@@ -37,8 +37,8 @@
 - Full suite 588 pass.
 - Devtools v2 (bbb8073): side toolbar (rotate/zoom/fit/1:1/theme/back/reload), zoom 20-300% via slider, ctrl+wheel/pinch, corner grip; panel redesign; device sits left of open panel.
 - Later: `[tool.pyxpo] breakpoints` config (devtools ruler reads PYXPO_CONFIG.breakpoints).
-- Next: user OK to push; fix Windows icon/shadow bugs.
+- Next: fix Windows icon/shadow bugs. Release with themes/web/responsive (0.1.0a3) needs user OK; then drop the "ships after 0.1.0a2" callouts in pyxpo-web.
 
-## imagekit responsive + StyleSheet refactor (Oct 17, UNCOMMITTED: user said do not commit)
+## imagekit responsive + StyleSheet refactor (Oct 17, committed 78ea5da + eea7ded; push pending: GitHub unreachable)
 - Responsive layout (Container/GridRow/Col/Grid) in imagekit.
 - Unistyles-3-style themes in core: src/pyxpo/themes.py, `StyleSheet.configure/create(lambda theme, rt)/setTheme`, dynamic styles, `useAppTheme` (router.useTheme name taken). Reconciler re-styles on theme/insets/scheme/bp change via style_key, no re-render. imagekit migrated (no makeStyles). tests/test_themes.py, README "Themes". 597 pass. Web verified light/dark/phone/desktop.
