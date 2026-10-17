@@ -200,7 +200,7 @@ def _check_16kb(site: Path, jni_abi: Path, abi: str, allow: bool) -> None:
     bad = elfcheck.find_unaligned([site, jni_abi])
     if not bad:
         return
-    lines = ["  %s (p_align=%d)" % (_rel(p, site, jni_abi), a)
+    lines = ["  %s (alignment %d)" % (_rel(p, site, jni_abi), a)
              for p, a in bad[:10]]
     msg = ("%d native libs for %s are not 16 KB aligned and crash on 16 KB-page devices "
            "(Pixel 8+ on Android 15+, required by Google Play):\n%s%s\n"

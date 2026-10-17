@@ -11,6 +11,9 @@ from .root import RouterRoot
 
 
 def main() -> None:
+    if os.environ.get("PYXPO_TARGET") == "android":  # before the app imports numpy & co.
+        from .. import native_libs
+        native_libs.install()
     pkg = importlib.import_module("app")
     app_dir = list(pkg.__path__)[0]
     if not has_routes(app_dir) and os.path.exists(os.path.join(app_dir, "main.py")):
