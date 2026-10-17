@@ -186,3 +186,170 @@ def test_web_js_parses_files(tmp_path):
     assert got == {"v": 4, "f": 3, "n": 6, "fps": 12, "of": [0, 1, 1], "idx": [0, 1, 2, 0, 2, 3, 3, 2, 0, 0, 0, 0],
                    "pos1": [0.5, 0]}
     assert out[1] == "not a PXMESH1 file"
+
+
+def _clip(tmp_path, frames=48, fps=24.0):
+    src = tmp_path / "clip.pxmesh"
+    src.write_bytes(MV.write_mesh(UV, [[(x * 2, y) for x, y in UV]] * frames, ORDERS, fps=fps))   # aspect 2
+    tex = tmp_path / "tex.png"
+    tex.write_bytes(b"png")
+    return str(src), str(tex)
+
+
+def test_export_plan():
+    h = {"frames": 48, "fps": 24.0, "aspect": 2.0}
+    p = MV.export_plan(h, "mp4")
+    assert (p["width"], p["height"], p["fps"]) == (720, 352, 24.0)
+    assert p["frames"] == list(range(48))
+    x, y, w, hh = p["rect"]
+    assert w / hh == pytest.approx(2.0) and x >= 36 - 1e-6 and y >= 36 - 1e-6
+    assert x + w <= 720 - 36 + 1e-6 and y + hh <= 352 - 36 + 1e-6
+    g = MV.export_plan(h, "gif")
+    assert (g["width"], g["height"], g["fps"]) == (480, 240, 12.0)
+    assert g["frames"] == list(range(0, 48, 2))
+    sq = MV.export_plan(h, "mp4", size=512, aspect=1, padding=0, fps=30, loops=2)
+    assert (sq["width"], sq["height"]) == (512, 512)
+    assert sq["rect"] == [0, 128, 512, 256]
+    assert len(sq["frames"]) == 120 and max(sq["frames"]) == 47 and sq["frames"][:60] == sq["frames"][60:]
+    tall = MV.export_plan({"frames": 10, "fps": 10.0, "aspect": 0.5}, "mp4", size=100)
+    assert (tall["width"], tall["height"]) == (48, 96) and all(v % 16 == 0 for v in (48, 96))
+    for kw in ({"size": 31}, {"size": 4096}, {"size": True}, {"padding": 0.5}, {"fps": 0}, {"loops": 0},
+               {"aspect": 0}):
+        with pytest.raises(ValueError):
+            MV.export_plan(h, "mp4", **kw)
+    with pytest.raises(ValueError, match="format"):
+        MV.export_plan(h, "webm")
+
+
+def test_export_async_native(tmp_path):
+    import asyncio
+    from pyxpo.modules import dispatch
+    src, tex = _clip(tmp_path)
+    out = tmp_path / "dance.mp4"
+    seen = []
+
+    def export(o):
+        dispatch({"name": "MeshView.progress", "data": {"id": o["id"], "progress": 0.5}})
+        dispatch({"name": "MeshView.progress", "data": {"id": o["id"] + 1000, "progress": 0.9}})   # another export
+        out.write_bytes(b"mp4")
+        return None
+
+    with FakeBridge("ios", modules=("MeshView",)) as fb:
+        fb.on("MeshView", "export", export)
+        res = asyncio.run(MV.export_async(src, tex, str(out), size=320, background_color="#33669980",
+                                          on_progress=seen.append))
+        (o,) = fb.calls[-1][2]
+    assert seen == [0.5]
+    assert res == {"path": str(out), "format": "mp4", "width": 320, "height": 160, "frames": 48, "fps": 24.0,
+                   "duration": 2.0}
+    assert o["background_color"] == 0xFF336699 and o["format"] == "mp4" and o["source"] == src
+    assert o["path"] == str(out) and o["texture"] == tex and len(o["frames"]) == 48
+    assert MV._progress == {}
+
+
+def test_export_async_page_sends_bytes(tmp_path):
+    import asyncio
+    src, tex = _clip(tmp_path)
+    out = tmp_path / "dance.gif"
+    with FakeBridge("web", modules=("MeshView",)) as fb:
+        fb.on("MeshView", "export", lambda o: {"data": "R0lGODlh"})
+        res = asyncio.run(MV.export_async("file://" + src, tex, str(out), loops=2))
+    assert out.read_bytes() == b"GIF89a"
+    assert (res["format"], res["width"], res["height"], res["frames"], res["fps"]) == ("gif", 480, 240, 48, 12.0)
+
+
+def test_export_async_checks(tmp_path):
+    import asyncio
+    src, tex = _clip(tmp_path)
+    with FakeBridge("android", modules=("MeshView",)) as fb:
+        fb.on("MeshView", "export", lambda o: None)
+        with pytest.raises(ValueError, match="format"):
+            asyncio.run(MV.export_async(src, tex, str(tmp_path / "a.webm")))
+        with pytest.raises(FileNotFoundError):
+            asyncio.run(MV.export_async(src, str(tmp_path / "none.png"), str(tmp_path / "a.mp4")))
+        with pytest.raises(FileNotFoundError):
+            asyncio.run(MV.export_async(src, tex, str(tmp_path / "no" / "a.mp4")))
+        with pytest.raises(RuntimeError, match="did not write"):
+            asyncio.run(MV.export_async(src, tex, str(tmp_path / "a.mp4")))
+    with FakeBridge("ios"):
+        with pytest.raises(Exception, match="pyxpo-mesh-view"):
+            asyncio.run(MV.export_async(src, tex, str(tmp_path / "a.gif")))
+
+
+NODE_GIF = r"""
+const fs = require("fs");
+let view; global.pyxpoPage = { defineView(t, f) { view = f; }, defineModule() {} };
+eval(fs.readFileSync(process.argv[2], "utf8"));
+const { palette, GifWriter, gifDelay } = view.gif;
+const w = 61, h = 47, frames = [];
+for (let k = 0; k < 6; k++) {
+  const px = new Uint8Array(w * h * 4);
+  for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
+    const i = (y * w + x) * 4, inside = Math.abs(x - 10 - k * 6) < 8 && Math.abs(y - 20) < 10;
+    px[i] = inside ? 200 : (x * 4) & 255; px[i + 1] = inside ? 30 : (y * 5) & 255; px[i + 2] = inside ? 90 : 128;
+    px[i + 3] = 255;
+  }
+  frames.push(px);
+}
+frames.push(frames[5]);   // unchanged frame
+const g = GifWriter(w, h, palette(frames));
+frames.forEach((f, k) => g.frame(f, gifDelay(k, 12)));
+fs.writeFileSync(process.argv[3], g.finish());
+fs.writeFileSync(process.argv[3] + ".raw", Buffer.concat(frames.map((f) => Buffer.from(f))));
+const W = 300, H = 200, n = new Uint8Array(W * H * 4);   // noise: fills the LZW table many times
+let s = 1;
+for (let i = 0; i < n.length; i++) { s = (s * 1103515245 + 12345) & 0x7fffffff; n[i] = i % 4 === 3 ? 255 : (s >> 16) & 255; }
+const g2 = GifWriter(W, H, palette([n]));
+g2.frame(n, 5);
+fs.writeFileSync(process.argv[3] + ".noise", g2.finish());
+fs.writeFileSync(process.argv[3] + ".noise.raw", Buffer.from(n));
+const s1 = { data: Uint8Array.of(0, 0, 0, 2, 9, 9), key: true }, s2 = { data: Uint8Array.of(0, 0, 0, 1, 7), key: false };
+fs.writeFileSync(process.argv[3] + ".mp4", view.mp4([s1, s2, s1], Uint8Array.of(1, 66, 0, 31, 255), 64, 48, 25));
+"""
+
+
+def _boxes(data, at=0, end=None):
+    end = len(data) if end is None else end
+    out = {}
+    while at < end:
+        size, kind = struct.unpack(">I4s", data[at:at + 8])
+        out.setdefault(kind.decode(), []).append((at + 8, at + size))
+        at += size
+    assert at == end
+    return out
+
+
+@pytest.mark.skipif(not shutil.which("node"), reason="needs node")
+def test_web_gif_and_mp4_writers(tmp_path):
+    PIL = pytest.importorskip("PIL.Image")
+    from PIL import ImageSequence
+    p = tmp_path / "t.gif"
+    (tmp_path / "t.js").write_text(NODE_GIF)
+    subprocess.run(["node", str(tmp_path / "t.js"), MV.__path__[0] + "/web.js", str(p)], check=True)
+    raw = (tmp_path / "t.gif.raw").read_bytes()
+    im = PIL.open(p)
+    assert im.info["loop"] == 0
+    got = [(f.info["duration"], f.convert("RGB").tobytes()) for f in ImageSequence.Iterator(im)]
+    assert [d for d, _ in got] == [80, 90, 80, 80, 90, 80, 80]
+    for k, (_, rgb) in enumerate(got):
+        want = raw[k * 61 * 47 * 4:(k + 1) * 61 * 47 * 4]
+        err = max(abs(rgb[i * 3 + c] - want[i * 4 + c]) for i in range(61 * 47) for c in range(3))
+        assert err <= 16, (k, err)
+    noise = PIL.open(str(p) + ".noise").convert("RGB").tobytes()
+    want = (tmp_path / "t.gif.noise.raw").read_bytes()
+    assert len(noise) == 300 * 200 * 3
+    assert sum(abs(noise[i * 3] - want[i * 4]) for i in range(60000)) / 60000 < 20
+
+    mp4 = (tmp_path / "t.gif.mp4").read_bytes()
+    top = _boxes(mp4)
+    assert list(top) == ["ftyp", "mdat", "moov"]
+    a, b = top["mdat"][0]
+    assert mp4[a:b] == bytes([0, 0, 0, 2, 9, 9, 0, 0, 0, 1, 7, 0, 0, 0, 2, 9, 9])
+    trak = _boxes(mp4, *_boxes(mp4, *top["moov"][0])["trak"][0])
+    stbl = _boxes(mp4, *_boxes(mp4, *_boxes(mp4, *trak["mdia"][0])["minf"][0])["stbl"][0])
+    body = lambda k: mp4[stbl[k][0][0] + 4:stbl[k][0][1]]   # noqa: E731  (skip version and flags)
+    assert struct.unpack(">3I", body("stts")) == (1, 3, 3600)
+    assert struct.unpack(">3I", body("stss")) == (2, 1, 3)
+    assert struct.unpack(">5I", body("stsz")) == (0, 3, 6, 5, 6)
+    assert struct.unpack(">2I", body("stco")) == (1, a)
+    assert b"avcC\x01\x42\x00\x1f\xff" in body("stsd")
