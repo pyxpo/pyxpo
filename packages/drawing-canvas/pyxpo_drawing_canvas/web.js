@@ -42,6 +42,16 @@
     return x1 < 0 ? null : { x: x0, y: y0, w: x1 - x0 + 1, h: y1 - y0 + 1 };
   }
 
+  // The dev tools show the app in a device body scaled with a CSS transform. getBoundingClientRect is in screen px
+  // there, but layout (and what the app draws in) is in CSS px, so size and pointer math use the unscaled size.
+  function layoutRect(el) {
+    const r = el.getBoundingClientRect();
+    let sx = el.offsetWidth ? r.width / el.offsetWidth : 1, sy = el.offsetHeight ? r.height / el.offsetHeight : 1;
+    if (Math.abs(sx - 1) < 0.01) sx = 1;   // keep fractional sizes when nothing is scaled
+    if (Math.abs(sy - 1) < 0.01) sy = 1;
+    return { left: r.left, top: r.top, width: r.width / sx, height: r.height / sy, sx, sy };
+  }
+
   function makeCanvas(el, emit) {
     const canvas = document.createElement("canvas");
     canvas.style.cssText = "position:absolute;left:0;top:0;width:100%;height:100%;touch-action:none;display:block";
@@ -71,7 +81,7 @@
     }
     function schedule() { if (!frame) frame = requestAnimationFrame(paint); }
     function resize() {
-      const r = el.getBoundingClientRect();
+      const r = layoutRect(el);
       dpr = window.devicePixelRatio || 1;
       w = r.width; h = r.height;
       canvas.width = done.width = Math.max(1, Math.round(w * dpr));
@@ -82,8 +92,8 @@
     ro.observe(el);
 
     function point(e) {
-      const r = canvas.getBoundingClientRect();
-      return [Math.round((e.clientX - r.left) * 10) / 10, Math.round((e.clientY - r.top) * 10) / 10];
+      const r = layoutRect(canvas);
+      return [Math.round((e.clientX - r.left) / r.sx * 10) / 10, Math.round((e.clientY - r.top) / r.sy * 10) / 10];
     }
     function add(e) {
       const evs = e.getCoalescedEvents ? e.getCoalescedEvents() : [];

@@ -8,6 +8,7 @@ import subprocess
 import pytest
 
 from pyxpo import LocalChannel, component, create_app, use_ref
+from pyxpo.app import App
 from pyxpo.build import web
 from pyxpo.module_testing import FakeBridge
 from pyxpo.renderers.mock import MockRenderer
@@ -64,8 +65,10 @@ def test_bad_props(kw):
     def Root():
         return DC.DrawingCanvas(**kw)
 
-    with pytest.raises((ValueError, TypeError)):
-        mount(Root, on_error=lambda e: (_ for _ in ()).throw(e))
+    app = App(Root, LocalChannel(), None)
+    app.on_error = lambda e: (_ for _ in ()).throw(e)
+    with pytest.raises(ValueError):
+        app.start()
 
 
 def _handle():

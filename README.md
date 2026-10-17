@@ -54,6 +54,13 @@ packages = ["numpy"]      # extra packages the browser installs with micropip
 
 `[tool.pyxpo] requires` are installed with micropip as well, so they must be pure Python or built for Pyodide.
 
+Python in the browser differs from Python on a phone in a few places:
+
+- There are no threads. `asyncio.to_thread` and `use_async` with a plain function run the function on the page's
+  only thread, so the page does not repaint until it returns. Loop callbacks it schedules run after it.
+- numpy's `linalg.inv` and `linalg.solve` return NaN for a singular matrix instead of raising `LinAlgError`. Check
+  the result with `numpy.isfinite` when the code depends on that exception.
+
 Native modules work on web when their package has a `web.py` backend. The backend defines `call(method, args)` and
 may return an awaitable. Helpers for backends are in `pyxpo.renderers.web.browser`: `choose_files`, `save_file` and
 `download`. The official image modules behave like this on web:

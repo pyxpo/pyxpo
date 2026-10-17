@@ -707,9 +707,19 @@
   let press = null;
   let touch = null;
 
+  // The dev tools show the app in a device body scaled with a CSS transform. getBoundingClientRect is in screen px
+  // there, but layout (and what the app draws in) is in CSS px, so size and pointer math use the unscaled size.
+  function layoutRect(el) {
+    const r = el.getBoundingClientRect();
+    let sx = el.offsetWidth ? r.width / el.offsetWidth : 1, sy = el.offsetHeight ? r.height / el.offsetHeight : 1;
+    if (Math.abs(sx - 1) < 0.01) sx = 1;   // keep fractional sizes when nothing is scaled
+    if (Math.abs(sy - 1) < 0.01) sy = 1;
+    return { left: r.left, top: r.top, width: r.width / sx, height: r.height / sy, sx, sy };
+  }
+
   function local(n, e) {
-    const r = n.el.getBoundingClientRect();
-    return { x: e.clientX - r.left, y: e.clientY - r.top };
+    const r = layoutRect(n.el);
+    return { x: (e.clientX - r.left) / r.sx, y: (e.clientY - r.top) / r.sy };
   }
   function touchPayload(n, e) {
     const l = local(n, e);

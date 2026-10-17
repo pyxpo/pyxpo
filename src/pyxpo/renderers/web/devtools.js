@@ -679,7 +679,56 @@
   <div class="panel" role="dialog" aria-label="pyxpo dev tools"></div>`;
   const fab = root.querySelector(".fab");
   const panel = root.querySelector(".panel");
-  fab.addEventListener("click", () => act("panel"));
+
+  // The button can cover the app's own buttons at the bottom right: drag it anywhere, it snaps to the nearer side.
+  function placeFab() {
+    const vh = window.innerHeight, left = st.fabSide === "left";
+    const y = Math.max(8, Math.min(vh - 56, typeof st.fabY === "number" ? st.fabY * vh : vh - 66));
+    fab.style.left = panel.style.left = left ? "18px" : "auto";
+    fab.style.right = panel.style.right = left ? "auto" : "18px";
+    fab.style.top = y + "px";
+    fab.style.bottom = "auto";
+    if (y + 24 > vh / 2) {          // panel above the button
+      panel.style.top = "auto";
+      panel.style.bottom = (vh - y + 12) + "px";
+      panel.style.maxHeight = Math.max(160, y - 30) + "px";
+    } else {
+      panel.style.bottom = "auto";
+      panel.style.top = (y + 60) + "px";
+      panel.style.maxHeight = Math.max(160, vh - y - 78) + "px";
+    }
+  }
+  let fabDrag = null, fabMoved = false;
+  fab.addEventListener("pointerdown", (e) => {
+    fabDrag = { x: e.clientX, y: e.clientY };
+    fabMoved = false;
+    fab.setPointerCapture(e.pointerId);
+  });
+  fab.addEventListener("pointermove", (e) => {
+    if (!fabDrag) return;
+    if (!fabMoved && Math.hypot(e.clientX - fabDrag.x, e.clientY - fabDrag.y) < 6) return;
+    fabMoved = true;
+    fab.style.left = (e.clientX - 24) + "px";
+    fab.style.right = "auto";
+    fab.style.top = (e.clientY - 24) + "px";
+  });
+  const endFab = (e) => {
+    if (!fabDrag) return;
+    fabDrag = null;
+    if (!fabMoved) return;
+    st.fabSide = e.clientX < window.innerWidth / 2 ? "left" : "right";
+    st.fabY = Math.max(0, Math.min(1, (e.clientY - 24) / window.innerHeight));
+    placeFab();
+    save();
+  };
+  fab.addEventListener("pointerup", endFab);
+  fab.addEventListener("pointercancel", endFab);
+  fab.addEventListener("click", () => {
+    if (fabMoved) { fabMoved = false; return; }   // the end of a drag, not a tap
+    act("panel");
+  });
+  window.addEventListener("resize", placeFab);
+  placeFab();
 
   const MODE_ICONS = {
     desktop: I.system,
