@@ -173,9 +173,10 @@ def OpacitySlider(board: Any, minimum: float = 0.1, label: bool = True, style: A
         Slider(value=board.opacity, minimum_value=minimum, maximum_value=1, step=0.05,
                on_value_change=board.set_opacity, minimum_track_tint_color=t["ink"],
                maximum_track_tint_color=t["track"], thumb_tint_color=t["ink"], test_id="wb-opacity",
-               accessibility_label="Opacity", style={"flex": 1, "minWidth": 80}),
+               accessibility_label="Opacity", style={"flex": 1, "minWidth": 56}),
         Text("%d%%" % round(board.opacity * 100),
-             style={"color": t["ink"], "fontSize": 13, "fontWeight": "700", "width": 40, "textAlign": "right"}),
+             style={"color": t["ink"], "fontSize": 13, "fontWeight": "700", "width": 40, "textAlign": "right"},
+             number_of_lines=1),
         style=[{"flexDirection": "row", "alignItems": "center", "gap": t["gap"]}, style],
     )
 
