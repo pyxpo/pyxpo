@@ -27,7 +27,7 @@ PLIST_KEY_RE = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
 SETTINGS_LINE = 'apply(from = "pyxpo-gen/modules.settings.gradle.kts")'
 APP_LINE = 'apply(from = "../pyxpo-gen/modules.app.gradle.kts")'
 # First-party modules, published separately; known here only to tell the user which package to install.
-OFFICIAL = ("application", "camera", "device", "drawing-canvas", "fetch", "file-system", "haptics", "image-manipulator", "image-picker", "localization", "location", "media-library", "network", "notifications", "secure-store", "sharing", "sqlite", "storage", "web-browser")
+OFFICIAL = ("application", "camera", "device", "drawing-canvas", "fetch", "file-system", "haptics", "image-manipulator", "image-picker", "localization", "location", "media-library", "mesh-view", "network", "notifications", "secure-store", "sharing", "sqlite", "storage", "web-browser")
 
 
 def dist_name(name: str) -> str:
