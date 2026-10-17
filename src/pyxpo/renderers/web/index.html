@@ -38,6 +38,9 @@
   .press { cursor: pointer; user-select: none; }
   .press .t { cursor: inherit; user-select: none; }
   .press:focus { outline: none; }
+  .pe-box-none { pointer-events: none; }
+  .pe-box-none > * { pointer-events: auto; }
+  .pe-none, .pe-box-only * { pointer-events: none; }
   .press:focus-visible, a.lk:focus-visible { outline: 2px solid #3b82f6; outline-offset: 2px; }
   a.lk { position: absolute; inset: 0; z-index: 1; border-radius: inherit; -webkit-user-drag: none; }
   .press::after { content: ""; position: absolute; inset: 0; border-radius: inherit; pointer-events: none;

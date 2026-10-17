@@ -8,6 +8,8 @@ final class OpApplier {
     private static let leaves: Set<String> = ["Text", "Button", "TextInput", "Image"]
     /// UIKit controls hosted for Switch / Slider / ActivityIndicator; they report an intrinsic size like leaves.
     private static let controls: Set<String> = ["NativeSwitch", "NativeSlider", "NativeSpinner"]
+    /// The Mac app (Catalyst, Mac idiom): some UIKit control styling is unsupported and throws there.
+    private static let macIdiom = UIDevice.current.userInterfaceIdiom == .mac
 
     private var views: [Int: UIView] = [:]
     private var types: [Int: String] = [:]
@@ -289,6 +291,7 @@ final class OpApplier {
             case let k where k.hasPrefix("accessib"): a11yDirty = true
             case "test_id": v.accessibilityIdentifier = val as? String  // testID, as in React Native (XCUITest, Detox)
             case "on_layout": layoutListeners.insert(id)
+            case "pointer_events": (v as? PxGroup)?.pointerEvents = val as? String ?? "auto"
             case "source", "resize_mode", "tint_color": if let i = v as? UIImageView { applyImage(id, i, props, removed) }
             default: if let sh = v as? ScrollHost { scrollProp(sh, k, props[k]) }
             }
@@ -298,6 +301,7 @@ final class OpApplier {
         for k in removed {
             if k == "on_layout" { layoutListeners.remove(id) }
             if k == "test_id" { v.accessibilityIdentifier = nil }
+            if k == "pointer_events" { (v as? PxGroup)?.pointerEvents = "auto" }
             if k.hasPrefix("on_touch_") || k.hasPrefix("on_press") || k == "on_long_press" {
                 // Handlers removed (e.g. a disabled Slider): stop swallowing touches.
                 touchKeys[id]?.remove(k)
@@ -385,17 +389,27 @@ final class OpApplier {
         case let sw as UISwitch:
             let on = (c["value"] as? Bool) ?? false
             if sw.isOn != on { sw.setOn(on, animated: true) }
-            sw.onTintColor = color("track_on")
-            sw.thumbTintColor = color("thumb_on") ?? color("thumb_off")
-            sw.backgroundColor = color("track_off")
-            sw.layer.cornerRadius = 15.5
+            if Self.macIdiom {
+                // The Mac idiom throws on switch track and thumb colors; only the accent can change.
+                sw.tintColor = color("track_on")
+            } else {
+                sw.onTintColor = color("track_on")
+                sw.thumbTintColor = color("thumb_on") ?? color("thumb_off")
+                sw.backgroundColor = color("track_off")
+                sw.layer.cornerRadius = 15.5
+            }
         case let sl as UISlider:
             sl.minimumValue = Float(dbl("minimum", 0))
             sl.maximumValue = Float(dbl("maximum", 1))
             if !sl.isTracking { sl.value = Float(dbl("value", Double(sl.minimumValue))) }
-            sl.minimumTrackTintColor = color("min_track_color")
-            sl.maximumTrackTintColor = color("max_track_color")
-            sl.thumbTintColor = color("thumb_color")
+            if Self.macIdiom {
+                // The Mac idiom throws on slider track and thumb colors; the filled track follows tintColor.
+                sl.tintColor = color("min_track_color")
+            } else {
+                sl.minimumTrackTintColor = color("min_track_color")
+                sl.maximumTrackTintColor = color("max_track_color")
+                sl.thumbTintColor = color("thumb_color")
+            }
         case let ind as UIActivityIndicatorView:
             ind.color = color("color")
             if (c["animating"] as? Bool) == false { ind.stopAnimating() } else { ind.startAnimating() }

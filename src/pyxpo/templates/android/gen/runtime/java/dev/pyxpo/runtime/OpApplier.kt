@@ -219,6 +219,7 @@ class OpApplier(
         var a11yDirty = r.any { it.startsWith("accessib") || it == "test_id" }
         var imgDirty = "source" in r || "resize_mode" in r || "tint_color" in r
         if ("spans" in r) { spans.remove(id); textDirty = true }
+        if ("pointer_events" in r) (v as? PxGroup)?.pointerEvents = "auto"
         val keys = props.keys()
         while (keys.hasNext()) {
             val k = keys.next()
@@ -243,6 +244,7 @@ class OpApplier(
                 "accessibility_value", "accessible", "test_id" -> a11yDirty = true
                 "style" -> applyStyle(id, v, props.optJSONObject(k) ?: JSONObject())
                 "on_layout" -> layoutListeners.add(id)
+                "pointer_events" -> (v as? PxGroup)?.pointerEvents = props.optString(k, "auto")
                 "animated" -> (v as? PxNav)?.animated = props.optBoolean(k, true)
                 "gesture" -> (v as? PxNav)?.gesture = props.optBoolean(k, true)
                 "source", "resize_mode", "tint_color" -> imgDirty = true

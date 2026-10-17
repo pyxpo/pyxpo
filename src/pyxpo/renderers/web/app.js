@@ -412,6 +412,7 @@
     el.classList.toggle("press", pressable && n.type !== "Button");
     if (n.type !== "Button") pressTarget(n, pressable);
     if (p.test_id) el.dataset.testid = p.test_id; else delete el.dataset.testid;
+    for (const pe of ["none", "box-none", "box-only"]) el.classList.toggle("pe-" + pe, p.pointer_events === pe);
     if (p.accessibility_label) el.setAttribute("aria-label", p.accessibility_label); else el.removeAttribute("aria-label");
     applyStyle(n);
     if (n.type === "ScrollView") {

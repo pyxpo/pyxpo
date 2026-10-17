@@ -110,3 +110,18 @@ def test_module_web_js_is_served_and_answers_calls_in_page(tmp_path, monkeypatch
         return js, other
 
     assert asyncio.run(main()) == (200, 403)
+
+
+def test_pointer_events_reach_every_renderer():
+    # An overlay with pointer_events="none" (a hint over a canvas) must let touches through on every target.
+    from pathlib import Path
+    src = Path(__file__).resolve().parents[1] / "src" / "pyxpo"
+    web = (src / "renderers" / "web" / "app.js").read_text()
+    css = (src / "renderers" / "web" / "index.html").read_text()
+    ios = (src / "templates" / "ios" / "gen" / "runtime" / "OpApplier.swift").read_text()
+    ios_views = (src / "templates" / "ios" / "gen" / "runtime" / "PxViews.swift").read_text()
+    kt = src / "templates" / "android" / "gen" / "runtime" / "java" / "dev" / "pyxpo" / "runtime"
+    assert "p.pointer_events" in web and ".pe-none" in css and ".pe-box-none > *" in css
+    assert 'case "pointer_events"' in ios and "override func hitTest" in ios_views
+    assert '"pointer_events" ->' in (kt / "OpApplier.kt").read_text()
+    assert 'pointerEvents != "none"' in (kt / "PxViews.kt").read_text()

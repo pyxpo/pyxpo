@@ -6,9 +6,23 @@ class PxGroup: UIView {
     var onTouch: ((String, CGPoint?) -> Void)?
     /// Set for on_touch_start/move/end: (event name, point in view, point in window).
     var onRaw: ((String, CGPoint, CGPoint) -> Void)?
+    /// React Native pointerEvents: "auto", "none" (no touches here or below), "box-none" (only children get
+    /// touches; the rest fall through to what is behind), "box-only" (this view gets them, children do not).
+    var pointerEvents = "auto"
     private var down = false
     private var long = false
     private var timer: Timer?
+
+    override func hitTest(_ point: CGPoint, with event: UIEvent?) -> UIView? {
+        switch pointerEvents {
+        case "none": return nil
+        case "box-none": let h = super.hitTest(point, with: event); return h === self ? nil : h
+        case "box-only":
+            guard !isHidden, isUserInteractionEnabled, alpha > 0.01, self.point(inside: point, with: event) else { return nil }
+            return self
+        default: return super.hitTest(point, with: event)
+        }
+    }
 
     private func inside(_ t: UITouch) -> Bool { bounds.insetBy(dx: -24, dy: -24).contains(t.location(in: self)) }
 

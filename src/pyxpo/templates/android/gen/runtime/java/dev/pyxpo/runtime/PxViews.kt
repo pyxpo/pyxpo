@@ -11,7 +11,15 @@ open class PxGroup(ctx: Context) : ViewGroup(ctx) {
     var fw = -1
     var fh = -1
 
+    /** React Native pointerEvents: "auto", "none" (no touches here or below), "box-only" (children get none),
+     *  "box-none" (the default for a group without handlers: touches fall through to what is behind). */
+    var pointerEvents = "auto"
+
     init { clipChildren = false }
+
+    override fun dispatchTouchEvent(e: android.view.MotionEvent) = pointerEvents != "none" && super.dispatchTouchEvent(e)
+    override fun onInterceptTouchEvent(e: android.view.MotionEvent) =
+        pointerEvents == "box-only" || super.onInterceptTouchEvent(e)
 
     override fun onMeasure(wSpec: Int, hSpec: Int) {
         setMeasuredDimension(
