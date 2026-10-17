@@ -103,6 +103,7 @@ def test_dev_server_spa_fallback_and_reload(tmp_path):
         for route in ("", "/tool/info?x=1", "/../../etc/passwd", "/app.js/x"):
             ctype, html = get(route)
             assert ctype.startswith("text/html") and "PYXPO_CONFIG" in html and "/__pyxpo/reload" in html
+        assert "location.reload()" in html and "keydown" in html  # R twice reloads, as in React Native
         bundle = _config(dev.root)["bundle"]
         assert get("/" + bundle)[0] == "application/zip"
         assert '<script src="/__pyxpo/devtools.js">' in get("")[1]

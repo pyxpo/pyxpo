@@ -97,10 +97,35 @@ final class PxRootViewController: UIViewController {
     private var lastR = Date.distantPast
 
     #if DEBUG
-    /// Dev builds: R twice (hardware keyboard / simulator) or Cmd+R reloads, as in React Native.
+    // Key presses go to the first responder only. With no text field focused there is none (the Mac app, a hardware
+    // keyboard), so the controller takes that role, and takes it back when a text field stops editing.
+    override var canBecomeFirstResponder: Bool { true }
+
+    override func viewDidAppear(_ animated: Bool) {
+        super.viewDidAppear(animated)
+        becomeFirstResponder()
+        for name in [UITextField.textDidEndEditingNotification, UITextView.textDidEndEditingNotification] {
+            NotificationCenter.default.addObserver(self, selector: #selector(reclaimKeys), name: name, object: nil)
+        }
+    }
+
+    @objc private func reclaimKeys() {
+        DispatchQueue.main.async { [weak self] in  // after focus has moved on (Tab to the next field)
+            guard let self = self, self.view.window != nil, !Self.textInputFocused(in: self.view) else { return }
+            self.becomeFirstResponder()
+        }
+    }
+
+    private static func textInputFocused(in v: UIView) -> Bool {
+        if v.isFirstResponder && v is UITextInput { return true }
+        return v.subviews.contains { textInputFocused(in: $0) }
+    }
+
+    /// Dev builds: R twice (hardware keyboard / simulator / Mac app) or Cmd+R reloads, as in React Native.
     override func pressesBegan(_ presses: Set<UIPress>, with event: UIPressesEvent?) {
         for p in presses {
-            guard let k = p.key, k.charactersIgnoringModifiers.lowercased() == "r" else { continue }
+            guard let k = p.key, k.charactersIgnoringModifiers.lowercased() == "r",
+                  k.modifierFlags.isDisjoint(with: [.control, .alternate]) else { continue }
             let now = Date()
             if k.modifierFlags.contains(.command) || now.timeIntervalSince(lastR) < 0.8 {
                 lastR = .distantPast

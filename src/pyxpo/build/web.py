@@ -130,8 +130,15 @@ def build(project: Path, release: bool = False, base: Optional[str] = None, out:
 
 
 # -- dev server ------------------------------------------------------------------------------------------------------
+# Reloads the page when a file changes, and when R is pressed twice outside a text field (as in React Native).
 _RELOAD = ('<script>(() => { const es = new EventSource("/__pyxpo/reload"); '
-           'es.onmessage = () => location.reload(); })();</script>\n</body>')
+           'es.onmessage = () => location.reload(); let lastR = 0; '
+           'document.addEventListener("keydown", (e) => { '
+           'if ((e.key !== "r" && e.key !== "R") || e.repeat || e.metaKey || e.ctrlKey || e.altKey) return; '
+           'const t = (e.composedPath && e.composedPath()[0]) || e.target; '
+           'if (t && (t.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(t.tagName || ""))) return; '
+           'const now = Date.now(); if (now - lastR < 800) { lastR = 0; location.reload(); } else lastR = now; '
+           '}); })();</script>\n</body>')
 _DEVTOOLS = '<script src="/__pyxpo/devtools.js"></script>\n'  # device preview panel, dev server only
 
 

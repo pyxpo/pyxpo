@@ -107,3 +107,12 @@ def test_path_traversal_rejected(proj):
     app, r, rl, base = proj
     assert not rl.apply(_upd({"../evil.py": "x=1\n"}))
     assert not os.path.exists(os.path.join(os.path.dirname(base), "evil.py"))
+
+
+def test_reload_all_resets_state_and_says_so(proj, capsys):
+    app, r, rl, base = proj
+    r.press(r.find_text("Add"))
+    assert r.texts() == ["Count: 1"]
+    assert rl.reload_all()
+    assert r.texts() == ["Count: 0"]
+    assert "[pyxpo dev] reloaded the app" in capsys.readouterr().err

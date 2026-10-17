@@ -119,6 +119,19 @@ sealed class MainWindow : Window
         host.KeyboardAccelerators.Add(back);
         host.KeyboardAccelerators.Add(reload);
         host.KeyboardAcceleratorPlacementMode = KeyboardAcceleratorPlacementMode.Hidden;
+        // R twice outside a text field reloads too, as in React Native.
+        long lastR = 0;
+        host.KeyDown += (_, e) =>
+        {
+            if (e.Key != VirtualKey.R || e.KeyStatus.WasKeyDown || e.OriginalSource is TextBox || e.OriginalSource is PasswordBox)
+                return;
+            if (Microsoft.UI.Input.InputKeyboardSource.GetKeyStateForCurrentThread(VirtualKey.Control)
+                    .HasFlag(Windows.UI.Core.CoreVirtualKeyStates.Down))
+                return;  // Ctrl+R is the accelerator above
+            long now = Environment.TickCount64;
+            if (now - lastR < 800) { lastR = 0; e.Handled = true; app.DevReload(); }
+            else lastR = now;
+        };
         host.AddHandler(UIElement.PointerPressedEvent, new PointerEventHandler((_, e) =>
         {
             if (e.GetCurrentPoint(host).Properties.IsXButton1Pressed && app.HardwareBack()) e.Handled = true;

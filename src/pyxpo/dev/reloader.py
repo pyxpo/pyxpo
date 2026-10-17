@@ -82,6 +82,7 @@ class HotReloader:
             if err is not None:
                 self._report("error while rendering", err)
                 return False
+            sys.stderr.write("[pyxpo dev] reloaded the app\n")
             return True
         except Exception as e:  # noqa: BLE001
             self._report("reload failed", e)

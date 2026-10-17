@@ -1,12 +1,12 @@
 """Device-side dev client: long-polls the dev server and hands updates to the HotReloader."""
 from __future__ import annotations
 
+import http.client
 import json
 import os
 import sys
 import threading
-import urllib.error
-import urllib.request
+import urllib.parse
 from typing import Any, Optional
 
 from .reloader import HotReloader
@@ -26,9 +26,18 @@ class DevClient:
         self._stop = threading.Event()
 
     def _req(self, path: str, data: Optional[bytes] = None, timeout: float = 35.0) -> Any:
-        req = urllib.request.Request(self.url + path, data=data, headers={TOKEN_HEADER: self.token})
-        with urllib.request.urlopen(req, timeout=timeout) as r:
+        # http.client, not urllib.request: on macOS urllib.request imports _scproxy at load, and the Mac (Catalyst)
+        # Python has no _scproxy, so the import fails there.
+        u = urllib.parse.urlsplit(self.url)
+        conn = http.client.HTTPConnection(u.hostname or "127.0.0.1", u.port or 80, timeout=timeout)
+        try:
+            conn.request("POST" if data is not None else "GET", u.path + path, body=data, headers={TOKEN_HEADER: self.token})
+            r = conn.getresponse()
             body = r.read()
+            if r.status >= 400:
+                raise OSError("dev server answered %d" % r.status)
+        finally:
+            conn.close()
         return json.loads(body) if body else None
 
     def poll_once(self) -> None:
@@ -45,11 +54,16 @@ class DevClient:
 
     def run(self) -> None:
         delay = 1.0
+        warned = False
         while not self._stop.is_set():
             try:
                 self.poll_once()
                 delay = 1.0
-            except (urllib.error.URLError, OSError, ValueError):
+                warned = False
+            except (OSError, http.client.HTTPException, ValueError) as e:
+                if not warned:  # once per outage: the server may be stopped on purpose
+                    sys.stderr.write("[pyxpo dev] cannot reach %s: %s\n" % (self.url, e))
+                    warned = True
                 self._stop.wait(delay)
                 delay = min(delay * 2, 5.0)
             except RuntimeError:  # event loop closed: app is gone

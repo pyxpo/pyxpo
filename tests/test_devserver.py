@@ -120,3 +120,18 @@ def test_native_config_change_warns(tmp_path, capsys):
         assert "native config changed" not in capsys.readouterr().err  # warned once per change
     finally:
         s.httpd.server_close()
+
+
+def test_client_does_not_need_urllib_request():
+    # The Mac (Catalyst) Python has no _scproxy, so `import urllib.request` fails there.
+    import subprocess
+    import sys
+    code = "import sys; sys.modules['urllib.request'] = None; import pyxpo.dev.client"
+    subprocess.run([sys.executable, "-c", code], check=True)
+
+
+def test_client_rejects_bad_token(server):
+    s, _ = server
+    c = DevClient(None, None, s.url, "wrong")
+    with pytest.raises(OSError):
+        c.poll_once()

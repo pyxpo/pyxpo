@@ -790,6 +790,16 @@
   document.addEventListener("keydown", (e) => {
     if (!WEB && e.key === "Escape" && !document.getElementById("alert").classList.contains("show")) emit("hardware_back", 0);
   });
+  // Desktop preview window: R twice outside a text field reloads the app, as in React Native. (The web dev server's
+  // page reloads itself; see build/web.py.)
+  let lastR = 0;
+  document.addEventListener("keydown", (e) => {
+    if (WEB || (e.key !== "r" && e.key !== "R") || e.repeat || e.metaKey || e.ctrlKey || e.altKey) return;
+    const t = (e.composedPath && e.composedPath()[0]) || e.target;
+    if (t && (t.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(t.tagName || ""))) return;
+    const now = Date.now();
+    if (now - lastR < 800) { lastR = 0; emit("dev_reload", 0); } else lastR = now;
+  });
 
   // -- environment ------------------------------------------------------------------------------
   const dark = window.matchMedia("(prefers-color-scheme: dark)");

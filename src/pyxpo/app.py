@@ -422,8 +422,8 @@ def run_app(root: Any, channel: Optional[Channel] = None, **props: Any) -> None:
             try:
                 from .dev import client
                 client.start(app, loop, _hot.entry)
-            except ImportError:
-                pass
+            except ImportError as e:  # a stripped runtime: run without hot reload, but say why
+                sys.stderr.write("[pyxpo dev] hot reload off: %s\n" % e)
         if renderer is not None and hasattr(renderer, "serve"):
             await renderer.serve(open_window=os.environ.get("PYXPO_DESKTOP_BROWSER") != "0")
         elif renderer is not None:
