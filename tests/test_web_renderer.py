@@ -125,3 +125,12 @@ def test_pointer_events_reach_every_renderer():
     assert 'case "pointer_events"' in ios and "override func hitTest" in ios_views
     assert '"pointer_events" ->' in (kt / "OpApplier.kt").read_text()
     assert 'pointerEvents != "none"' in (kt / "PxViews.kt").read_text()
+
+
+def test_ios_module_view_fill_is_under_its_drawing():
+    # A style background on iOS is a sublayer, which covers the layer's contents. A module view that draws its
+    # own contents (a whiteboard) must get the fill on its layer instead, or its ink is hidden.
+    from pathlib import Path
+    ios = (Path(__file__).resolve().parents[1] / "src" / "pyxpo" / "templates" / "ios" / "gen" / "runtime"
+           / "OpApplier.swift").read_text()
+    assert "if v is UIImageView || modules.view(id) != nil {" in ios
