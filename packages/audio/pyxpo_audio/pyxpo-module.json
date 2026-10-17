@@ -1,0 +1,15 @@
+{
+  "schemaVersion": 1,
+  "nativeContract": 1,
+  "name": "audio",
+  "native": "Audio",
+  "ios": {
+    "classes": ["AudioModule"]
+  },
+  "android": {
+    "namespace": "dev.pyxpo.modules.audio",
+    "classes": ["dev.pyxpo.modules.audio.AudioModule"],
+    "dependencies": [],
+    "minSdk": 24
+  }
+}
