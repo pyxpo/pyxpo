@@ -1,0 +1,15 @@
+{
+  "schemaVersion": 1,
+  "nativeContract": 2,
+  "name": "drawing-canvas",
+  "native": "DrawingCanvas",
+  "ios": {
+    "classes": ["DrawingCanvasModule"]
+  },
+  "android": {
+    "namespace": "dev.pyxpo.modules.drawingcanvas",
+    "classes": ["dev.pyxpo.modules.drawingcanvas.DrawingCanvasModule"],
+    "minSdk": 24,
+    "dependencies": []
+  }
+}
