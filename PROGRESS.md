@@ -35,5 +35,6 @@
 - hooks use_breakpoint/use_breakpoint_value/use_media_query; components/layout.py Container Row Col Grid GridItem Flex HStack VStack Center Spacer Show Hide. tests/test_responsive.py.
 - renderers/web/devtools.js: dev server only (`--no-devtools`), FAB panel, phone/tablet frames, rotate, custom size, zoom, scheme, platform (os override, reload), touch drag-scroll. app.js reads window.PYXPO_DEVICE(), `pyxpo-env` event, `pyxpo-statusbar` event. CDP e2e OK.
 - Full suite 588 pass.
+- Devtools v2 (bbb8073): side toolbar (rotate/zoom/fit/1:1/theme/back/reload), zoom 20-300% via slider, ctrl+wheel/pinch, corner grip; panel redesign; device sits left of open panel.
 - Later: `[tool.pyxpo] breakpoints` config (devtools ruler reads PYXPO_CONFIG.breakpoints).
 - Next: user OK to push; fix Windows icon/shadow bugs.
