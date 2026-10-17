@@ -291,3 +291,13 @@ def test_ios_require_full_screen_without_base_orientations():
     nc = native_config.resolve({"name": "A", "ios": {"require_full_screen": True}}, Path("."))
     p = ios_config.info_plist({}, nc)
     assert p["UIRequiresFullScreen"] is True and p["UISupportedInterfaceOrientations~ipad"] == ios_config.ALL_ORIENTATIONS
+
+
+def test_mini_parse_reads_multi_line_arrays():
+    """The no-tomli fallback reads an array split over lines (ISSUE 28) and still fails on a broken one."""
+    from pyxpo.config import _mini_parse
+    text = ('[tool.pyxpo]\nname = "x"\nmodules = ["whiteboard", "sqlite",\n           "image-picker"]\n'
+            'icon = "a.png"\n[other]\nk = 1\n')
+    assert _mini_parse(text) == {"name": "x", "modules": ["whiteboard", "sqlite", "image-picker"], "icon": "a.png"}
+    with pytest.raises(ValueError):
+        _mini_parse('[tool.pyxpo]\nmodules = ["a",\n')

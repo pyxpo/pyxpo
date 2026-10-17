@@ -19,8 +19,18 @@ def _mini_parse(text: str) -> Dict[str, Any]:
     """Fallback: reads flat key = literal pairs of the [tool.pyxpo] table only."""
     out: Dict[str, Any] = {}
     inside = False
+    pending = ""  # a value split over lines (a multi-line array), joined until it parses
     for raw in text.splitlines():
         line = raw.strip()
+        if pending:
+            pending += " " + line
+            k, v = pending.split("=", 1)
+            try:
+                out[k.strip()] = ast.literal_eval(v.strip())
+            except SyntaxError:
+                continue
+            pending = ""
+            continue
         if line.startswith("["):
             if line.startswith("[tool.pyxpo."):
                 raise ValueError("pyproject.toml uses nested [tool.pyxpo.*] tables: install tomli (pip install tomli) on Python < 3.11")
@@ -28,7 +38,14 @@ def _mini_parse(text: str) -> Dict[str, Any]:
             continue
         if inside and "=" in line and not line.startswith("#"):
             k, v = line.split("=", 1)
-            out[k.strip()] = ast.literal_eval(v.strip())
+            try:
+                out[k.strip()] = ast.literal_eval(v.strip())
+            except SyntaxError:
+                if not v.strip().startswith(("[", "{")):
+                    raise
+                pending = line
+    if pending:
+        raise ValueError("pyproject.toml: unterminated value in [tool.pyxpo]: %s" % pending.split("=", 1)[0].strip())
     return out
 
 
