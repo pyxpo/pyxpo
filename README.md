@@ -163,7 +163,7 @@ Container(                                        # centered column: 540 / 720 /
 
 bp = use_breakpoint()                             # "md"; re-renders only when the breakpoint changes
 cols = use_breakpoint_value({"base": 1, "md": 2, "xl": 3})
-wide = use_media_query(above="md", orientation="landscape")
+wide = use_media_query("md", orientation="landscape")   # md and up; also down="lg", only="md", min_width=600
 ```
 
 `pyxpo.responsive.set_breakpoints({"phone": 0, "tablet": 600, "desktop": 1024})` replaces the table. Every flexbox
