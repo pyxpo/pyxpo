@@ -60,7 +60,7 @@ from .apis.vibration import Vibration
 from .style import StyleSheet, processColor
 from .hooks import (HookError, createContext, create_context, use_async, use_callback, use_context, use_debug_value,
                     use_deferred_value, use_effect, use_id, use_imperative_handle, use_layout_effect, use_memo,
-                    use_reducer, use_ref, use_state, use_sync_external_store, use_transition, use_color_scheme,
+                    use_reducer, use_ref, use_state, use_sync_external_store, use_transition, use_color_scheme, use_app_theme, useAppTheme,
                     use_safe_area_frame, use_safe_area_insets, use_window_dimensions, useAsync, useCallback, useColorScheme, useContext,
                     useDebugValue, useDeferredValue, useEffect, useId, useImperativeHandle, useLayoutEffect, useMemo,
                     useReducer, useRef, useSafeAreaFrame, useSafeAreaInsets, useState, useSyncExternalStore, useTransition,
@@ -90,7 +90,7 @@ __all__ = [
     # hooks
     "HookError", "createContext", "create_context", "use_async", "use_callback", "use_context", "use_debug_value",
     "use_deferred_value", "use_effect", "use_id", "use_imperative_handle", "use_layout_effect", "use_memo",
-    "use_reducer", "use_ref", "use_state", "use_sync_external_store", "use_transition", "use_color_scheme",
+    "use_reducer", "use_ref", "use_state", "use_sync_external_store", "use_transition", "use_color_scheme", "use_app_theme", "useAppTheme",
     "use_safe_area_frame", "use_safe_area_insets", "use_window_dimensions", "use_animated_value", "useAnimatedValue", "useAsync",
     "useCallback", "useColorScheme", "useContext", "useDebugValue", "useDeferredValue", "useEffect", "useId",
     "useImperativeHandle", "useLayoutEffect", "useMemo", "useReducer", "useRef", "useSafeAreaFrame", "useSafeAreaInsets", "useState",

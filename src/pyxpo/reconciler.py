@@ -6,6 +6,7 @@ import warnings
 from typing import Any, Callable, Dict, List, Optional, Set, Tuple
 
 from . import responsive as _resp
+from . import themes as _themes
 from .animated import runtime as _anim
 from .element import Element, flatten
 from .apis import _env as _env_mod
@@ -123,10 +124,13 @@ class Reconciler:
         self.root = Fiber("root", None, None, self)
         self.root.id = 1
         # host fibers whose style holds a breakpoint map: id -> (fiber, breakpoint it was resolved at)
-        self.responsive: Dict[int, Tuple[Fiber, str]] = {}
+        # views whose style holds breakpoint maps or themed styles: fiber id -> (fiber, style key it was resolved for)
+        self.responsive: Dict[int, Tuple[Fiber, Tuple[Any, ...]]] = {}
         self._bp_key: Tuple[Any, int] = (None, -1)
         self._bp_name = ""
-        self._refreshed_bp: Optional[str] = None
+        self._refreshed_bp: Optional[Tuple[Any, ...]] = None
+        self._ctx_key: Optional[Tuple[Any, ...]] = None
+        self._ctx: Optional[_themes.Context] = None
 
     # -- public --------------------------------------------------------
     def schedule(self, fiber: Fiber) -> None:
@@ -243,23 +247,50 @@ class Reconciler:
             self._bp_name = _resp.breakpoint_for(key[0] or 0)
         return self._bp_name
 
-    def refresh_responsive(self) -> bool:
-        """After the window crossed a breakpoint: re-style the views whose style holds a breakpoint map, without
-        re-rendering any component. Returns True when it queued ops."""
+    def style_key(self) -> Tuple[Any, ...]:
+        """Everything a responsive or themed style depends on: (breakpoint, theme version, color scheme, insets,
+        font scale). Index 0 is the breakpoint."""
+        d = self.env._data
+        ins = d.get("insets") or {}
+        return (self.breakpoint(), _themes.version(), d.get("color_scheme"), ins.get("top"), ins.get("right"),
+                ins.get("bottom"), ins.get("left"), d.get("font_scale"))
+
+    def style_context(self) -> "_themes.Context":
+        """Theme context (`theme`, `rt`) for themed styles, rebuilt only when `style_key` changes."""
+        key = self.style_key()
+        if key != self._ctx_key or self._ctx is None:
+            self._ctx_key = key
+            self._ctx = _themes.Context(self.env._data, key[0])
+        return self._ctx
+
+    def _resolve_style(self, style: Any) -> Tuple[Any, Optional[Tuple[Any, ...]]]:
+        """(style with themed parts and breakpoint maps resolved, style key to track it under or None)."""
+        style, themed = _themes.resolve_style(style, self.style_context)
         bp = self.breakpoint()
-        if bp == self._refreshed_bp:
+        style, used = _resp.resolve_style(style, bp)
+        if themed:
+            return style, self.style_key()
+        return style, ((bp,) if used else None)
+
+    def refresh_responsive(self) -> bool:
+        """After the window crossed a breakpoint or the theme, insets or color scheme changed: re-style the views
+        whose style holds a breakpoint map or a themed style, without re-rendering any component. Returns True
+        when it queued ops."""
+        key = self.style_key()
+        if key == self._refreshed_bp:
             return False
-        self._refreshed_bp = bp
+        self._refreshed_bp = key
         queued = False
         for fid, (f, used) in list(self.responsive.items()):
-            if used == bp:
+            # breakpoint-only styles track (bp,), themed ones the full key
+            if used == key or used == key[:1]:
                 continue
             if f.unmounted or f.element is None:
                 del self.responsive[fid]
                 continue
-            style, _ = _resp.resolve_style(f.element.props.get("style"), bp)
+            style, track = self._resolve_style(f.element.props.get("style"))
             new = normalize_style(style)
-            self.responsive[fid] = (f, bp)
+            self.responsive[fid] = (f, track or key[:1])
             old = f.sent.get("style", _MISSING)
             if old is _MISSING or not _same(old, new):
                 self.ops.append(Update(f.id, {"style": new}, []))
@@ -276,11 +307,10 @@ class Reconciler:
                 continue
             if k == "style":
                 if v is not None:
-                    bp = self.breakpoint()
-                    v, used = _resp.resolve_style(v, bp)
+                    v, track = self._resolve_style(v)
                     if f is not None:
-                        if used:
-                            self.responsive[f.id] = (f, bp)
+                        if track is not None:
+                            self.responsive[f.id] = (f, track)
                         elif self.responsive:
                             self.responsive.pop(f.id, None)
                 wire[k] = normalize_style(v)

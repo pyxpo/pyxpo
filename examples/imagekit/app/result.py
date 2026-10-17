@@ -1,16 +1,16 @@
-from pyxpo import Image, Text, View, component, useState
+from pyxpo import Grid, Image, Text, View, StyleSheet, component, useState
 from pyxpo.apis import _bridge
 from pyxpo_media_library import MediaLibrary
 from pyxpo_sharing import Share
 
 from app._store import useStore
-from app._theme import TOOL, fmt_bytes, useTheme
+from app._theme import TOOL, fmt_bytes
 from app._ui import Button, Card, Screen
 
 
 @component
 def Result():
-    t, st = useTheme(), useStore()
+    st = useStore()
     res = st["results"]
     status, setStatus = useState("")
     busy, setBusy = useState(False)
@@ -45,22 +45,47 @@ def Result():
         _bridge.spawn(go())
 
     summary = Card(
-        Text("%s%d%%" % ("-" if pct >= 0 else "+", abs(pct)), style={"fontSize": 44, "fontWeight": "800", "color": t["good"] if pct >= 0 else t["bad"]}),
-        Text("%s → %s" % (fmt_bytes(saved), fmt_bytes(after)), style={"fontSize": 16, "fontWeight": "600", "color": t["text"]}),
-        Text("Metadata removed · saved on device only", style={"fontSize": 12, "color": t["sub"]}),
-        style={"alignItems": "center"})
+        Text("%s%d%%" % ("-" if pct >= 0 else "+", abs(pct)), style=[styles.percent, pct < 0 and styles.percentWorse]),
+        Text("%s → %s" % (fmt_bytes(saved), fmt_bytes(after)), style=styles.sizes),
+        Text("Metadata removed · saved on device only", style=styles.note),
+        style=styles.summary)
 
     def card(r):
-        o, s = r["out"], r["src"]
+        o, src = r["out"], r["src"]
         return Card(
-            Image(source=o["uri"], resizeMode="contain", style={"width": "100%", "height": 240, "borderRadius": 14, "backgroundColor": t["line"]}),
-            View(Text("Before  %d × %d · %s" % (s["width"], s["height"], fmt_bytes(s["fileSize"])), style={"fontSize": 12, "color": t["sub"]}),
-                 Text("After  %d × %d · %s" % (o["width"], o["height"], fmt_bytes(o["fileSize"])), style={"fontSize": 13, "fontWeight": "700", "color": t["text"]}), style={"gap": 2}))
+            Image(source=o["uri"], resizeMode="contain", style=styles.preview),
+            View(Text("Before  %d × %d · %s" % (src["width"], src["height"], fmt_bytes(src["fileSize"])), style=styles.before),
+                 Text("After  %d × %d · %s" % (o["width"], o["height"], fmt_bytes(o["fileSize"])), style=styles.after), style=styles.meta),
+            style=styles.resultCard)
 
-    footer = View(Text(status, style={"fontSize": 13, "color": t["sub"], "marginBottom": 8}) if status else None,
-                  View(View(Button("Save", save, icon="download", busy=busy), style={"flex": 1}),
-                       View(Button("Share", share, icon="share", kind="secondary"), style={"flex": 1}), style={"flexDirection": "row", "gap": 12}))
-    return Screen(summary, *[card(r) for r in res], title="Result" if not st["tool"] else TOOL[st["tool"]]["title"] + " done", footer=footer)
+    footer = View(Text(status, style=styles.status) if status else None,
+                  View(View(Button("Save", save, icon="download", busy=busy), style=styles.action),
+                       View(Button("Share", share, icon="share", kind="secondary"), style=styles.action), style=styles.actions))
+    # One result card a row on phones, 2 on tablets, 3 on wide desktops.
+    cards = Grid(*[card(r) for r in res], columns={"base": 1, "md": 2, "xl": 3}, gap=16)
+    return Screen(summary, cards, title="Result" if not st["tool"] else TOOL[st["tool"]]["title"] + " done", footer=footer)
 
 
 default = Result
+
+
+styles = StyleSheet.create(lambda theme, rt: {
+    # Summary card
+    "summary": {"alignItems": "center"},
+    "percent": {"fontSize": 44, "fontWeight": "800", "color": theme.colors.good},
+    "percentWorse": {"color": theme.colors.bad},
+    "sizes": {"fontSize": 16, "fontWeight": "600", "color": theme.colors.text},
+    "note": {"fontSize": 12, "color": theme.colors.sub},
+
+    # Result card
+    "resultCard": {"flexGrow": 1},
+    "preview": {"width": "100%", "height": 240, "borderRadius": 14, "backgroundColor": theme.colors.line},
+    "meta": {"gap": 2},
+    "before": {"fontSize": 12, "color": theme.colors.sub},
+    "after": {"fontSize": 13, "fontWeight": "700", "color": theme.colors.text},
+
+    # Footer
+    "status": {"fontSize": 13, "color": theme.colors.sub, "marginBottom": 8},
+    "actions": {"flexDirection": "row", "gap": 12},
+    "action": {"flex": 1},
+})

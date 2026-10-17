@@ -1295,6 +1295,10 @@
    "doc": "A Value that lives as long as the component. Freed natively on unmount.",
    "kind": "hook"
   },
+  "useAppTheme": {
+   "doc": "The active `StyleSheet.configure` theme (`theme.colors.text`), re-rendering when it changes. Only needed for\nvalues outside styles, like an icon color: themed sheets update without it. (`pyxpo.router.useTheme` is the\nnavigation theme, a different thing.)",
+   "kind": "hook"
+  },
   "useAsync": {
    "doc": "Run fn (coroutine fn, or blocking fn in a worker thread) when deps change. Returns (loading, value, error).",
    "kind": "hook"
@@ -1385,6 +1389,10 @@
   },
   "use_animated_value": {
    "doc": "A Value that lives as long as the component. Freed natively on unmount.",
+   "kind": "hook"
+  },
+  "use_app_theme": {
+   "doc": "The active `StyleSheet.configure` theme (`theme.colors.text`), re-rendering when it changes. Only needed for\nvalues outside styles, like an icon color: themed sheets update without it. (`pyxpo.router.useTheme` is the\nnavigation theme, a different thing.)",
    "kind": "hook"
   },
   "use_async": {

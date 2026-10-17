@@ -170,6 +170,59 @@ wide = use_media_query(above="md", orientation="landscape")
 style (`flex_direction`, `flex_wrap`, `flex_grow`, `flex_basis`, `align_content`, `gap`, `row_gap`, `column_gap`,
 percent sizes) works on every target.
 
+## Themes (light / dark)
+
+The API follows [react-native-unistyles 3](https://www.unistyl.es). Register the themes once, then give
+`StyleSheet.create` a function. Components need no hook. When the theme, the system color scheme, the safe-area
+insets or the breakpoint change, pyxpo updates only the affected views. Components do not re-render.
+
+```python
+from pyxpo import StyleSheet, Text, View, component, useAppTheme
+
+StyleSheet.configure(                             # once, e.g. in app/_theme.py
+    themes={"light": {"colors": {"bg": "#fff", "text": "#111"}},
+            "dark": {"colors": {"bg": "#000", "text": "#eee"}}},
+    breakpoints={"phone": 0, "tablet": 600},      # optional, replaces the default table
+)                                                 # adaptive: "light"/"dark" follow the system setting
+
+styles = StyleSheet.create(lambda theme, rt: {    # rt: insets, breakpoint, colorScheme, themeName, fontScale
+    "screen": {"flex": 1, "backgroundColor": theme.colors.bg, "paddingTop": rt.insets.top},
+    "title": {"fontSize": {"base": 20, "tablet": 28}, "color": theme.colors.text},
+    "avatar": lambda size: {"width": size, "height": size, "borderRadius": size / 2},   # dynamic style
+})
+
+@component
+def Home():
+    theme = useAppTheme()                         # only for values outside styles, like an icon color
+    return View(Text("Hi", style=styles.title), View(style=styles.avatar(48)), style=styles.screen)
+
+StyleSheet.setTheme("dark")                       # force a theme; StyleSheet.setAdaptiveThemes(True) follows the system again
+```
+
+`StyleSheet.create(lambda theme: {...})` works too when the sheet does not need `rt`. Themed styles still behave as
+plain dicts, so `[styles.card, {"opacity": 0.5}]`, `{**styles.card}` and `StyleSheet.flatten` work as usual.
+
+Reference:
+
+- `StyleSheet.configure(themes=None, breakpoints=None, adaptive_themes=True, initial_theme=None)`. camelCase
+  (`adaptiveThemes`, `initialTheme`) works too. With themes named `light` and `dark` and adaptive themes on, the app
+  follows the system color scheme. Otherwise it starts on `initial_theme`, or on the first theme.
+- `StyleSheet.set_theme(name)` / `setTheme` picks a theme and turns adaptive themes off. An unknown name raises
+  `ValueError`. `StyleSheet.set_adaptive_themes(on)` / `setAdaptiveThemes` turns system following on or off.
+- `theme` is the theme dict with attribute access: `theme.colors.bg` equals `theme["colors"]["bg"]`. A missing key
+  raises `AttributeError` with the key name.
+- `rt` fields: `insets` (`top`, `right`, `bottom`, `left`), `breakpoint`, `color_scheme` / `colorScheme`,
+  `theme_name` / `themeName`, `font_scale` / `fontScale`.
+- A dynamic style is a function entry (`"avatar": lambda size: {...}`). Call it in the component:
+  `styles.avatar(48)`. Each argument set is validated once and cached. Plain `StyleSheet.create({...})` accepts
+  function entries as well.
+- `useAppTheme()` / `use_app_theme()` returns the current theme and re-renders the component when the theme changes.
+  Use it only for values that are not styles, such as icon colors. (`router.useTheme` is the navigation theme.)
+- The same calls exist as functions in `pyxpo.themes`: `configure`, `set_theme`, `set_adaptive_themes`,
+  `theme_name()` and `get(name)`.
+
+A full example is `examples/imagekit` (`app/_theme.py`, `app/_ui.py`).
+
 ## React Native style API
 Every RN spelling is an alias; the snake_case API keeps working. No JSX (not valid Python), so children are call arguments.
 

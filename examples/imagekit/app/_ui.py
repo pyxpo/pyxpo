@@ -1,9 +1,9 @@
 """Shared ImageKit widgets."""
-from pyxpo import ActivityIndicator, Image, KeyboardAvoidingView, Pressable, ScrollView, Text, View, component, useSafeAreaInsets
+from pyxpo import ActivityIndicator, Container, Image, KeyboardAvoidingView, Pressable, ScrollView, StyleSheet, Text, View, component, useAppTheme
 from pyxpo.router import router
 from pyxpo.vector_icons import Feather
 
-from app._theme import useTheme
+from app._theme import shadow
 
 
 def widget(fn):
@@ -17,64 +17,100 @@ def widget(fn):
     return make
 
 
-def shadow(t, o=0.12):
-    return {"shadowColor": t["shadow"], "shadowOpacity": o, "shadowRadius": 14, "shadowOffset": {"width": 0, "height": 6}, "elevation": 4}
-
-
 @component
 def Screen(*children, title=None, back=True, scroll=True, footer=None):
-    t, insets = useTheme(), useSafeAreaInsets()
-    head = View(
-        Pressable(Feather(name="arrow-left", size=22, color=t["text"]), onPress=router.back, hitSlop=12,
-                  style={"width": 40, "height": 40, "borderRadius": 20, "backgroundColor": t["card"], "alignItems": "center", "justifyContent": "center", **shadow(t, 0.08)})
-        if back else View(style={"width": 40}),
-        Text(title or "", style={"fontSize": 20, "fontWeight": "700", "color": t["text"], "marginLeft": 12}),
-        style={"flexDirection": "row", "alignItems": "center", "paddingHorizontal": 20, "paddingTop": insets["top"] + 8, "paddingBottom": 8},
-    ) if title is not None else View(style={"height": insets["top"]})
-    body = ScrollView(*children, contentContainerStyle={"padding": 20, "gap": 16, "paddingBottom": 32}, style={"flex": 1}) if scroll \
-        else View(*children, style={"flex": 1, "padding": 20, "gap": 16})
-    return KeyboardAvoidingView(head, body, footer and View(footer, style={"padding": 20, "paddingBottom": insets["bottom"] + 12, "backgroundColor": t["card"], "borderTopWidth": 1, "borderColor": t["line"]}),
-                                behavior="padding", style={"flex": 1, "backgroundColor": t["bg"]})
+    theme = useAppTheme()  # for the icon color; styles follow the theme by themselves
+    # Header, body and footer share one centered Container column, so wide screens get a readable page, not a stretched phone UI.
+    head = View(Container(View(
+        Pressable(Feather(name="arrow-left", size=22, color=theme.colors.text), onPress=router.back, hitSlop=12, style=styles.backButton)
+        if back else View(style=styles.backSpacer),
+        Text(title or "", style=styles.title),
+        style=styles.headerRow), padding=20),
+        style=styles.header,
+    ) if title is not None else View(style=styles.topInset)
+    page = Container(*children, padding=20, style=styles.page)
+    body = ScrollView(page, contentContainerStyle=styles.scrollContent, style=styles.body) if scroll else View(page, style=styles.staticBody)
+    foot = footer and View(Container(View(footer, style=styles.footerInner), padding=20),
+                           style=styles.footer)
+    return KeyboardAvoidingView(head, body, foot, behavior="padding", style=styles.screen)
 
 
 @component
 def Card(*children, style=None):
-    t = useTheme()
-    return View(*children, style=[{"backgroundColor": t["card"], "borderRadius": 20, "padding": 16, "gap": 12, **shadow(t, 0.06)}, style])
+    return View(*children, style=[styles.card, style])
 
 
 @widget
 def Button(label, onPress, icon=None, kind="primary", busy=False, disabled=False):
-    t = useTheme()
+    theme = useAppTheme()
     primary = kind == "primary"
-    fg = t["onAccent"] if primary else t["chipText"]
-    st = {"height": 54, "borderRadius": 16, "flexDirection": "row", "alignItems": "center", "justifyContent": "center", "gap": 8,
-          "opacity": 0.5 if disabled else 1}
-    st.update({"linearGradient": {"angle": 90, "colors": [t["accent"], t["accent2"]]}} if primary else {"backgroundColor": t["chip"]})
+    fg = theme.colors.onAccent if primary else theme.colors.chipText
     return Pressable(
         ActivityIndicator(color=fg) if busy else (Feather(name=icon, size=20, color=fg) if icon else None),
-        None if busy else Text(label, style={"fontSize": 16, "fontWeight": "700", "color": fg}),
-        onPress=None if (disabled or busy) else onPress, style=st)
+        None if busy else Text(label, style=[styles.buttonLabel, {"color": fg}]),
+        onPress=None if (disabled or busy) else onPress,
+        style=[styles.button, styles.buttonPrimary if primary else styles.buttonSecondary, disabled and styles.disabled])
 
 
 @widget
 def Chip(label, active, onPress):
-    t = useTheme()
-    return Pressable(
-        Text(label, style={"fontSize": 14, "fontWeight": "600", "color": t["onAccent"] if active else t["chipText"]}),
-        onPress=onPress,
-        style={"paddingHorizontal": 16, "paddingVertical": 10, "borderRadius": 14, "backgroundColor": t["accent"] if active else t["chip"]})
+    return Pressable(Text(label, style=[styles.chipLabel, active and styles.chipLabelActive]),
+                     onPress=onPress, style=[styles.chip, active and styles.chipActive])
 
 
 @widget
 def Thumb(uri, size=72, radius=14):
-    t = useTheme()
-    return Image(source=uri, resizeMode="cover", style={"width": size, "height": size, "borderRadius": radius, "overflow": "hidden", "flexShrink": 0, "flexGrow": 0, "backgroundColor": t["line"]})
+    return Image(source=uri, resizeMode="cover", style=styles.thumb(size, radius))
 
 
 @widget
 def Row(label, value, strong=False):
-    t = useTheme()
-    return View(Text(label, style={"fontSize": 14, "color": t["sub"]}),
-                Text(str(value), style={"fontSize": 14, "fontWeight": "700" if strong else "500", "color": t["text"]}),
-                style={"flexDirection": "row", "justifyContent": "space-between"})
+    return View(Text(label, style=styles.infoLabel),
+                Text(str(value), style=[styles.infoValue, strong and styles.infoValueStrong]),
+                style=styles.infoRow)
+
+
+styles = StyleSheet.create(lambda theme, rt: {
+    # Screen
+    "screen": {"flex": 1, "backgroundColor": theme.colors.bg},
+    "header": {"paddingTop": rt.insets.top + 8, "paddingBottom": 8},
+    "topInset": {"height": rt.insets.top},
+    "headerRow": {"flexDirection": "row", "alignItems": "center"},
+    "backButton": {"width": 40, "height": 40, "borderRadius": 20, "backgroundColor": theme.colors.card,
+                   "alignItems": "center", "justifyContent": "center", **shadow(theme, 0.08)},
+    "backSpacer": {"width": 40},
+    "title": {"fontSize": {"base": 20, "lg": 26}, "fontWeight": "700", "color": theme.colors.text, "marginLeft": 12},
+    "page": {"gap": 16},
+    "body": {"flex": 1},
+    "scrollContent": {"paddingTop": {"base": 20, "lg": 28}, "paddingBottom": 32},
+    "staticBody": {"flex": 1, "paddingVertical": 20},
+    "footer": {"paddingTop": 20, "paddingBottom": rt.insets.bottom + 12, "backgroundColor": theme.colors.card, "borderTopWidth": 1, "borderColor": theme.colors.line},
+    # Footer action: full width on phones, a right-aligned 420 dp block from md up.
+    "footerInner": {"width": "100%", "maxWidth": {"base": None, "md": 420}, "alignSelf": {"base": "stretch", "md": "flex-end"}},
+
+    # Card
+    "card": {"backgroundColor": theme.colors.card, "borderRadius": 20, "padding": 16, "gap": 12, **shadow(theme, 0.06)},
+
+    # Button
+    "button": {"height": 54, "borderRadius": 16, "flexDirection": "row", "alignItems": "center", "justifyContent": "center", "gap": 8},
+    "buttonPrimary": {"linearGradient": {"angle": 90, "colors": [theme.colors.accent, theme.colors.accent2]}},
+    "buttonSecondary": {"backgroundColor": theme.colors.chip},
+    "buttonLabel": {"fontSize": 16, "fontWeight": "700"},
+    "disabled": {"opacity": 0.5},
+
+    # Chip
+    "chip": {"paddingHorizontal": 16, "paddingVertical": 10, "borderRadius": 14, "backgroundColor": theme.colors.chip},
+    "chipActive": {"backgroundColor": theme.colors.accent},
+    "chipLabel": {"fontSize": 14, "fontWeight": "600", "color": theme.colors.chipText},
+    "chipLabelActive": {"color": theme.colors.onAccent},
+
+    # Thumb
+    "thumb": lambda size, radius: {"width": size, "height": size, "borderRadius": radius, "overflow": "hidden",
+                                   "flexShrink": 0, "flexGrow": 0, "backgroundColor": theme.colors.line},
+
+    # Row (label / value line)
+    "infoRow": {"flexDirection": "row", "justifyContent": "space-between"},
+    "infoLabel": {"fontSize": 14, "color": theme.colors.sub},
+    "infoValue": {"fontSize": 14, "fontWeight": "500", "color": theme.colors.text},
+    "infoValueStrong": {"fontWeight": "700"},
+})

@@ -47,6 +47,24 @@ def _gc_paused():
             gc.enable()
 
 
+def _watch_themes(app: "App") -> None:
+    """`StyleSheet.setTheme` re-styles the app on its next flush (held weakly: a dropped App unsubscribes)."""
+    import weakref
+    from . import themes
+    ref = weakref.ref(app)
+
+    def changed() -> None:
+        a = ref()
+        if a is None:
+            off()
+            return
+        try:
+            a._request_flush()
+        except RuntimeError:  # its event loop is closed
+            off()
+    off = themes.subscribe(changed)
+
+
 def _walk(fiber: Fiber):
     yield fiber
     for c in fiber.children:
@@ -71,6 +89,7 @@ class App:
         self.rec.on_error = self._report  # effect/cleanup errors; late-bound so `app.on_error = ...` still works
         self.env = self.rec.env
         env_mod.set_current(self.env)
+        _watch_themes(self)
         if os.environ.get("PYXPO_ENV"):  # native snapshot, so the first render already has the real window size
             try:
                 self.env.update(json.loads(os.environ["PYXPO_ENV"]))

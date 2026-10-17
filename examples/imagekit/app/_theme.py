@@ -1,16 +1,26 @@
-"""ImageKit design tokens: light/dark palettes + spacing."""
-from pyxpo import useColorScheme
+"""ImageKit design tokens: light/dark themes registered with `StyleSheet.configure`, plus a shadow helper.
+
+Screens write `styles = StyleSheet.create(lambda theme, rt: {...})` and read `theme.colors.text`; the app follows
+the system light/dark setting with no hook."""
+from pyxpo import StyleSheet
 
 LIGHT = {
-    "bg": "#F4F5FB", "card": "#FFFFFF", "text": "#12142B", "sub": "#6B6F8A", "line": "#E6E8F2",
-    "accent": "#6C5CE7", "accent2": "#A66BFF", "onAccent": "#FFFFFF", "chip": "#ECEBFD", "chipText": "#4B3FC9",
-    "good": "#12B76A", "goodBg": "#DDF7EA", "bad": "#E5484D", "shadow": "#1B1F4B",
+    "colors": {
+        "bg": "#F4F5FB", "card": "#FFFFFF", "text": "#12142B", "sub": "#6B6F8A", "line": "#E6E8F2",
+        "accent": "#6C5CE7", "accent2": "#A66BFF", "onAccent": "#FFFFFF", "chip": "#ECEBFD", "chipText": "#4B3FC9",
+        "good": "#12B76A", "goodBg": "#DDF7EA", "bad": "#E5484D", "shadow": "#1B1F4B",
+    },
 }
 DARK = {
-    "bg": "#0C0D1A", "card": "#171933", "text": "#F2F3FF", "sub": "#9A9DBE", "line": "#272A4A",
-    "accent": "#8B7CFF", "accent2": "#C08BFF", "onAccent": "#FFFFFF", "chip": "#25264A", "chipText": "#C9C3FF",
-    "good": "#3DDC97", "goodBg": "#12382B", "bad": "#FF6B70", "shadow": "#000000",
+    "colors": {
+        "bg": "#0C0D1A", "card": "#171933", "text": "#F2F3FF", "sub": "#9A9DBE", "line": "#272A4A",
+        "accent": "#8B7CFF", "accent2": "#C08BFF", "onAccent": "#FFFFFF", "chip": "#25264A", "chipText": "#C9C3FF",
+        "good": "#3DDC97", "goodBg": "#12382B", "bad": "#FF6B70", "shadow": "#000000",
+    },
 }
+
+StyleSheet.configure(themes={"light": LIGHT, "dark": DARK})
+
 TOOLS = [
     {"id": "compress", "title": "Compress", "sub": "Make it under…", "icon": "minimize-2", "colors": ["#6C5CE7", "#A66BFF"]},
     {"id": "resize", "title": "Resize", "sub": "Exact dimensions", "icon": "maximize", "colors": ["#0EA5E9", "#38D6F5"]},
@@ -23,8 +33,10 @@ TOOLS = [
 TOOL = {t["id"]: t for t in TOOLS}
 
 
-def useTheme():
-    return DARK if useColorScheme() == "dark" else LIGHT
+def shadow(theme, opacity=0.12):
+    """Soft card shadow in the theme's shadow color: `{**shadow(theme, 0.06), "padding": 16}`."""
+    return {"shadowColor": theme.colors.shadow, "shadowOpacity": opacity, "shadowRadius": 14,
+            "shadowOffset": {"width": 0, "height": 6}, "elevation": 4}
 
 
 def fmt_bytes(n):

@@ -396,6 +396,30 @@ def use_color_scheme() -> str:
     return _use_env(lambda e: e["color_scheme"])
 
 
+def use_app_theme() -> Any:
+    """The active `StyleSheet.configure` theme (`theme.colors.text`), re-rendering when it changes. Only needed for
+    values outside styles, like an icon color: themed sheets update without it. (`pyxpo.router.useTheme` is the
+    navigation theme, a different thing.)"""
+    from . import themes
+    env = _current("use_app_theme").rec.env
+
+    def read() -> Any:
+        return themes.get(themes.theme_name(env._data.get("color_scheme") or "light"))
+    value, set_value = use_state(read)
+
+    def sub() -> Callable[[], None]:
+        set_value(read())
+        offs = (env.subscribe(lambda: set_value(read())), themes.subscribe(lambda: set_value(read())))
+
+        def off() -> None:
+            for fn in offs:
+                fn()
+        return off
+
+    use_effect(sub, [id(env)])
+    return value
+
+
 def use_breakpoint() -> str:
     """Active responsive breakpoint ("xs", "sm", "md", "lg", "xl", "xxl" by default, see `pyxpo.responsive`).
     Re-renders only when the window crosses a breakpoint."""
@@ -449,6 +473,7 @@ def _use_keyboard_state():
 
 useWindowDimensions = use_window_dimensions
 useColorScheme = use_color_scheme
+useAppTheme = use_app_theme
 useSafeAreaInsets = use_safe_area_insets
 useSafeAreaFrame = use_safe_area_frame
 useBreakpoint = use_breakpoint

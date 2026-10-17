@@ -1,17 +1,17 @@
-from pyxpo import Pressable, ScrollView, Text, View, component, useEffect, useSafeAreaInsets
+from pyxpo import Col, Container, Grid, Pressable, Row as GridRow, ScrollView, Text, View, VStack, StyleSheet, component, useEffect
 from pyxpo.router import router
 from pyxpo.apis import _bridge
 from pyxpo.vector_icons import Feather
 
 from app import _boot
-from app._store import pick, update, useStore
-from app._theme import TOOLS, fmt_bytes, useTheme
-from app._ui import Card, Thumb, shadow
+from app._store import pick, useStore
+from app._theme import TOOLS, fmt_bytes, shadow
+from app._ui import Thumb
 
 
 @component
 def Home():
-    t, insets, st = useTheme(), useSafeAreaInsets(), useStore()
+    st = useStore()
     useEffect(_boot.start, [])
     imgs = st["images"]
 
@@ -30,35 +30,69 @@ def Home():
         return go
 
     hero = Pressable(
-        View(Feather(name="image", size=30, color="#fff"), style={"width": 56, "height": 56, "borderRadius": 18, "backgroundColor": "rgba(255,255,255,0.22)", "alignItems": "center", "justifyContent": "center"}),
-        View(Text("Choose photos" if not imgs else "%d photo%s selected" % (len(imgs), "" if len(imgs) == 1 else "s"), style={"fontSize": 20, "fontWeight": "800", "color": "#fff"}),
-             Text("From your library · stays on this device" if not imgs else "Tap to change · %s total" % fmt_bytes(sum(i.get("fileSize") or 0 for i in imgs)), style={"fontSize": 13, "color": "rgba(255,255,255,0.85)", "marginTop": 2}),
-             style={"flex": 1}),
+        View(Feather(name="image", size=30, color="#fff"), style=styles.heroIcon),
+        View(Text("Choose photos" if not imgs else "%d photo%s selected" % (len(imgs), "" if len(imgs) == 1 else "s"), style=styles.heroTitle),
+             Text("From your library · stays on this device" if not imgs else "Tap to change · %s total" % fmt_bytes(sum(i.get("fileSize") or 0 for i in imgs)), style=styles.heroSub),
+             style=styles.heroText),
         Feather(name="chevron-right", size=22, color="#fff"),
-        onPress=choose,
-        style={"flexDirection": "row", "alignItems": "center", "gap": 14, "padding": 18, "borderRadius": 24,
-               "linearGradient": {"angle": 120, "colors": [t["accent"], t["accent2"]]}, **shadow(t, 0.25)})
+        onPress=choose, style=styles.hero)
 
     strip = ScrollView(*[Thumb(i["uri"], 64, 14) for i in imgs], horizontal=True, showsHorizontalScrollIndicator=False,
-                       contentContainerStyle={"gap": 10}, style={"flexGrow": 0}) if imgs else None
+                       contentContainerStyle=styles.strip, style=styles.stripScroll) if imgs else None
 
     def tile(tool):
         return Pressable(
-            View(Feather(name=tool["icon"], size=22, color="#fff"), style={"width": 44, "height": 44, "borderRadius": 14, "alignItems": "center", "justifyContent": "center",
-                                                                          "linearGradient": {"angle": 135, "colors": tool["colors"]}}),
-            Text(tool["title"], style={"fontSize": 15, "fontWeight": "700", "color": t["text"], "marginTop": 12}),
-            Text(tool["sub"], style={"fontSize": 12, "color": t["sub"], "marginTop": 2}),
-            onPress=open_tool(tool),
-            style={"width": "48%", "backgroundColor": t["card"], "borderRadius": 20, "padding": 16, **shadow(t, 0.06)})
+            View(Feather(name=tool["icon"], size=22, color="#fff"), style=[styles.tileIcon, {"linearGradient": {"angle": 135, "colors": tool["colors"]}}]),
+            Text(tool["title"], style=styles.tileTitle),
+            Text(tool["sub"], style=styles.tileSub),
+            onPress=open_tool(tool), style=styles.tile)
 
+    header = View(Text("ImageKit", style=styles.brand),
+                  Text("Compress, resize and clean photos. 100% on-device.", style=styles.tagline))
+    tools = VStack(
+        Text("Tools", style=styles.sectionTitle),
+        # 2 tiles a row on phones, 3 on tablets; on desktop the tools sit beside the hero, so 2 again then 3 on xl.
+        Grid(*[tile(x) for x in TOOLS], columns={"base": 2, "md": 3, "lg": 2, "xl": 3}, gap=14),
+        spacing=12)
+
+    # Phone/tablet: one column (header, hero, tools). Desktop (lg+): hero column left, tools right.
     return ScrollView(
-        View(Text("ImageKit", style={"fontSize": 34, "fontWeight": "800", "color": t["text"]}),
-             Text("Compress, resize and clean photos. 100% on-device.", style={"fontSize": 14, "color": t["sub"], "marginTop": 4})),
-        hero, strip,
-        Text("Tools", style={"fontSize": 18, "fontWeight": "700", "color": t["text"], "marginTop": 8}),
-        View(*[tile(x) for x in TOOLS], style={"flexDirection": "row", "flexWrap": "wrap", "justifyContent": "space-between", "rowGap": 14}),
-        style={"flex": 1, "backgroundColor": t["bg"]},
-        contentContainerStyle={"padding": 20, "gap": 16, "paddingTop": insets["top"] + 16, "paddingBottom": insets["bottom"] + 24})
+        Container(GridRow(
+            Col(VStack(header, hero, strip, spacing=16), span={"base": 12, "lg": 5}),
+            Col(tools, span={"base": 12, "lg": 7}),
+            gutter={"base": 20, "lg": 40}, align="flex-start"), padding=20),
+        style=styles.screen,
+        contentContainerStyle=styles.content)
 
 
 default = Home
+
+
+styles = StyleSheet.create(lambda theme, rt: {
+    "screen": {"flex": 1, "backgroundColor": theme.colors.bg},
+    "content": {"paddingTop": rt.insets.top + 16, "paddingBottom": rt.insets.bottom + 24},
+
+    # Header
+    "brand": {"fontSize": {"base": 34, "lg": 44}, "fontWeight": "800", "color": theme.colors.text},
+    "tagline": {"fontSize": {"base": 14, "lg": 16}, "color": theme.colors.sub, "marginTop": 4},
+
+    # Hero (choose photos)
+    "hero": {"flexDirection": "row", "alignItems": "center", "gap": 14, "padding": 18, "borderRadius": 24,
+             "linearGradient": {"angle": 120, "colors": [theme.colors.accent, theme.colors.accent2]}, **shadow(theme, 0.25)},
+    "heroIcon": {"width": 56, "height": 56, "borderRadius": 18, "backgroundColor": "rgba(255,255,255,0.22)",
+                 "alignItems": "center", "justifyContent": "center"},
+    "heroText": {"flex": 1},
+    "heroTitle": {"fontSize": 20, "fontWeight": "800", "color": "#fff"},
+    "heroSub": {"fontSize": 13, "color": "rgba(255,255,255,0.85)", "marginTop": 2},
+
+    # Selected photos strip
+    "strip": {"gap": 10},
+    "stripScroll": {"flexGrow": 0},
+
+    # Tools grid
+    "sectionTitle": {"fontSize": 18, "fontWeight": "700", "color": theme.colors.text},
+    "tile": {"flexGrow": 1, "backgroundColor": theme.colors.card, "borderRadius": 20, "padding": 16, **shadow(theme, 0.06)},
+    "tileIcon": {"width": 44, "height": 44, "borderRadius": 14, "alignItems": "center", "justifyContent": "center"},
+    "tileTitle": {"fontSize": 15, "fontWeight": "700", "color": theme.colors.text, "marginTop": 12},
+    "tileSub": {"fontSize": 12, "color": theme.colors.sub, "marginTop": 2},
+})

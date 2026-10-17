@@ -351,20 +351,74 @@ class StyleSheetDict(dict):
         return list(super().__dir__()) + [k for k in self if isinstance(k, str)]
 
 
+def _dynamic(fn: Any) -> Any:
+    """Dynamic style entry: validates each result the first time a set of arguments is seen."""
+    seen: set = set()
+
+    def style(*args: Any, **kwargs: Any) -> Dict[str, Any]:
+        out = fn(*args, **kwargs)
+        try:
+            key = (args, tuple(sorted(kwargs.items())))
+            fresh = key not in seen
+        except TypeError:
+            key, fresh = None, True
+        if fresh:
+            normalize(out, warn=True)
+            if key is not None and len(seen) < 256:
+                seen.add(key)
+        return out
+    style.__name__ = getattr(fn, "__name__", "style")
+    return style
+
+
 class StyleSheet:
     """Like React Native's StyleSheet: validates once, returns plain dicts (`styles.title` or `styles["title"]`).
     Style keys may be camelCase (`fontSize`) or snake_case (`font_size`)."""
 
     @staticmethod
-    def create(styles: Optional[Dict[str, Dict[str, Any]]] = None, **named: Dict[str, Any]) -> StyleSheetDict:
-        """`StyleSheet.create({"title": {...}})` or, closest to JS, `StyleSheet.create(title=dict(fontSize=24))`."""
+    def create(styles: Any = None, **named: Dict[str, Any]) -> Any:
+        """`StyleSheet.create({"title": {...}})` or, closest to JS, `StyleSheet.create(title=dict(fontSize=24))`.
+
+        Pass a function to theme the sheet (see `pyxpo.themes`): `StyleSheet.create(lambda theme, rt: {...})`.
+        An entry may itself be a function, a dynamic style: `"thumb": lambda size: {"width": size}`."""
+        if callable(styles) and not isinstance(styles, dict):
+            from .themes import ThemedSheet
+            return ThemedSheet(styles)
         out = StyleSheetDict()
         for name, s in {**(styles or {}), **named}.items():
-            normalize(s, warn=True)  # validate (raises StyleError on bad values)
             if hasattr(dict, name):
                 _warn("style name %r shadows a dict method, use styles[%r]" % (name, name))
+            if callable(s) and not isinstance(s, dict):
+                out[name] = _dynamic(s)
+                continue
+            normalize(s, warn=True)  # validate (raises StyleError on bad values)
             out[name] = dict(s)
         return out
+
+    @staticmethod
+    def configure(themes: Optional[Dict[str, Dict[str, Any]]] = None, *, breakpoints: Optional[Dict[str, int]] = None,
+                  adaptive_themes: Optional[bool] = None, initial_theme: Optional[str] = None,
+                  adaptiveThemes: Optional[bool] = None, initialTheme: Optional[str] = None) -> None:
+        """Registers app themes and breakpoints once (like Unistyles' `StyleSheet.configure`). See `pyxpo.themes`."""
+        from . import themes as _themes
+        _themes.configure(themes, breakpoints=breakpoints,
+                          adaptive_themes=adaptive_themes if adaptiveThemes is None else adaptiveThemes,
+                          initial_theme=initial_theme if initialTheme is None else initialTheme)
+
+    @staticmethod
+    def set_theme(name: str) -> None:
+        """Shows theme `name` everywhere (stops following the system color scheme)."""
+        from . import themes as _themes
+        _themes.set_theme(name)
+
+    @staticmethod
+    def set_adaptive_themes(on: bool) -> None:
+        """True: the theme follows the system light/dark setting again."""
+        from . import themes as _themes
+        _themes.set_adaptive_themes(on)
+
+    setTheme = set_theme
+    setAdaptiveThemes = set_adaptive_themes
 
     @staticmethod
     def flatten(style: Any) -> Dict[str, Any]:
