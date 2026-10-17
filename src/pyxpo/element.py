@@ -42,7 +42,8 @@ def flatten(children: Any) -> List[Element]:
         elif isinstance(c, _SCALARS):
             out.append(Element("Text", {"text": str(c)}))
         else:
-            raise TypeError("invalid child of type %s" % type(c).__name__)
+            raise TypeError("invalid child of type %s: positional arguments of a component are its children; "
+                            "pass other values as keyword props (name=value)" % type(c).__name__)
     return out
 
 

@@ -242,3 +242,18 @@ def test_native_remount_mounts_again_on_new_renderer():
     assert app.env.get()["color_scheme"] == "dark"
     r2.press(r2.find_text("add"))
     assert r2.texts() == ["n1"]
+
+
+def test_invalid_child_error_says_to_use_a_keyword():
+    """A data object passed positionally becomes a child; the error tells how to pass it instead."""
+    from pyxpo import View, component
+
+    class Board:
+        pass
+
+    @component
+    def Panel(board=None):
+        return View()
+
+    with pytest.raises(TypeError, match=r"invalid child of type Board: .*keyword props"):
+        Panel(Board())
