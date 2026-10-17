@@ -8,6 +8,7 @@ from pyxpo.router.matching import match, resolve
 FILES = {
     "_layout.py": "", "index.py": "", "about.py": "", "+not-found.py": "",
     "user/[id].py": "", "user/new.py": "", "docs/[...rest].py": "", "_helper.py": "",
+    "_lib/anim/mesh.py": "", "_lib/index.py": "",
     "(tabs)/_layout.py": "", "(tabs)/home.py": "", "(tabs)/settings/index.py": "",
 }
 
@@ -27,6 +28,7 @@ def test_discovery_and_ranking(tmp_app):
     assert names(match(tree, "/home")) == ["(tabs)", "home"]
     assert names(match(tree, "/settings")) == ["(tabs)", "settings/index"]
     assert all("_helper" not in s.name for r in tree.routes for s in r.chain)
+    assert all("_lib" not in s.name for r in tree.routes for s in r.chain)
 
 
 def test_not_found(tmp_app):

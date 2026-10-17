@@ -118,6 +118,8 @@ def _collect(root_real: str, directory: str, prefix: str, nav: Navigator, base: 
             continue
         rel = prefix + entry
         if os.path.isdir(full):
+            if entry.startswith("_"):
+                continue  # private folder (helpers, libraries), not routes
             sub_rel = (rel_dir + "/" if rel_dir else "") + entry
             if os.path.isfile(os.path.join(full, "_layout.py")):
                 child = _scan(root_real, full, sub_rel, base, pkg)

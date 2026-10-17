@@ -254,7 +254,7 @@ def App():
 - Example: `examples/rn_style`.
 
 ## Routing (`pyxpo.router`, Expo Router)
-- Files under `app/` are routes: `index`, `[id]` (dynamic), `[...rest]` (catch-all), `(group)/` (no URL segment), `_layout.py` (navigator), `+not-found.py`. A route module exports `default` (or has a single `@component`).
+- Files under `app/` are routes: `index`, `[id]` (dynamic), `[...rest]` (catch-all), `(group)/` (no URL segment), `_layout.py` (navigator), `+not-found.py`. Files and folders whose name starts with `_` (for example `_lib/`) are not routes, so put helpers and library code there. A route module exports `default` (or has a single `@component`).
 - Layouts: `Stack`, `Tabs`, `Drawer`, `Slot`; configure with `Stack.Screen(name=..., options={...})` or `screenOptions`. Options follow react-navigation (`title`, `headerShown`, `headerRight`, `tabBarIcon`, ...). A layout may export `unstable_settings = {"initialRouteName": ...}`.
 - `router.push/navigate/replace/back/dismiss/dismissAll/setParams`, `<Link href=...>`, `<Redirect href=...>`; hooks `useRouter`, `useLocalSearchParams`, `useGlobalSearchParams`, `usePathname`, `useSegments`, `useNavigation`, `useIsFocused`, `useFocusEffect`. Theme: `ThemeProvider`, `DefaultTheme`, `DarkTheme`, `useTheme`.
 - Android hardware back, the stack edge-swipe and the drawer all go through one navigation store. iOS Swift controls and the native stack are not ported yet.
