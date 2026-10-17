@@ -352,3 +352,48 @@ def test_scroll_content_taller_than_viewport(lib):
     t.calc(300, 600)
     assert t.f(sv) == (0, 0, 300, 600)
     assert t.f(content)[3] == 4800
+
+
+def test_flex_child_in_scroll_content_keeps_its_content_height(lib):
+    # flex: 1 (basis 0) inside an auto-height column has no main size to share, so it is sized by its content
+    t = Tree(lib)
+    sv = t.add(flex_grow=1, scroll=1)
+    content = t.add(parent=sv, flex_shrink=0)
+    col = t.add(parent=content)
+    a = t.add(parent=col, flex_grow=1, flex_shrink=1, flex_basis=0)
+    t.add(parent=a, height=80)
+    b = t.add(parent=col, height=50)
+    t.calc(300, 600)
+    assert t.f(a) == (0, 0, 300, 80)
+    assert t.f(b) == (0, 80, 300, 50)
+
+
+def test_scroll_content_flex_grow_fills_viewport(lib):
+    t = Tree(lib)
+    sv = t.add(flex_grow=1, scroll=1)
+    content = t.add(parent=sv, flex_shrink=0)
+    inner = t.add(parent=content, flex_grow=1)
+    t.add(parent=inner, height=40)
+    t.calc(300, 600)
+    assert t.f(content)[3] == 600
+    assert t.f(inner)[3] == 600
+
+
+def test_short_scroll_content_without_grow_stays_short(lib):
+    t = Tree(lib)
+    sv = t.add(flex_grow=1, scroll=1)
+    content = t.add(parent=sv, flex_shrink=0)
+    inner = t.add(parent=content)
+    t.add(parent=inner, height=40)
+    t.calc(300, 600)
+    assert t.f(inner)[3] == 40
+
+
+def test_auto_size_scroll_view_is_not_forced_to_full_height(lib):
+    t = Tree(lib)
+    col = t.add(height=600)
+    sv = t.add(parent=col, scroll=1)
+    content = t.add(parent=sv, flex_shrink=0)
+    t.add(parent=content, height=40)
+    t.calc(300, 600)
+    assert t.f(sv)[3] == 40

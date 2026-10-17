@@ -553,6 +553,10 @@ static void layout_flex(PxTree *t, PxNode *n, float W, int wm, float H, int hm, 
         }
         resolve_item_dims(c, inner[0], inner[1], it->dim, it->lo, it->hi);
         it->align = item_align(n, c);
+        /* a scroll view's content is at least as long as the viewport, so a content style with flex_grow fills it
+           (as RN's contentContainerStyle={{flexGrow: 1}} does) */
+        if (s->scroll && imode[M] == M_EXACT)
+            it->lo[M] = fmaxf_(DEF(it->lo[M]) ? it->lo[M] : 0, inner[M] - it->ms[M] - it->me[M]);
     }
     /* box-model: min/max are border-box already */
 
@@ -561,6 +565,9 @@ static void layout_flex(PxTree *t, PxNode *n, float W, int wm, float H, int hm, 
         Item *it = &items[i];
         PxNode *c = it->c;
         float b = resolve(c->s.basis, inner[M]);
+        /* a container sized by its content (such as a ScrollView's content) has no free space to grow into, so a
+           flex: 1 child there is sized by its content instead of collapsing to its 0 basis (as on the web) */
+        if (imode[M] != M_EXACT && c->s.grow > 0) b = UNDEF;
         if (!DEF(b)) b = it->dim[M];
         if (!DEF(b)) {
             float cw, ch, caw, cah;
