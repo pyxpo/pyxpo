@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+- Color picker tool (`"picker"`, `on_pick`), three more shapes (diamond, hexagon, heart), dashed lines and
+  outlines (`dash`, `DashToggle`), a page pattern on screen (`pattern`: grid, dots or lined; `PatternPicker`) and
+  a full color spectrum (`ColorGrid`, `color_grid`). `WhiteboardToolbar` gains `patterns` and `spectrum`.
+
 ## 0.1.0a1
 
 - First release: `Whiteboard` with pen, marker, eraser, fill bucket and six shapes (line, arrow, rectangle,

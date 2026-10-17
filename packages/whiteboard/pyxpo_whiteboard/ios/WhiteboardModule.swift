@@ -1,7 +1,7 @@
 import UIKit
 
-/// pyxpo-whiteboard on iOS: a Core Graphics view (`PxWhiteboard`) with pen, marker, eraser, fill bucket and
-/// shapes, undo, redo and image export. The committed drawing is a bitmap context at screen scale; the element
+/// pyxpo-whiteboard on iOS: a Core Graphics view (`PxWhiteboard`) with pen, marker, eraser, fill bucket, color
+/// picker and shapes (solid or dashed, on a plain, grid, dot or lined page), undo, redo and image export. The committed drawing is a bitmap context at screen scale; the element
 /// under the finger is drawn on top of it.
 final class WhiteboardModule: PxViewModule {
     static let moduleName = "Whiteboard"
@@ -54,8 +54,9 @@ struct WBElement {
     var fill: UInt32 = 0
     var points: [CGFloat] = []
     var x0: CGFloat = 0, y0: CGFloat = 0, x1: CGFloat = 0, y1: CGFloat = 0
+    var dash = false
 
-    static let shapes: Set<String> = ["line", "arrow", "rect", "ellipse", "triangle", "star"]
+    static let shapes: Set<String> = ["line", "arrow", "rect", "ellipse", "triangle", "star", "diamond", "hexagon", "heart"]
 
     init(type: String, color: UInt32) { (self.type, self.color) = (type, color) }
 
@@ -68,6 +69,7 @@ struct WBElement {
             tool = json["tool"] as? String ?? "pen"
             width = num(json["width"]) ?? 4
             points = pts.map { CGFloat($0.doubleValue) }
+            dash = tool != "eraser" && (json["dash"] as? NSNumber)?.boolValue == true
         case "shape":
             guard let s = json["shape"] as? String, Self.shapes.contains(s), let a = num(json["x0"]), let b = num(json["y0"]),
                   let c = num(json["x1"]), let d = num(json["y1"]) else { return nil }
@@ -75,6 +77,7 @@ struct WBElement {
             width = num(json["width"]) ?? 4
             fill = (json["fill"] as? NSNumber)?.uint32Value ?? 0
             (x0, y0, x1, y1) = (a, b, c, d)
+            dash = (json["dash"] as? NSNumber)?.boolValue == true
         case "fill":
             guard let a = num(json["x"]), let b = num(json["y"]) else { return nil }
             (x0, y0) = (a, b)
@@ -86,13 +89,22 @@ struct WBElement {
     var json: [String: Any] {
         switch type {
         case "stroke":
-            return ["type": "stroke", "tool": tool, "color": Int(color), "width": Double(width), "points": points.map { Double($0) }]
+            var j: [String: Any] = ["type": "stroke", "tool": tool, "color": Int(color), "width": Double(width), "points": points.map { Double($0) }]
+            if dash { j["dash"] = true }
+            return j
         case "shape":
-            return ["type": "shape", "shape": shape, "color": Int(color), "width": Double(width), "fill": Int(fill),
-                    "x0": Double(x0), "y0": Double(y0), "x1": Double(x1), "y1": Double(y1)]
+            var j: [String: Any] = ["type": "shape", "shape": shape, "color": Int(color), "width": Double(width), "fill": Int(fill),
+                                    "x0": Double(x0), "y0": Double(y0), "x1": Double(x1), "y1": Double(y1)]
+            if dash { j["dash"] = true }
+            return j
         default:
             return ["type": "fill", "x": Double(x0), "y": Double(y0), "color": Int(color)]
         }
+    }
+
+    /// Dashes: 1.5 x width on, 2.5 x width off, before the round caps grow each dash by a width.
+    private func setDash(_ c: CGContext, _ k: CGFloat) {
+        if dash { c.setLineDash(phase: 0, lengths: [1.5 * width * k, 2.5 * width * k]) }
     }
 
     /// Draws a stroke or a shape (a fill is `flood`).
@@ -101,6 +113,7 @@ struct WBElement {
         defer { c.restoreGState() }
         c.setLineCap(.round)
         c.setLineJoin(.round)
+        setDash(c, k)
         if type == "shape" {
             let closed = path(c, k)
             if closed && fill >> 24 != 0 {
@@ -172,15 +185,38 @@ struct WBElement {
             c.addLine(to: p(hx, hy))
             c.addLine(to: p(lx, hy))
             c.closePath()
-        default:  // star
+        case "star":
             for j in 0..<10 {
                 let a = -CGFloat.pi / 2 + .pi * CGFloat(j) / 5, r: CGFloat = j % 2 == 0 ? 1 : 0.45
                 let q = p(cx + rx * r * cos(a), cy + ry * r * sin(a))
                 if j == 0 { c.move(to: q) } else { c.addLine(to: q) }
             }
             c.closePath()
+        case "diamond":
+            polygon(c, [p(cx, ly), p(hx, cy), p(cx, hy), p(lx, cy)])
+        case "hexagon":
+            polygon(c, (0..<6).map { j -> CGPoint in
+                let a = -CGFloat.pi / 2 + .pi * CGFloat(j) / 3
+                return p(cx + rx * cos(a), cy + ry * sin(a))
+            })
+        case "heart":
+            // x = 16 sin^3 t, y = 13 cos t - 5 cos 2t - 2 cos 3t - cos 4t, fitted to the box
+            let h = hy - ly
+            polygon(c, (0..<48).map { j -> CGPoint in
+                let t = 2 * CGFloat.pi * CGFloat(j) / 48
+                let x = 16 * pow(sin(t), 3)
+                let y = -(13 * cos(t) - 5 * cos(2 * t) - 2 * cos(3 * t) - cos(4 * t))
+                return p(cx + rx * x / 16, ly + h * (y + 12) / 29)
+            })
+        default:
+            return false
         }
         return true
+    }
+
+    private func polygon(_ c: CGContext, _ pts: [CGPoint]) {
+        c.addLines(between: pts)
+        c.closePath()
     }
 
     /// Bucket fill on a flipped premultiplied RGBA bitmap context (memory rows from the top): the 4-connected
@@ -280,6 +316,9 @@ final class PxWhiteboardView: PxNativeView {
         if let f = props["fill_color"] as? NSNumber { board.fillColor = f.uint32Value }
         if let e = props["enabled"] as? Bool { board.isUserInteractionEnabled = e }
         if let t = props["fill_tolerance"] as? NSNumber { board.setTolerance(t.intValue) }
+        if let d = props["dash"] as? NSNumber { board.dash = d.boolValue }
+        if let p = props["pattern"] as? String { board.pattern = p }
+        if let p = props["pattern_color"] as? NSNumber { board.patternColor = p.uint32Value }
         if let b = props["background_color"] as? NSNumber {
             board.background = b.uint32Value
             board.backgroundColor = UIColor(cgColor: wbColor(b.uint32Value))
@@ -304,6 +343,9 @@ final class PxBoardView: UIView {
     var lineWidth: CGFloat = 4
     var fillColor: UInt32 = 0
     var background: UInt32 = 0xFFFFFFFF
+    var dash = false
+    var pattern = "none" { didSet { if pattern != oldValue { setNeedsDisplay() } } }
+    var patternColor: UInt32 = 0x33808080 { didSet { if patternColor != oldValue { setNeedsDisplay() } } }
     private var tolerance = 32
 
     init(_ emit: @escaping (String, Any?) -> Void) {
@@ -361,8 +403,55 @@ final class PxBoardView: UIView {
     override func draw(_ rect: CGRect) {
         guard let c = UIGraphicsGetCurrentContext() else { return }
         if doneImage == nil, let img = done?.makeImage() { doneImage = UIImage(cgImage: img, scale: doneScale, orientation: .up) }
+        drawPattern(c)
+        // a live eraser stroke cuts the ink only, not the page pattern under it
+        let group = live?.tool == "eraser" && pattern != "none"
+        if group { c.beginTransparencyLayer(auxiliaryInfo: nil) }
         doneImage?.draw(in: bounds)
         live?.draw(c, 1)
+        if group { c.endTransparencyLayer() }
+    }
+
+    /// The page under the ink (screen only): grid lines, dots or ruled lines every 24 pt.
+    private func drawPattern(_ c: CGContext) {
+        guard pattern != "none" else { return }
+        let step: CGFloat = 24, w = bounds.width, h = bounds.height
+        c.saveGState()
+        defer { c.restoreGState() }
+        c.setStrokeColor(wbColor(patternColor))
+        c.setFillColor(wbColor(patternColor))
+        c.setLineWidth(1 / scale)
+        if pattern == "dots" {
+            let r: CGFloat = 1.3
+            for y in stride(from: step, to: h, by: step) {
+                for x in stride(from: step, to: w, by: step) { c.addEllipse(in: CGRect(x: x - r, y: y - r, width: 2 * r, height: 2 * r)) }
+            }
+            c.fillPath()
+            return
+        }
+        for y in stride(from: step, to: h, by: step) {
+            c.move(to: CGPoint(x: 0, y: y))
+            c.addLine(to: CGPoint(x: w, y: y))
+        }
+        if pattern == "grid" {
+            for x in stride(from: step, to: w, by: step) {
+                c.move(to: CGPoint(x: x, y: 0))
+                c.addLine(to: CGPoint(x: x, y: h))
+            }
+        }
+        c.strokePath()
+    }
+
+    /// The color under a point: the ink pixel over the background color, opaque, as 0xAARRGGBB.
+    private func pick(_ x: CGFloat, _ y: CGFloat) -> UInt32 {
+        if done == nil { rebuild() }
+        let br = (background >> 16) & 255, bgc = (background >> 8) & 255, bb = background & 255
+        guard let c = done, let d = c.data?.assumingMemoryBound(to: UInt8.self) else { return 0xFF000000 | (br << 16) | (bgc << 8) | bb }
+        let px = min(c.width - 1, max(0, Int(floor(x * doneScale)))), py = min(c.height - 1, max(0, Int(floor(y * doneScale))))
+        let q = d + py * c.bytesPerRow + px * 4
+        let inv = 255 - UInt32(q[3])
+        func mix(_ v: UInt8, _ b: UInt32) -> UInt32 { min(255, UInt32(v) + b * inv / 255) }  // premultiplied ink over bg
+        return 0xFF000000 | (mix(q[0], br) << 16) | (mix(q[1], bgc) << 8) | mix(q[2], bb)
     }
 
     // touches
@@ -389,8 +478,12 @@ final class PxBoardView: UIView {
 
     override func touchesBegan(_ touches: Set<UITouch>, with event: UIEvent?) {
         guard touch == nil, let t = touches.first else { return }
-        emit("draw_start", ["tool": tool])
         let (x, y) = point(t)
+        if tool == "picker" {
+            emit("pick", ["color": Int(pick(x, y))])
+            return
+        }
+        emit("draw_start", ["tool": tool])
         if tool == "fill" {
             var e = WBElement(type: "fill", color: color)
             (e.x0, e.y0) = (x, y)
@@ -405,12 +498,14 @@ final class PxBoardView: UIView {
             e.shape = tool
             e.width = lineWidth
             e.fill = fillColor
+            e.dash = dash
             (e.x0, e.y0, e.x1, e.y1) = (x, y, x, y)
             live = e
         } else {
             var e = WBElement(type: "stroke", color: color)
             e.tool = tool
             e.width = lineWidth
+            e.dash = dash && tool != "eraser"
             live = e
         }
         add(t, event)

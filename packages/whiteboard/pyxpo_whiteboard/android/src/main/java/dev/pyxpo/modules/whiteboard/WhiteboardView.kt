@@ -4,6 +4,7 @@ import android.annotation.SuppressLint
 import android.content.Context
 import android.graphics.Bitmap
 import android.graphics.Canvas
+import android.graphics.DashPathEffect
 import android.graphics.Paint
 import android.graphics.Path
 import android.graphics.PorterDuff
@@ -21,6 +22,7 @@ import kotlin.math.floor
 import kotlin.math.hypot
 import kotlin.math.max
 import kotlin.math.min
+import kotlin.math.pow
 import kotlin.math.roundToInt
 import kotlin.math.sin
 
@@ -34,15 +36,24 @@ class Element(val type: String, val color: Int) {
     var fill = 0
     val points: MutableList<Float> = mutableListOf()
     var x0 = 0f; var y0 = 0f; var x1 = 0f; var y1 = 0f
+    var dash = false
 
-    fun json(): Map<String, Any> = when (type) {
-        "stroke" -> mapOf("type" to "stroke", "tool" to tool, "color" to u32(color), "width" to width.toDouble(),
-                          "points" to points.map { it.toDouble() })
-        "shape" -> mapOf("type" to "shape", "shape" to shape, "color" to u32(color), "width" to width.toDouble(),
-                         "fill" to u32(fill), "x0" to x0.toDouble(), "y0" to y0.toDouble(), "x1" to x1.toDouble(),
-                         "y1" to y1.toDouble())
-        else -> mapOf("type" to "fill", "x" to x0.toDouble(), "y" to y0.toDouble(), "color" to u32(color))
+    fun json(): Map<String, Any> {
+        val j: MutableMap<String, Any> = when (type) {
+            "stroke" -> mutableMapOf("type" to "stroke", "tool" to tool, "color" to u32(color), "width" to width.toDouble(),
+                                     "points" to points.map { it.toDouble() })
+            "shape" -> mutableMapOf("type" to "shape", "shape" to shape, "color" to u32(color), "width" to width.toDouble(),
+                                    "fill" to u32(fill), "x0" to x0.toDouble(), "y0" to y0.toDouble(), "x1" to x1.toDouble(),
+                                    "y1" to y1.toDouble())
+            else -> mutableMapOf("type" to "fill", "x" to x0.toDouble(), "y" to y0.toDouble(), "color" to u32(color))
+        }
+        if (dash && type != "fill") j["dash"] = true
+        return j
     }
+
+    /** Dashes: 1.5 x width on, 2.5 x width off, before the round caps grow each dash by a width. */
+    private fun dashEffect(k: Float): DashPathEffect? =
+        if (dash) DashPathEffect(floatArrayOf(1.5f * width * k, 2.5f * width * k), 0f) else null
 
     /** Draws any element; false when a fill changed nothing. A fill needs `bitmap` (the committed ink). */
     fun render(c: Canvas, k: Float, tol: Int, bitmap: Bitmap?): Boolean {
@@ -68,6 +79,7 @@ class Element(val type: String, val color: Int) {
                 paint.style = Paint.Style.STROKE
                 paint.color = color
                 paint.strokeWidth = width * k
+                paint.pathEffect = dashEffect(k)
                 c.drawPath(path, paint)
             }
             return
@@ -86,6 +98,7 @@ class Element(val type: String, val color: Int) {
         if (n < 2) return
         paint.style = Paint.Style.STROKE
         paint.strokeWidth = width * k
+        if (tool != "eraser") paint.pathEffect = dashEffect(k)
         val path = Path()
         path.moveTo(p[0] * k, p[1] * k)
         for (i in 1 until n - 1) {
@@ -131,7 +144,21 @@ class Element(val type: String, val color: Int) {
                 p.lineTo(lx * k, hy * k)
                 p.close()
             }
-            else -> {  // star
+            "diamond" -> polygon(p, floatArrayOf(cx, ly, hx, cy, cx, hy, lx, cy), k)
+            "hexagon" -> polygon(p, FloatArray(12) { i ->
+                val a = -PI.toFloat() / 2 + PI.toFloat() * (i / 2) / 3
+                if (i % 2 == 0) cx + rx * cos(a) else cy + ry * sin(a)
+            }, k)
+            "heart" -> {
+                // x = 16 sin^3 t, y = 13 cos t - 5 cos 2t - 2 cos 3t - cos 4t, fitted to the box
+                val h = hy - ly
+                polygon(p, FloatArray(96) { i ->
+                    val t = 2 * PI.toFloat() * (i / 2) / 48
+                    if (i % 2 == 0) cx + rx * 16 * sin(t).pow(3) / 16
+                    else ly + h * (-(13 * cos(t) - 5 * cos(2 * t) - 2 * cos(3 * t) - cos(4 * t)) + 12) / 29
+                }, k)
+            }
+            "star" -> {
                 for (j in 0 until 10) {
                     val a = -PI.toFloat() / 2 + PI.toFloat() * j / 5
                     val r = if (j % 2 == 0) 1f else 0.45f
@@ -141,12 +168,19 @@ class Element(val type: String, val color: Int) {
                 }
                 p.close()
             }
+            else -> return Pair(p, false)
         }
         return Pair(p, true)
     }
 
+    private fun polygon(p: Path, pts: FloatArray, k: Float) {
+        p.moveTo(pts[0] * k, pts[1] * k)
+        for (j in 2 until pts.size step 2) p.lineTo(pts[j] * k, pts[j + 1] * k)
+        p.close()
+    }
+
     companion object {
-        val SHAPES = setOf("line", "arrow", "rect", "ellipse", "triangle", "star")
+        val SHAPES = setOf("line", "arrow", "rect", "ellipse", "triangle", "star", "diamond", "hexagon", "heart")
 
         fun from(o: JSONObject?): Element? {
             o ?: return null
@@ -159,6 +193,7 @@ class Element(val type: String, val color: Int) {
                     e.tool = o.optString("tool", "pen")
                     e.width = o.optDouble("width", 4.0).toFloat()
                     for (i in 0 until pts.length()) e.points.add(pts.getDouble(i).toFloat())
+                    e.dash = e.tool != "eraser" && o.optBoolean("dash", false)
                 }
                 "shape" -> {
                     val s = o.optString("shape")
@@ -169,6 +204,7 @@ class Element(val type: String, val color: Int) {
                     e.fill = o.optLong("fill", 0L).toInt()
                     e.x0 = o.getDouble("x0").toFloat(); e.y0 = o.getDouble("y0").toFloat()
                     e.x1 = o.getDouble("x1").toFloat(); e.y1 = o.getDouble("y1").toFloat()
+                    e.dash = o.optBoolean("dash", false)
                 }
                 "fill" -> {
                     if (!o.has("x") || !o.has("y")) return null
@@ -272,6 +308,9 @@ class WhiteboardView(context: Context, emit: (String, Any?) -> Unit) : PxNativeV
         if (props.has("fill_color")) board.fillColor = props.getLong("fill_color").toInt()
         if (props.has("enabled")) board.drawEnabled = props.getBoolean("enabled")
         if (props.has("fill_tolerance")) board.setTolerance(props.getInt("fill_tolerance"))
+        if (props.has("dash")) board.dash = props.getBoolean("dash")
+        if (props.has("pattern")) board.pattern = props.getString("pattern")
+        if (props.has("pattern_color")) board.patternColor = props.getLong("pattern_color").toInt()
         if (props.has("background_color")) {
             board.bgColor = props.getLong("background_color").toInt()
             board.setBackgroundColor(board.bgColor)
@@ -300,6 +339,12 @@ class BoardView(context: Context, private val emit: (String, Any?) -> Unit) : Vi
     var fillColor = 0
     var drawEnabled = true
     var bgColor = -1  // white
+    var dash = false
+    var pattern = "none"
+        set(v) { if (v != field) { field = v; invalidate() } }
+    var patternColor = 0x33808080
+        set(v) { if (v != field) { field = v; invalidate() } }
+    private val patternPaint = Paint(Paint.ANTI_ALIAS_FLAG)
     var tolerance = 32
         private set
 
@@ -342,11 +387,50 @@ class BoardView(context: Context, private val emit: (String, Any?) -> Unit) : Vi
 
     override fun onDraw(canvas: Canvas) {
         super.onDraw(canvas)
-        // A layer so the eraser clears ink only, not the background drawn under it.
+        drawPattern(canvas)
+        // A layer so the eraser clears ink only, not the background and page pattern drawn under it.
         val save = canvas.saveLayer(0f, 0f, width.toFloat(), height.toFloat(), null)
         done?.let { canvas.drawBitmap(it, 0f, 0f, null) }
         live?.draw(canvas, density)
         canvas.restoreToCount(save)
+    }
+
+    /** The page under the ink (screen only): grid lines, dots or ruled lines every 24 dp. */
+    private fun drawPattern(c: Canvas) {
+        if (pattern == "none") return
+        val step = 24 * density
+        val w = width.toFloat()
+        val h = height.toFloat()
+        patternPaint.color = patternColor
+        patternPaint.strokeWidth = 1f
+        if (pattern == "dots") {
+            patternPaint.style = Paint.Style.FILL
+            var y = step
+            while (y < h) {
+                var x = step
+                while (x < w) { c.drawCircle(x, y, 1.3f * density, patternPaint); x += step }
+                y += step
+            }
+            return
+        }
+        patternPaint.style = Paint.Style.STROKE
+        var y = step
+        while (y < h) { c.drawLine(0f, y, w, y, patternPaint); y += step }
+        if (pattern == "grid") {
+            var x = step
+            while (x < w) { c.drawLine(x, 0f, x, h, patternPaint); x += step }
+        }
+    }
+
+    /** The color under a point (in px): the ink pixel over the background color, opaque, as 0xAARRGGBB. */
+    private fun pick(x: Float, y: Float): Long {
+        val b = done
+        val bg = bgColor
+        if (b == null) return u32(bg or (0xFF shl 24))
+        val px = b.getPixel(min(b.width - 1, max(0, x.toInt())), min(b.height - 1, max(0, y.toInt())))
+        val a = (px ushr 24) and 255
+        fun mix(sh: Int): Int = (((px shr sh) and 255) * a + ((bg shr sh) and 255) * (255 - a)) / 255
+        return u32((0xFF shl 24) or (mix(16) shl 16) or (mix(8) shl 8) or mix(0))
     }
 
     private fun dp(v: Float): Float = (v / density * 10).roundToInt() / 10f
@@ -370,6 +454,10 @@ class BoardView(context: Context, private val emit: (String, Any?) -> Unit) : Vi
         when (e.actionMasked) {
             MotionEvent.ACTION_DOWN -> {
                 if (!drawEnabled) return false
+                if (tool == "picker") {
+                    emit("pick", mapOf("color" to pick(e.x, e.y)))
+                    return true
+                }
                 emit("draw_start", mapOf("tool" to tool))
                 if (tool == "fill") {
                     val f = Element("fill", color)
@@ -382,9 +470,11 @@ class BoardView(context: Context, private val emit: (String, Any?) -> Unit) : Vi
                 pointer = e.getPointerId(0)
                 parent?.requestDisallowInterceptTouchEvent(true)
                 live = if (tool in Element.SHAPES) Element("shape", color).apply {
-                    shape = tool; width = lineWidth; fill = fillColor
+                    shape = tool; width = lineWidth; fill = fillColor; dash = this@BoardView.dash
                     x0 = dp(e.x); y0 = dp(e.y); x1 = x0; y1 = y0
-                } else Element("stroke", color).apply { this.tool = this@BoardView.tool; width = lineWidth }
+                } else Element("stroke", color).apply {
+                    this.tool = this@BoardView.tool; width = lineWidth; dash = this@BoardView.dash && this.tool != "eraser"
+                }
                 add(e.x, e.y)
                 invalidate()
             }

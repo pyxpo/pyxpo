@@ -3,7 +3,11 @@
 (function () {
   "use strict";
 
-  const SHAPES = ["line", "arrow", "rect", "ellipse", "triangle", "star"];
+  const SHAPES = ["line", "arrow", "rect", "ellipse", "triangle", "star", "diamond", "hexagon", "heart"];
+  const SPACING = 24;   // page pattern spacing in CSS px
+
+  // Dashes: 1.5 x width on, 2.5 x width off, before the round caps grow each dash by a width.
+  function dash(ctx, e, k) { ctx.setLineDash(e.dash ? [1.5 * e.width * k, 2.5 * e.width * k] : []); }
 
   function css(argb) {
     const a = ((argb >>> 24) & 255) / 255;
@@ -23,12 +27,33 @@
       ctx.fill();
       return;
     }
+    if (s.tool !== "eraser") dash(ctx, s, k);
     ctx.moveTo(p[0] * k, p[1] * k);
     for (let i = 1; i < n - 1; i++) {
       ctx.quadraticCurveTo(p[2 * i] * k, p[2 * i + 1] * k, (p[2 * i] + p[2 * i + 2]) / 2 * k, (p[2 * i + 1] + p[2 * i + 3]) / 2 * k);
     }
     ctx.lineTo(p[2 * n - 2] * k, p[2 * n - 1] * k);
     ctx.stroke();
+    ctx.setLineDash([]);
+  }
+
+  function polygon(ctx, pts, k) {
+    for (let j = 0; j < pts.length; j += 2) {
+      if (j) ctx.lineTo(pts[j] * k, pts[j + 1] * k); else ctx.moveTo(pts[j] * k, pts[j + 1] * k);
+    }
+    ctx.closePath();
+  }
+
+  // The heart curve x = 16 sin^3 t, y = 13 cos t - 5 cos 2t - 2 cos 3t - cos 4t, fitted to the box.
+  function heart(lx, ly, hx, hy) {
+    const cx = (lx + hx) / 2, w = (hx - lx) / 2, h = hy - ly, pts = [];
+    for (let j = 0; j < 48; j++) {
+      const t = 2 * Math.PI * j / 48;
+      const x = 16 * Math.pow(Math.sin(t), 3);
+      const y = -(13 * Math.cos(t) - 5 * Math.cos(2 * t) - 2 * Math.cos(3 * t) - Math.cos(4 * t));
+      pts.push(cx + w * x / 16, ly + h * (y + 12) / 29);
+    }
+    return pts;
   }
 
   // Arrow head lines: 28 degrees off the shaft, max(12, 3.5 x width) long, at most half the shaft.
@@ -76,6 +101,21 @@
         }
         ctx.closePath();
         return true;
+      case "diamond":
+        polygon(ctx, [cx, ly, hx, cy, cx, hy, lx, cy], k);
+        return true;
+      case "hexagon": {
+        const pts = [];
+        for (let j = 0; j < 6; j++) {
+          const a = -Math.PI / 2 + Math.PI * j / 3;
+          pts.push(cx + rx * Math.cos(a), cy + ry * Math.sin(a));
+        }
+        polygon(ctx, pts, k);
+        return true;
+      }
+      case "heart":
+        polygon(ctx, heart(lx, ly, hx, hy), k);
+        return true;
     }
     return false;
   }
@@ -87,7 +127,38 @@
     ctx.lineJoin = "round";
     const closed = shapePath(ctx, e, k);
     if (closed && e.fill >>> 24) { ctx.fillStyle = css(e.fill); ctx.fill(); }
-    if (e.width > 0) { ctx.strokeStyle = css(e.color); ctx.lineWidth = e.width * k; ctx.stroke(); }
+    if (e.width > 0) {
+      ctx.strokeStyle = css(e.color); ctx.lineWidth = e.width * k;
+      dash(ctx, e, k);
+      ctx.stroke();
+      ctx.setLineDash([]);
+    }
+  }
+
+  // The page under the ink (screen only): grid lines, dots or ruled lines every SPACING px.
+  function pattern(ctx, kind, color, k, cw, ch) {
+    if (!kind || kind === "none") return;
+    const step = SPACING * k;
+    ctx.save();
+    ctx.globalCompositeOperation = "source-over";
+    ctx.setLineDash([]);
+    ctx.strokeStyle = ctx.fillStyle = css(color);
+    ctx.lineWidth = Math.max(1, k);
+    ctx.beginPath();
+    if (kind === "dots") {
+      const r = 1.3 * k;
+      for (let y = step; y < ch; y += step) {
+        for (let x = step; x < cw; x += step) { ctx.moveTo(x + r, y); ctx.arc(x, y, r, 0, Math.PI * 2); }
+      }
+      ctx.fill();
+    } else {
+      for (let y = step; y < ch; y += step) { ctx.moveTo(0, Math.round(y) + 0.5); ctx.lineTo(cw, Math.round(y) + 0.5); }
+      if (kind === "grid") {
+        for (let x = step; x < cw; x += step) { ctx.moveTo(Math.round(x) + 0.5, 0); ctx.lineTo(Math.round(x) + 0.5, ch); }
+      }
+      ctx.stroke();
+    }
+    ctx.restore();
   }
 
   // Bucket fill on the canvas pixels: the 4-connected region of pixels within `tol` of the tapped one (in
@@ -167,8 +238,13 @@
 
   function copy(e) {
     const t = e.type || "stroke";
-    if (t === "stroke") return { type: "stroke", tool: e.tool || "pen", color: e.color >>> 0, width: e.width, points: e.points.slice() };
-    if (t === "shape") return { type: "shape", shape: e.shape, color: e.color >>> 0, width: e.width, fill: (e.fill || 0) >>> 0, x0: e.x0, y0: e.y0, x1: e.x1, y1: e.y1 };
+    let out = null;
+    if (t === "stroke") out = { type: "stroke", tool: e.tool || "pen", color: e.color >>> 0, width: e.width, points: e.points.slice() };
+    if (t === "shape") out = { type: "shape", shape: e.shape, color: e.color >>> 0, width: e.width, fill: (e.fill || 0) >>> 0, x0: e.x0, y0: e.y0, x1: e.x1, y1: e.y1 };
+    if (out) {
+      if (e.dash && out.tool !== "eraser") out.dash = true;
+      return out;
+    }
     return { type: "fill", x: e.x, y: e.y, color: e.color >>> 0 };
   }
 
@@ -202,7 +278,9 @@
     el.appendChild(canvas);
     const ctx = canvas.getContext("2d");
     const done = document.createElement("canvas");  // committed elements at screen resolution, transparent background
-    const props = { tool: "pen", color: 0xff000000, width: 4, fill_color: 0, background_color: 0xffffffff, enabled: true, fill_tolerance: 32 };
+    const layer = document.createElement("canvas");  // done plus a live eraser stroke, over a page pattern
+    const props = { tool: "pen", color: 0xff000000, width: 4, fill_color: 0, background_color: 0xffffffff, enabled: true,
+      fill_tolerance: 32, dash: false, pattern: "none", pattern_color: 0x33808080 };
     let elements = [], history = [], future = [], live = null, pointer = null, frame = 0, dpr = 1, w = 0, h = 0;
 
     function state() {
@@ -220,8 +298,18 @@
       frame = 0;
       ctx.globalCompositeOperation = "source-over";
       ctx.clearRect(0, 0, canvas.width, canvas.height);
-      ctx.drawImage(done, 0, 0);
-      if (live) { if (live.type === "shape") shape(ctx, live, dpr); else stroke(ctx, live, dpr); }
+      pattern(ctx, props.pattern, props.pattern_color, dpr, canvas.width, canvas.height);
+      if (live && live.tool === "eraser" && props.pattern !== "none") {
+        // the live eraser must cut the ink only, not the page under it
+        layer.width = canvas.width; layer.height = canvas.height;
+        const lc = layer.getContext("2d");
+        lc.drawImage(done, 0, 0);
+        stroke(lc, live, dpr);
+        ctx.drawImage(layer, 0, 0);
+      } else {
+        ctx.drawImage(done, 0, 0);
+        if (live) { if (live.type === "shape") shape(ctx, live, dpr); else stroke(ctx, live, dpr); }
+      }
       ctx.globalCompositeOperation = "source-over";
     }
     function schedule() { if (!frame) frame = requestAnimationFrame(paint); }
@@ -247,6 +335,16 @@
       const r = layoutRect(canvas);
       return [Math.round((e.clientX - r.left) / r.sx * 10) / 10, Math.round((e.clientY - r.top) / r.sy * 10) / 10];
     }
+    // The color under a point: the ink pixel over the background color, opaque.
+    function pick(pt) {
+      const bg = props.background_color >>> 0;
+      const x = Math.min(done.width - 1, Math.max(0, Math.floor(pt[0] * dpr)));
+      const y = Math.min(done.height - 1, Math.max(0, Math.floor(pt[1] * dpr)));
+      const d = done.getContext("2d", { willReadFrequently: true }).getImageData(x, y, 1, 1).data;
+      const a = d[3] / 255;
+      const mix = (c, b) => Math.round(c * a + b * (1 - a));
+      return ((0xff << 24) | (mix(d[0], (bg >>> 16) & 255) << 16) | (mix(d[1], (bg >>> 8) & 255) << 8) | mix(d[2], bg & 255)) >>> 0;
+    }
     function add(e) {
       if (live.type === "shape") {
         const [x, y] = point(e);
@@ -265,6 +363,10 @@
       if (!props.enabled || pointer !== null || (e.pointerType === "mouse" && e.button !== 0)) return;
       e.preventDefault();
       const tool = props.tool;
+      if (tool === "picker") {
+        emit("pick", { color: pick(point(e)) });
+        return;
+      }
       emit("draw_start", { tool });
       if (tool === "fill") {
         const [x, y] = point(e);
@@ -281,6 +383,7 @@
       } else {
         live = { type: "stroke", tool, color: props.color >>> 0, width: props.width, points: [] };
       }
+      if (props.dash && tool !== "eraser") live.dash = true;
       add(e);
     });
     canvas.addEventListener("pointermove", (e) => { if (e.pointerId === pointer) add(e); });
@@ -305,6 +408,7 @@
         Object.assign(props, p);
         if ("background_color" in p) el.style.backgroundColor = css(props.background_color);
         if (props.fill_tolerance !== tol && elements.some((e) => e.type === "fill")) rebuild();
+        else if ("pattern" in p || "pattern_color" in p) paint();
       },
       dispose() { ro.disconnect(); if (frame) cancelAnimationFrame(frame); },
       undo() {

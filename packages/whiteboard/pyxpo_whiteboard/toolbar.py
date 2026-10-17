@@ -3,7 +3,8 @@ can use `WhiteboardToolbar` as is or place the pieces in its own layout. Colors 
 `board.theme` (see `THEME`)."""
 from __future__ import annotations
 
-from typing import Any, Callable, Optional, Sequence
+import colorsys
+from typing import Any, Callable, List, Optional, Sequence
 
 from pyxpo import Pressable, Slider, Text, View, component
 from pyxpo.style import parse_color
@@ -24,10 +25,14 @@ THEME = {
     "gap": 8,
 }
 
-TOOL_LABELS = {"pen": "Pen", "marker": "Marker", "eraser": "Eraser", "fill": "Fill bucket", "line": "Line",
-               "arrow": "Arrow", "rect": "Rectangle", "ellipse": "Ellipse", "triangle": "Triangle", "star": "Star"}
-DRAW_TOOLS = ("pen", "marker", "eraser", "fill")
-SHAPES = ("line", "arrow", "rect", "ellipse", "triangle", "star")
+TOOL_LABELS = {"pen": "Pen", "marker": "Marker", "eraser": "Eraser", "fill": "Fill bucket",
+               "picker": "Color picker", "line": "Line", "arrow": "Arrow", "rect": "Rectangle", "ellipse": "Ellipse",
+               "triangle": "Triangle", "star": "Star", "diamond": "Diamond", "hexagon": "Hexagon", "heart": "Heart"}
+PATTERN_LABELS = {"none": "Plain page", "grid": "Grid", "dots": "Dots", "lines": "Lined page"}
+PATTERN_ICONS = {"none": "page", "grid": "grid", "dots": "dots", "lines": "lines"}
+DRAW_TOOLS = ("pen", "marker", "eraser", "fill", "picker")
+SHAPES = ("line", "arrow", "rect", "ellipse", "triangle", "star", "diamond", "hexagon", "heart")
+PATTERNS = ("none", "grid", "dots", "lines")
 
 
 def _button(child: Any, on_press: Optional[Callable], theme: dict, selected: bool = False, label: str = "",
@@ -59,13 +64,13 @@ def _tools(board: Any, tools: Sequence[str], style: Any, prefix: str):
 
 @component
 def ToolPicker(board: Any, tools: Sequence[str] = DRAW_TOOLS, style: Any = None):
-    """Pen, marker, eraser and fill bucket buttons (or `tools`)."""
+    """Pen, marker, eraser, fill bucket and color picker buttons (or `tools`)."""
     return _tools(board, tools, style, "wb-tool")
 
 
 @component
 def ShapePicker(board: Any, shapes: Sequence[str] = SHAPES, style: Any = None):
-    """Line, arrow, rectangle, ellipse, triangle and star buttons (or `shapes`)."""
+    """Line, arrow, rectangle, ellipse, triangle, star, diamond, hexagon and heart buttons (or `shapes`)."""
     return _tools(board, shapes, style, "wb-shape")
 
 
@@ -97,6 +102,47 @@ def ColorPalette(board: Any, colors: Optional[Sequence[Any]] = None, size: Optio
         ))
     return View(*out, style=[{"flexDirection": "row", "flexWrap": "wrap", "gap": t["gap"] / 2,
                               "alignItems": "center"}, style])
+
+
+def color_grid(hues: int = 12, shades: int = 5) -> List[List[str]]:
+    """Rows of "#RRGGBB" colors: `shades` rows from light to dark, each with `hues` colors around the color
+    wheel, and a last row of grays from white to black."""
+    if hues < 1 or shades < 1:
+        raise ValueError("hues and shades must be at least 1")
+
+    def hex_of(r: float, g: float, b: float) -> str:
+        return "#%02X%02X%02X" % (round(r * 255), round(g * 255), round(b * 255))
+
+    rows = []
+    for j in range(shades):
+        light = 0.82 - 0.6 * j / max(1, shades - 1) if shades > 1 else 0.5
+        rows.append([hex_of(*colorsys.hls_to_rgb(i / hues, light, 0.85)) for i in range(hues)])
+    rows.append([hex_of(*(1 - i / max(1, hues - 1),) * 3) for i in range(hues)])
+    return rows
+
+
+@component
+def ColorGrid(board: Any, hues: int = 12, shades: int = 5, size: Optional[float] = None, style: Any = None):
+    """A full spectrum to pick from: rows of light to dark hues and a row of grays (see `color_grid`).
+    Square swatches; the picked one has a ring."""
+    t = board.theme
+    s = size or round(t["swatch"] * 0.75)
+    picked = parse_color(board.color) & 0xFFFFFF
+    rows = []
+    for j, row in enumerate(color_grid(hues, shades)):
+        cells = []
+        for i, c in enumerate(row):
+            on = parse_color(c) & 0xFFFFFF == picked
+            cells.append(Pressable(
+                key=i, on_press=lambda c=c: board.set_color(c), hit_slop=1, accessibility_role="button",
+                accessibility_label="Color %s" % c, accessibility_state={"selected": on},
+                test_id="wb-grid-%d-%d" % (j, i),
+                style={"width": s, "height": s, "borderRadius": 4, "backgroundColor": c,
+                       "borderWidth": 2 if on else 1,
+                       "borderColor": t["border"] if on else "rgba(0,0,0,0.12)"},
+            ))
+        rows.append(View(*cells, key=j, style={"flexDirection": "row", "gap": 2}))
+    return View(*rows, style=[{"gap": 2, "alignSelf": "flex-start"}, style])
 
 
 @component
@@ -145,6 +191,25 @@ def ShapeFillToggle(board: Any, style: Any = None):
 
 
 @component
+def DashToggle(board: Any, style: Any = None):
+    """Solid or dashed lines for the pen, marker and shape outlines."""
+    t = board.theme
+    on = board.dash
+    return _button(ToolIcon("dash", t["button"] * 0.5, t["on_accent"] if on else t["ink"], 2.6),
+                   lambda: board.set_dash(not on), t, on, "Dashed lines", test_id="wb-dash")
+
+
+@component
+def PatternPicker(board: Any, patterns: Sequence[str] = PATTERNS, style: Any = None):
+    """Plain, grid, dotted or lined page behind the drawing."""
+    t = board.theme
+    icon = t["button"] * 0.5
+    return _group([_button(ToolIcon(PATTERN_ICONS[p], icon, t["on_accent"] if board.pattern == p else t["ink"]),
+                           (lambda p=p: board.set_pattern(p)), t, board.pattern == p, PATTERN_LABELS[p],
+                           test_id="wb-pattern-%s" % p, key=p) for p in patterns], t, style)
+
+
+@component
 def HistoryButtons(board: Any, on_clear: Optional[Callable[[], Any]] = None, clear: bool = True,
                    style: Any = None):
     """Undo, redo and clear. `on_clear` replaces the clear (to ask first); without it the board clears."""
@@ -167,9 +232,11 @@ def HistoryButtons(board: Any, on_clear: Optional[Callable[[], Any]] = None, cle
 
 @component
 def WhiteboardToolbar(board: Any, on_clear: Optional[Callable[[], Any]] = None, shapes: bool = True,
-                      opacity: bool = True, history: bool = True, style: Any = None):
-    """Every control in wrapping rows: tools and shapes, colors, widths with the shape fill, opacity, history.
-    It fits any width; narrow screens get more rows."""
+                      opacity: bool = True, history: bool = True, patterns: bool = True, spectrum: bool = False,
+                      style: Any = None):
+    """Every control in wrapping rows: tools, shapes and history; colors (and the full `ColorGrid` with
+    `spectrum`); widths with dashes and the shape fill; opacity; the page pattern. It fits any width; narrow
+    screens get more rows."""
     t = board.theme
     gap = t["gap"]
     row = {"flexDirection": "row", "flexWrap": "wrap", "alignItems": "center", "gap": gap}
@@ -178,7 +245,10 @@ def WhiteboardToolbar(board: Any, on_clear: Optional[Callable[[], Any]] = None, 
         View(ToolPicker(board=board), ShapePicker(board=board) if shapes else None,
              HistoryButtons(board=board, on_clear=on_clear) if history else None, style=row),
         ColorPalette(board=board),
-        View(WidthPicker(board=board), ShapeFillToggle(board=board) if shapes and shape else None, style=row),
+        ColorGrid(board=board) if spectrum else None,
+        View(WidthPicker(board=board), DashToggle(board=board) if board.tool != "eraser" else None,
+             ShapeFillToggle(board=board) if shapes and shape else None, style=row),
         OpacitySlider(board=board) if opacity and board.tool != "eraser" else None,
+        PatternPicker(board=board) if patterns else None,
         style=[{"gap": gap + 2}, style],
     )

@@ -215,7 +215,7 @@ def test_handle_methods():
 
 @pytest.mark.parametrize("elements", [
     "x", [1], [{"points": [1]}], [{"points": []}], [{"points": [1, "a"]}], [{"tool": "brush", "points": [1, 2]}],
-    [{"width": 0, "points": [1, 2]}], [{"type": "blob"}], [{"type": "shape", "shape": "hexagon", "x0": 0, "y0": 0,
+    [{"width": 0, "points": [1, 2]}], [{"type": "blob"}], [{"type": "shape", "shape": "blob", "x0": 0, "y0": 0,
                                                              "x1": 1, "y1": 1}],
     [{"type": "shape", "shape": "rect", "x0": 0, "y0": 0, "x1": 1}], [{"type": "fill", "x": 1}],
     [{"type": "fill", "x": 1, "y": 1, "color": True}],
@@ -255,7 +255,134 @@ def test_shape_outlines():
     _, short, _ = WB.shape_outline("arrow", 0, 0, 10, 0, width=4)
     assert math.hypot(short[2] - 10, short[3]) == pytest.approx(5)  # at most half the shaft
     with pytest.raises(ValueError):
-        WB.shape_outline("hexagon", 0, 0, 1, 1)
+        WB.shape_outline("blob", 0, 0, 1, 1)
+
+
+def test_new_shape_outlines():
+    (dia,) = WB.shape_outline("diamond", 0, 0, 10, 20)
+    assert dia[:8] == [5, 0, 10, 10, 5, 20, 0, 10] and dia[-2:] == dia[:2]
+    (hexa,) = WB.shape_outline("hexagon", 0, 0, 20, 20)
+    assert len(hexa) == 14 and hexa[:2] == pytest.approx([10, 0]) and hexa[-2:] == hexa[:2]
+    assert all(math.hypot(x - 10, y - 10) == pytest.approx(10) for x, y in zip(hexa[::2], hexa[1::2]))
+    (heart,) = WB.shape_outline("heart", 0, 0, 32, 29)
+    xs, ys = heart[::2], heart[1::2]
+    assert min(xs) == pytest.approx(0, abs=0.1) and max(xs) == pytest.approx(32, abs=0.1)
+    assert min(ys) >= 0 and max(ys) == pytest.approx(29)
+    assert heart[:2] == pytest.approx([16, 7])  # the dip at the top middle
+
+
+# ---------------------------------------------------------------- dashes, pattern, picker
+
+def test_dash_on_elements():
+    ref, _ = _handle()
+    with FakeBridge("ios") as fb:
+        fb.on("Whiteboard", "setElements", lambda t, s: None)
+        run(ref.current.set_elements_async([
+            {"points": [1, 2], "dash": True}, {"tool": "eraser", "points": [1, 2], "dash": True},
+            {"type": "shape", "shape": "heart", "x0": 0, "y0": 0, "x1": 1, "y1": 1, "dash": 1},
+            {"type": "shape", "shape": "rect", "x0": 0, "y0": 0, "x1": 1, "y1": 1}]))
+        sent = fb.calls[-1][2][1]
+    sent = json.loads(sent) if isinstance(sent, str) else sent
+    assert sent[0]["dash"] is True and "dash" not in sent[1]
+    assert sent[2]["dash"] is True and "dash" not in sent[3]
+
+
+def test_dash_and_pattern_on_the_wire():
+    @component
+    def Root():
+        return View(WB.Whiteboard(dash=True, pattern="grid", pattern_color="#ff0000"),
+                    WB.Whiteboard(tool="eraser", dash=True))
+
+    app, r = mount(Root)
+    a, b = r.find_all("PxWhiteboard")
+    assert a.props["dash"] is True and a.props["pattern"] == "grid" and a.props["pattern_color"] == 0xFFFF0000
+    assert b.props["dash"] is False and b.props["pattern"] == "none" and b.props["pattern_color"] == WB.PATTERN_COLOR
+
+
+def test_bad_pattern():
+    @component
+    def Root():
+        return WB.Whiteboard(pattern="stripes")
+
+    app = App(Root, LocalChannel(), None)
+    app.on_error = lambda e: (_ for _ in ()).throw(e)
+    with pytest.raises(ValueError):
+        app.start()
+
+
+def test_board_dash_and_pattern():
+    boards, r = _board_app(dash=True, pattern="dots")
+    node = r.find_all("PxWhiteboard")[0]
+    assert node.props["dash"] is True and node.props["pattern"] == "dots"
+    assert by_id(r, "wb-dash").props["accessibility_state"]["selected"] is True
+    r.press(by_id(r, "wb-dash"))
+    assert boards[-1].dash is False and node.props["dash"] is False
+    r.press(by_id(r, "wb-pattern-lines"))
+    assert boards[-1].pattern == "lines" and node.props["pattern"] == "lines"
+    assert by_id(r, "wb-pattern-lines").props["accessibility_state"]["selected"] is True
+    r.press(by_id(r, "wb-tool-eraser"))
+    with pytest.raises(AssertionError):
+        by_id(r, "wb-dash")  # no dashed eraser
+    with pytest.raises(ValueError):
+        boards[-1].set_pattern("stripes")
+
+
+def test_picker_picks_a_color_and_goes_back():
+    picks = []
+    boards = []
+
+    @component
+    def Root():
+        b = WB.use_whiteboard()
+        boards.append(b)
+        return View(WB.Whiteboard(board=b, on_pick=picks.append), WB.WhiteboardToolbar(board=b))
+
+    app, r = mount(Root)
+    r.press(by_id(r, "wb-shape-heart"))
+    r.press(by_id(r, "wb-tool-picker"))
+    node = r.find_all("PxWhiteboard")[0]
+    assert boards[-1].tool == "picker" and node.props["tool"] == "picker" and node.props["on_pick"] is True
+    r.emit("pick", node, {"value": {"color": 0xFF2F6FE4}})
+    b = boards[-1]
+    assert picks == [{"color": 0xFF2F6FE4}] and b.color == "#2F6FE4" and b.tool == "heart"
+    assert node.props["color"] == 0xFF2F6FE4
+    # A swatch while picking also goes back to the tool before the picker.
+    r.press(by_id(r, "wb-tool-picker"))
+    r.press(by_id(r, "wb-tool-picker"))  # twice: still remembers the heart
+    r.press(by_id(r, "wb-color-0"))
+    assert boards[-1].tool == "heart"
+
+
+def test_color_grid():
+    rows = WB.color_grid(hues=6, shades=3)
+    assert len(rows) == 4 and all(len(r) == 6 for r in rows)
+    assert rows[-1][0] == "#FFFFFF" and rows[-1][-1] == "#000000"
+    assert all(len(c) == 7 and c[0] == "#" for r in rows for c in r)
+    assert len(set(rows[0] + rows[1] + rows[2])) == 18
+    assert len(WB.color_grid(1, 1)) == 2
+    with pytest.raises(ValueError):
+        WB.color_grid(0, 3)
+    with pytest.raises(ValueError):
+        WB.color_grid(3, 0)
+
+
+def test_toolbar_spectrum_picks_from_the_grid():
+    boards = []
+
+    @component
+    def Root():
+        b = WB.use_whiteboard()
+        boards.append(b)
+        return View(WB.Whiteboard(board=b), WB.WhiteboardToolbar(board=b, spectrum=True, patterns=False))
+
+    app, r = mount(Root)
+    with pytest.raises(AssertionError):
+        by_id(r, "wb-pattern-grid")
+    want = WB.color_grid()[2][4]
+    r.press(by_id(r, "wb-grid-2-4"))
+    assert boards[-1].color == want
+    assert by_id(r, "wb-grid-2-4").props["accessibility_state"]["selected"] is True
+    assert r.find_all("PxWhiteboard")[0].props["color"] == 0xFF000000 | int(want[1:], 16)
 
 
 def test_to_strokes_transform_and_bounds():
@@ -315,3 +442,10 @@ def test_page_js_and_web_build(tmp_path):
 @pytest.mark.skipif(not shutil.which("node"), reason="needs node")
 def test_web_js_parses():
     subprocess.run(["node", "--check", WB.__path__[0] + "/web.js"], check=True)
+
+
+def test_every_public_name_resolves():
+    for name in WB.__all__:
+        assert hasattr(WB, name), name
+    assert WB.PATTERN_LABELS["grid"] == "Grid" and set(WB.PATTERN_LABELS) == set(WB.PATTERNS)
+    assert set(WB.TOOL_LABELS) == set(WB.TOOLS)

@@ -1,4 +1,5 @@
-"""A whiteboard: pen, marker, eraser, fill bucket and shapes, with undo, redo, clear and PNG export.
+"""A whiteboard: pen, marker, eraser, fill bucket, color picker and shapes, solid or dashed, on a plain, grid,
+dot or lined page, with undo, redo, clear and PNG export.
 
     import pyxpo_whiteboard as WB
 
@@ -14,19 +15,21 @@
     board.undo()
     image = await board.to_image_async(trim=True)
 
-`use_whiteboard()` holds the tool, color, width, opacity and shape fill, and the board state (`element_count`,
-`can_undo`, `can_redo`, `drawing`). The toolbar pieces (`ToolPicker`, `ShapePicker`, `ColorPalette`,
-`WidthPicker`, `OpacitySlider`, `ShapeFillToggle`, `HistoryButtons`) take the same board, so an app can place
-them in its own layout. `Whiteboard` also works on its own with plain props and a `ref`.
+`use_whiteboard()` holds the tool, color, width, opacity, shape fill, dashes and page pattern, and the board
+state (`element_count`, `can_undo`, `can_redo`, `drawing`). The toolbar pieces (`ToolPicker`, `ShapePicker`,
+`ColorPalette`, `ColorGrid`, `WidthPicker`, `OpacitySlider`, `ShapeFillToggle`, `DashToggle`, `PatternPicker`,
+`HistoryButtons`) take the same board, so an app can place them in its own layout. `Whiteboard` also works on
+its own with plain props and a `ref`.
 
 The drawing is a list of elements, oldest first, in pt/dp from the view's top left:
 
     {"type": "stroke", "tool": "pen" | "marker" | "eraser", "color", "width", "points": [x0, y0, x1, y1, ...]}
-    {"type": "shape", "shape": "line" | "arrow" | "rect" | "ellipse" | "triangle" | "star", "color", "width",
-     "fill", "x0", "y0", "x1", "y1"}
+    {"type": "shape", "shape": "line" | "arrow" | "rect" | "ellipse" | "triangle" | "star" | "diamond" |
+     "hexagon" | "heart", "color", "width", "fill", "x0", "y0", "x1", "y1"}
     {"type": "fill", "x", "y", "color"}
 
-Colors are 0xAARRGGBB ints; a shape `fill` of 0 means outline only. A fill element floods the region under its
+Strokes and shapes may also have `"dash": True` (dashed line). Colors are 0xAARRGGBB ints; a shape `fill` of 0
+means outline only. The page pattern is drawn on screen only, never in an exported image. A fill element floods the region under its
 point when the drawing is drawn, so it stays small and follows edits made before it. iOS draws with Core
 Graphics, Android with `Canvas`, the web and the desktop window with an HTML canvas.
 """
@@ -46,16 +49,20 @@ from pyxpo.style import parse_color
 __version__ = "0.1.0a1"
 
 __all__ = ["Whiteboard", "WhiteboardHandle", "Board", "use_whiteboard", "Tool", "TOOLS", "DRAW_TOOLS", "SHAPES",
-           "IMAGE_FORMATS", "PALETTE", "WIDTHS", "MARKER_ALPHA", "to_strokes", "transform", "bounds",
-           "WhiteboardToolbar", "ToolPicker", "ShapePicker", "ColorPalette", "WidthPicker", "OpacitySlider",
-           "ShapeFillToggle", "HistoryButtons", "ToolIcon", "ICONS", "THEME"]
+           "PATTERNS", "IMAGE_FORMATS", "PALETTE", "WIDTHS", "MARKER_ALPHA", "to_strokes", "transform", "bounds",
+           "shape_outline", "color_grid", "WhiteboardToolbar", "ToolPicker", "ShapePicker", "ColorPalette",
+           "ColorGrid", "WidthPicker", "OpacitySlider", "ShapeFillToggle", "DashToggle", "PatternPicker",
+           "HistoryButtons", "ToolIcon", "ICONS", "THEME", "TOOL_LABELS", "PATTERN_LABELS"]
 
 _View = native_view("PxWhiteboard")
 
-DRAW_TOOLS = ("pen", "marker", "eraser", "fill")
-SHAPES = ("line", "arrow", "rect", "ellipse", "triangle", "star")
+DRAW_TOOLS = ("pen", "marker", "eraser", "fill", "picker")
+SHAPES = ("line", "arrow", "rect", "ellipse", "triangle", "star", "diamond", "hexagon", "heart")
 TOOLS = DRAW_TOOLS + SHAPES
 STROKE_TOOLS = ("pen", "marker", "eraser")
+PATTERNS = ("none", "grid", "dots", "lines")
+PATTERN_SPACING = 24   # pt/dp between grid lines, dots and ruled lines (fixed in the renderers)
+PATTERN_COLOR = 0x33808080
 IMAGE_FORMATS = ("png", "jpg")
 MARKER_ALPHA = 0.4   # the marker is the color at this opacity, so the ink under it shows through
 PALETTE = ("#1F1A24", "#FFFFFF", "#8A8A8A", "#E5322D", "#F28C1B", "#F7C51E", "#7BC043", "#12A3A0", "#2F6FE4",
@@ -68,12 +75,16 @@ class Tool:
     MARKER = "marker"
     ERASER = "eraser"
     FILL = "fill"
+    PICKER = "picker"
     LINE = "line"
     ARROW = "arrow"
     RECT = "rect"
     ELLIPSE = "ellipse"
     TRIANGLE = "triangle"
     STAR = "star"
+    DIAMOND = "diamond"
+    HEXAGON = "hexagon"
+    HEART = "heart"
 
 
 def _choice(name: str, value: Any, allowed: tuple) -> str:
@@ -114,10 +125,13 @@ def _element(i: int, e: Any) -> Dict[str, Any]:
         pts = e.get("points")
         if not isinstance(pts, (list, tuple)) or len(pts) % 2 or not pts:
             raise ValueError("element %d points must be a flat [x0, y0, x1, y1, ...] list" % i)
-        return {"type": "stroke", "tool": _choice("element %d tool" % i, e.get("tool", "pen"), STROKE_TOOLS),
-                "color": _color("element %d color" % i, e.get("color", 0xFF000000)),
-                "width": _number("element %d width" % i, e.get("width", 4), 0, low_open=True),
-                "points": [_number("element %d point" % i, p, -math.inf) for p in pts]}
+        out = {"type": "stroke", "tool": _choice("element %d tool" % i, e.get("tool", "pen"), STROKE_TOOLS),
+               "color": _color("element %d color" % i, e.get("color", 0xFF000000)),
+               "width": _number("element %d width" % i, e.get("width", 4), 0, low_open=True),
+               "points": [_number("element %d point" % i, p, -math.inf) for p in pts]}
+        if e.get("dash") and out["tool"] != "eraser":
+            out["dash"] = True
+        return out
     if kind == "shape":
         out: Dict[str, Any] = {"type": "shape", "shape": _choice("element %d shape" % i, e.get("shape"), SHAPES),
                                "color": _color("element %d color" % i, e.get("color", 0xFF000000)),
@@ -125,6 +139,8 @@ def _element(i: int, e: Any) -> Dict[str, Any]:
                                "fill": _color("element %d fill" % i, e.get("fill"))}
         for k in ("x0", "y0", "x1", "y1"):
             out[k] = _number("element %d %s" % (i, k), e.get(k), -math.inf)
+        if e.get("dash"):
+            out["dash"] = True
         return out
     if kind == "fill":
         return {"type": "fill", "x": _number("element %d x" % i, e.get("x"), -math.inf),
@@ -159,6 +175,15 @@ def shape_outline(shape: str, x0: float, y0: float, x1: float, y1: float, width:
         pts = [cx, ly, hx, hy, lx, hy]
     elif shape == "star":
         pts = star_points(cx, cy, rx, ry)
+    elif shape == "diamond":
+        pts = [cx, ly, hx, cy, cx, hy, lx, cy]
+    elif shape == "hexagon":
+        pts = []
+        for j in range(6):
+            a = -math.pi / 2 + math.pi * j / 3
+            pts += [cx + rx * math.cos(a), cy + ry * math.sin(a)]
+    elif shape == "heart":
+        pts = heart_points(lx, ly, hx, hy)
     else:
         raise ValueError("unknown shape %r" % shape)
     return [pts + pts[:2]]
@@ -171,6 +196,19 @@ def star_points(cx: float, cy: float, rx: float, ry: float) -> List[float]:
         a = -math.pi / 2 + math.pi * j / 5
         k = 1 if j % 2 == 0 else 0.45
         pts += [cx + rx * k * math.cos(a), cy + ry * k * math.sin(a)]
+    return pts
+
+
+def heart_points(lx: float, ly: float, hx: float, hy: float, segments: int = 48) -> List[float]:
+    """The classic heart curve (x = 16 sin^3 t, y = 13 cos t - 5 cos 2t - 2 cos 3t - cos 4t) fitted to the box:
+    x spans -16..16 and y -12..17, so the lobes touch the top and the point the bottom."""
+    cx, w, h = (lx + hx) / 2, (hx - lx) / 2, hy - ly
+    pts: List[float] = []
+    for j in range(segments):
+        t = 2 * math.pi * j / segments
+        x = 16 * math.sin(t) ** 3
+        y = -(13 * math.cos(t) - 5 * math.cos(2 * t) - 2 * math.cos(3 * t) - math.cos(4 * t))
+        pts += [cx + w * x / 16, ly + h * (y + 12) / 29]
     return pts
 
 
@@ -333,6 +371,8 @@ class Board:
         self.width: float = values["width"]
         self.opacity: float = values["opacity"]
         self.fill_shapes: bool = values["fill_shapes"]
+        self.dash: bool = values["dash"]
+        self.pattern: str = values["pattern"]
         self.element_count: int = state.get("element_count", 0)
         self.can_undo: bool = bool(state.get("can_undo"))
         self.can_redo: bool = bool(state.get("can_redo"))
@@ -350,12 +390,16 @@ class Board:
         self._set_values(lambda v: dict(v, **kw))
 
     def set_tool(self, tool: str) -> None:
-        self._set(tool=_choice("tool", tool, TOOLS))
+        """Picks a tool. The color picker remembers the tool before it and goes back to it after one pick."""
+        tool = _choice("tool", tool, TOOLS)
+        self._set_values(lambda v: dict(v, tool=tool, back=v["tool"] if tool == "picker" and v["tool"] != "picker"
+                                        else v.get("back", "pen")))
 
     def set_color(self, color: Any) -> None:
-        """Picks a color; from the eraser it also goes back to the pen."""
+        """Picks a color; from the eraser it also goes back to the pen, from the picker to the tool before it."""
         parse_color(color)
-        self._set_values(lambda v: dict(v, color=color, tool="pen" if v["tool"] == "eraser" else v["tool"]))
+        self._set_values(lambda v: dict(v, color=color, tool="pen" if v["tool"] == "eraser" else
+                                        v.get("back", "pen") if v["tool"] == "picker" else v["tool"]))
 
     def set_width(self, width: float) -> None:
         self._set(width=_number("width", width, 0, 500, True))
@@ -365,6 +409,19 @@ class Board:
 
     def set_fill_shapes(self, on: bool) -> None:
         self._set(fill_shapes=bool(on))
+
+    def set_dash(self, on: bool) -> None:
+        """Dashed pen, marker and shape outlines from now on (the eraser is always solid)."""
+        self._set(dash=bool(on))
+
+    def set_pattern(self, pattern: str) -> None:
+        """The page behind the ink: "none", "grid", "dots" or "lines". It is not part of an exported image."""
+        self._set(pattern=_choice("pattern", pattern, PATTERNS))
+
+    def _on_pick(self, e: Dict[str, Any]) -> None:
+        argb = int(e.get("color", 0)) & 0xFFFFFF
+        hex_color = "#%06X" % argb
+        self._set_values(lambda v: dict(v, color=hex_color, tool=v.get("back", "pen")))
 
     def _on_change(self, s: Dict[str, Any]) -> None:
         self._set_drawing(False)
@@ -398,7 +455,8 @@ class Board:
 
 
 def use_whiteboard(tool: str = "pen", color: Any = "#1F1A24", width: float = 4, opacity: float = 1,
-                   fill_shapes: bool = False, palette: Sequence[Any] = PALETTE, widths: Sequence[float] = WIDTHS,
+                   fill_shapes: bool = False, dash: bool = False, pattern: str = "none",
+                   palette: Sequence[Any] = PALETTE, widths: Sequence[float] = WIDTHS,
                    theme: Optional[Dict[str, Any]] = None) -> Board:
     """Hook: state for one `Whiteboard` and its toolbar. The arguments are the starting values; `palette` and
     `widths` are what `ColorPalette` and `WidthPicker` offer; `theme` overrides keys of `THEME` for the toolbar
@@ -408,7 +466,8 @@ def use_whiteboard(tool: str = "pen", color: Any = "#1F1A24", width: float = 4, 
     values, set_values = use_state(lambda: {"tool": _choice("tool", tool, TOOLS), "color": color,
                                             "width": _number("width", width, 0, 500, True),
                                             "opacity": _number("opacity", opacity, 0, 1, True),
-                                            "fill_shapes": bool(fill_shapes)})
+                                            "fill_shapes": bool(fill_shapes), "dash": bool(dash),
+                                            "pattern": _choice("pattern", pattern, PATTERNS), "back": "pen"})
     state, set_state = use_state(EMPTY)
     drawing, set_drawing = use_state(False)
     return Board(ref, values, set_values, state, set_state, drawing, set_drawing, palette, widths,
@@ -418,23 +477,28 @@ def use_whiteboard(tool: str = "pen", color: Any = "#1F1A24", width: float = 4, 
 @component
 def Whiteboard(board: Optional[Board] = None, tool: str = "pen", color: Any = "#000000", width: float = 4,
                opacity: float = 1, fill_color: Any = None, background_color: Any = "#ffffff", enabled: bool = True,
-               fill_tolerance: float = 32, on_change: Optional[Callable[[Dict[str, Any]], Any]] = None,
-               on_draw_start: Optional[Callable[[Dict[str, Any]], Any]] = None, style: Any = None, **props: Any):
+               fill_tolerance: float = 32, dash: bool = False, pattern: str = "none", pattern_color: Any = None,
+               on_change: Optional[Callable[[Dict[str, Any]], Any]] = None,
+               on_draw_start: Optional[Callable[[Dict[str, Any]], Any]] = None,
+               on_pick: Optional[Callable[[Dict[str, Any]], Any]] = None, style: Any = None, **props: Any):
     """A whiteboard sized by `style`. `ref.current` is a `WhiteboardHandle`.
 
     With a `board` from `use_whiteboard()` the tool settings come from it and `board.ref` is set; otherwise
     pass them as props. `width` is in pt/dp (the eraser and shape outlines use it too). `opacity` (0-1) applies
     to the pen, shapes and the fill bucket; the marker is always see-through. `fill_color` fills shapes (None:
     outline only). `fill_tolerance` (0-255) is how far a color may differ from the tapped one and still be
-    filled. `on_draw_start({"tool"})` fires when a touch starts drawing, `on_change(state)` with
-    `{"element_count", "can_undo", "can_redo"}` after each element, undo, redo, clear, `set_elements_async`
-    and a touch that drew nothing."""
+    filled. `dash` draws dashed lines. `pattern` ("none", "grid", "dots", "lines") lines the page in
+    `pattern_color` (default a faint gray), on screen only. `on_draw_start({"tool"})` fires when a touch starts
+    drawing, `on_change(state)` with `{"element_count", "can_undo", "can_redo"}` after each element, undo,
+    redo, clear, `set_elements_async` and a touch that drew nothing. With the "picker" tool a tap draws nothing
+    and fires `on_pick({"color"})` with the 0xAARRGGBB color under the finger (ink over the background)."""
     ref = props.pop("ref", None)
     inner = use_ref(None)
     if board is not None:
         tool, color, width, opacity = board.tool, board.color, board.width, board.opacity
         fill_color = board.color if board.fill_shapes else None
-        user_change, user_start = on_change, on_draw_start
+        dash, pattern = board.dash, board.pattern
+        user_change, user_start, user_pick = on_change, on_draw_start, on_pick
 
         def on_change(s: Dict[str, Any]) -> None:
             board._on_change(s)
@@ -445,6 +509,11 @@ def Whiteboard(board: Optional[Board] = None, tool: str = "pen", color: Any = "#
             board._on_draw_start(e)
             if user_start is not None:
                 user_start(e)
+
+        def on_pick(e: Dict[str, Any]) -> None:
+            board._on_pick(e)
+            if user_pick is not None:
+                user_pick(e)
 
         if ref is None:
             ref = board.ref
@@ -457,14 +526,19 @@ def Whiteboard(board: Optional[Board] = None, tool: str = "pen", color: Any = "#
         "fill_color": _with_alpha(parse_color(fill_color), k) if fill_color is not None else 0,
         "background_color": parse_color(background_color), "enabled": bool(enabled),
         "fill_tolerance": int(round(_number("fill_tolerance", fill_tolerance, 0, 255))),
+        "dash": bool(dash) and tool != "eraser", "pattern": _choice("pattern", pattern, PATTERNS),
+        "pattern_color": parse_color(pattern_color) if pattern_color is not None else PATTERN_COLOR,
     }
     if on_change is not None:
         wire["on_change"] = on_change
     if on_draw_start is not None:
         wire["on_draw_start"] = on_draw_start
+    if on_pick is not None:
+        wire["on_pick"] = on_pick
     return _View(ref=inner, style=style, **wire, **props)
 
 
 from .icons import ICONS, ToolIcon  # noqa: E402
-from .toolbar import (THEME, ColorPalette, HistoryButtons, OpacitySlider, ShapeFillToggle, ShapePicker,  # noqa: E402
-                      ToolPicker, WhiteboardToolbar, WidthPicker)
+from .toolbar import (PATTERN_LABELS, THEME, TOOL_LABELS, ColorGrid, ColorPalette, DashToggle,  # noqa: E402
+                      HistoryButtons, OpacitySlider, PatternPicker, ShapeFillToggle, ShapePicker, ToolPicker,
+                      WhiteboardToolbar, WidthPicker, color_grid)
