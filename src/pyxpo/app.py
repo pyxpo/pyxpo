@@ -305,7 +305,11 @@ class App:
             self.dirty = []
             self._dirty_set = set()
             try:
-                self.rec.render(self._root_element)
+                self.rec.hot = True
+                try:
+                    self.rec.render(self._root_element)
+                finally:
+                    self.rec.hot = False
                 self._send(self.rec.take_ops())
                 self.rec.run_effects()
                 self.broken = False

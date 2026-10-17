@@ -10,7 +10,7 @@ from . import themes as _themes
 from .animated import runtime as _anim
 from .element import Element, flatten
 from .apis import _env as _env_mod
-from .hooks import _same, render_with_hooks
+from .hooks import HookError, _same, render_with_hooks
 from .style import normalize_shared as normalize_style
 from .ops import Create, Delete, Insert, Op, Remove, Update
 
@@ -116,6 +116,9 @@ class Reconciler:
         self.handlers: Dict[Tuple[int, str], Callable[..., Any]] = {}
         self._deletes: List[int] = []
         self._next_id = 2
+        # set during a hot refresh: a hook-order error (the code changed its hooks) is not shown by an error
+        # boundary but raised, so App.hot_refresh remounts with fresh state
+        self.hot = False
         self.id_counter = 0  # use_id
         # Effect, cleanup and async-effect errors go here (App sets it). None: the first one is re-raised at the end
         # of run_effects, after every other effect has run.
@@ -430,7 +433,7 @@ class Reconciler:
                 cell.showing = cell.error is not None
             self._reconcile_children(f, [out] if out.__class__ is Element else flatten([out]))
         except Exception as err:  # noqa: BLE001
-            if not f.hooks_ready or f.hooks[0][1].error is not None:
+            if not f.hooks_ready or f.hooks[0][1].error is not None or (self.hot and isinstance(err, HookError)):
                 raise
             self._fallback(f, marks, err)
 

@@ -331,3 +331,28 @@ def test_rolled_back_animated_value_registers_again_when_reused():
     assert shared.id not in r.driver.nodes and shared._token is None
     r.press(r.find_text("fix"))
     assert shared.id in r.driver.nodes  # wired again by the sibling: registered again
+
+
+def test_hot_refresh_remounts_when_hooks_change_under_a_boundary():
+    """Editing a component to add a hook, then hot reloading, must remount it (fresh state) and not show the
+    boundary's fallback "rendered more hooks than previous render"."""
+    extra = []
+
+    @component
+    def Screen():
+        n, _ = use_state(1)
+        if extra:
+            m, _ = use_state(2)
+            n += m
+        return Text("n=%d" % n)
+
+    @component
+    def Root():
+        return ErrorBoundary(Screen(), fallback=Fallback)
+
+    app, r, errors = mount(Root)
+    extra.append(True)  # the "code edit"
+    assert app.hot_refresh() is None
+    check(app, r)
+    assert [n.props.get("text") for n in r.nodes.values() if n.props.get("text")] == ["n=3"]
+    assert errors == []
