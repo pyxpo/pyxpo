@@ -81,6 +81,26 @@ static void post_to_main(const char *json) {
     return inst;
 }
 
+// The folder Python sees as HOME, laid out like an iOS app container (Documents, Library/Caches,
+// Library/Application Support). On iOS that is the app's sandbox. A Mac Catalyst build outside the App Sandbox
+// gets the user's real home folder from NSHomeDirectory(), so it uses ~/Library/Application Support/<bundle id>.
+static NSString *PyxpoAppHome(void) {
+    NSString *home = NSHomeDirectory();
+#if TARGET_OS_MACCATALYST
+    if (!NSProcessInfo.processInfo.environment[@"APP_SANDBOX_CONTAINER_ID"]) {
+        NSString *support = NSSearchPathForDirectoriesInDomains(NSApplicationSupportDirectory, NSUserDomainMask, YES).firstObject;
+        NSString *bundle = NSBundle.mainBundle.bundleIdentifier ?: @"pyxpo.app";
+        if (support) home = [support stringByAppendingPathComponent:bundle];
+    }
+    NSFileManager *fm = NSFileManager.defaultManager;
+    for (NSString *sub in @[@"Documents", @"Library/Caches", @"Library/Application Support"]) {
+        [fm createDirectoryAtPath:[home stringByAppendingPathComponent:sub] withIntermediateDirectories:YES
+                       attributes:nil error:NULL];
+    }
+#endif
+    return home;
+}
+
 - (void)startWithHome:(NSString *)home paths:(NSArray<NSString *> *)paths module:(NSString *)module {
     NSThread *t = [[NSThread alloc] initWithBlock:^{
         [self runWithHome:home paths:paths module:module];
@@ -93,7 +113,7 @@ static void post_to_main(const char *json) {
 - (void)runWithHome:(NSString *)home paths:(NSArray<NSString *> *)paths module:(NSString *)module {
     setenv("PYXPO_TARGET", "ios", 1);
     if (self.envJSON) setenv("PYXPO_ENV", self.envJSON.UTF8String, 1);
-    setenv("HOME", NSHomeDirectory().UTF8String, 1);
+    setenv("HOME", PyxpoAppHome().UTF8String, 1);
     setenv("TMPDIR", NSTemporaryDirectory().UTF8String, 1);
 
     pyxpo_bridge_set_post_callback(post_to_main);

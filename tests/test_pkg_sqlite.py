@@ -210,3 +210,13 @@ def test_context_without_provider_raises():
     MockRenderer(ch)
     App(Bad, ch, None).start()
     assert errors and "SQLiteProvider" in errors[0]
+
+
+def test_documents_on_ios_and_mac_catalyst(monkeypatch):
+    monkeypatch.setenv("HOME", "/h")
+    monkeypatch.setattr(SQLite.sys, "platform", "ios")
+    assert SQLite._documents() == "/h/Documents"
+    # The Mac Catalyst app: Python reports "darwin" and cwd is "/" (read-only); the iOS runtime sets PYXPO_TARGET.
+    monkeypatch.setattr(SQLite.sys, "platform", "darwin")
+    monkeypatch.setenv("PYXPO_TARGET", "ios")
+    assert SQLite._documents() == "/h/Documents"

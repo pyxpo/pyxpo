@@ -253,3 +253,12 @@ def test_legacy_api(root, server, monkeypatch, tmp_path):
     r = run(FileSystem.downloadAsync(server + "/ok", base + "d.txt", {"md5": True}))
     assert r["status"] == 200 and r["mimeType"] == "text/plain" and r["md5"] == hashlib.md5(b"hello ").hexdigest()
     assert run(FileSystem.getFreeDiskStorageAsync()) > 0 and run(FileSystem.get_total_disk_capacity_async()) > 0
+
+
+def test_documents_and_caches_on_mac_catalyst(monkeypatch):
+    import pyxpo_file_system as fs
+    monkeypatch.setenv("HOME", "/h")
+    monkeypatch.setattr(fs.sys, "platform", "darwin")
+    monkeypatch.setenv("PYXPO_TARGET", "ios")
+    assert fs._documents() == "/h/Documents"
+    assert fs._caches() == "/h/Library/Caches"

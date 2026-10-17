@@ -163,6 +163,10 @@ def test_default_directory(monkeypatch, tmp_path):
     assert str(ps.default_directory()) == "/h/Library/Application Support/pyxpo-storage"
     monkeypatch.setattr(ps.sys, "platform", "android")
     assert str(ps.default_directory()) == "/h/pyxpo-storage"
+    # The Mac Catalyst app: Python reports "darwin", the iOS runtime sets PYXPO_TARGET.
+    monkeypatch.setattr(ps.sys, "platform", "darwin")
+    monkeypatch.setenv("PYXPO_TARGET", "ios")
+    assert str(ps.default_directory()) == "/h/Library/Application Support/pyxpo-storage"
 
 
 def _mount(root):
