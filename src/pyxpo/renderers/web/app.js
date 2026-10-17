@@ -15,6 +15,7 @@
   // Module packages add view types and page-side module calls with their web.js, loaded after this file:
   //   pyxpoPage.defineView("PxThing", (el, emit) => ({ update(props, removed) {}, dispose() {} }))
   //   pyxpoPage.defineModule("Thing", (method, args, page) => value or Promise)   page.view(tag): a view instance
+  //   pyxpoPage.emit("Thing.event", data)   a module event for Python's on_event("Thing.event", handler)
   // A view gets every prop but `style` (the first update has them all); `emit(name, value)` calls its on_<name>.
   const viewTypes = {};
   const pageModules = {};
@@ -23,6 +24,7 @@
     defineModule(name, handler) { pageModules[name] = handler; },
     view(tag) { const n = nodes.get(tag); return n && n.view ? n.view : null; },
     fileUrl(path) { return fileUrl(path); },
+    emit(name, data) { emit("module", 0, { name, data: data === undefined ? null : data }); },
   });
 
   const extraCss = document.createElement("style");

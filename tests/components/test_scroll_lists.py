@@ -126,6 +126,16 @@ def test_flatlist_header_footer_empty_separator_columns():
     assert [n.props["text"] for n in r.find_all("Text")] == ["empty"]
 
 
+def test_flatlist_columns_lay_items_out_in_a_row():
+    # RN puts num_columns items straight into the row, so a card styled {"flex": 1} grows sideways.
+    app, r = mount(lambda: FlatList(data=[1, 2, 3], renderItem=lambda p: View(Text("c%d" % p["item"]), style={"flex": 1}),
+                                    numColumns=2))
+    cell = r.find_text("c1").parent.parent
+    assert cell.props["style"]["flex_direction"] == "row"
+    assert cell.parent.props["style"]["flex_direction"] == "row"
+    assert len(cell.parent.children) == 2 and len(r.find_text("c3").parent.parent.parent.children) == 2
+
+
 def test_flatlist_header_and_scroll_in_one_batch():
     app, r = mount(lambda: FlatList(
         data=list(range(1000)), renderItem=lambda p: Text("n%d" % p["item"]),

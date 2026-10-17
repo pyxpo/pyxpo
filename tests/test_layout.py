@@ -208,6 +208,50 @@ def test_aspect_ratio(lib):
     assert t.f(a) == (0, 0, 200, 100)
 
 
+FLEX1 = {"flex_grow": 1, "flex_shrink": 1, "flex_basis": 0}
+
+
+def box(prop, v):
+    return {"%s_%s" % (prop, e): v for e in ("left", "top", "right", "bottom")}
+
+
+def test_aspect_ratio_with_stretched_width(lib):
+    # A stretched width (no width style) still sets the height, as in React Native.
+    t = Tree(lib)
+    t.set(1, **box("padding", 10))
+    a = t.add(aspect_ratio=1, **box("margin", 5))
+    b = t.add(height=20)
+    t.calc(300, 600)
+    assert t.f(a) == (15, 15, 270, 270)
+    assert t.f(b) == (10, 290, 280, 20)
+
+
+def test_aspect_ratio_with_flex_width(lib):
+    # In a row, flex: 1 gives the width and the aspect ratio the height; align stretch does not undo it.
+    t = Tree(lib)
+    row = t.add(flex_direction="row", column_gap=10)
+    a = t.add(row, aspect_ratio=2, **FLEX1)
+    b = t.add(row, aspect_ratio=0.5, **FLEX1)
+    t.calc(310, 600)
+    assert t.f(a) == (0, 0, 150, 75)
+    assert t.f(b) == (160, 0, 150, 300)
+    assert t.f(row) == (0, 0, 310, 300)
+
+
+def test_aspect_ratio_in_a_card(lib):
+    # The doodle-dance gallery card: a flex: 1 column cell holding a square box and a caption.
+    t = Tree(lib)
+    row = t.add(flex_direction="row")
+    card = t.add(row, **FLEX1, **box("padding", 8))
+    square = t.add(card, aspect_ratio=1)
+    cap = t.add(card, height=16)
+    t.add(row, **FLEX1)
+    t.calc(216, 600)
+    assert t.f(square) == (8, 8, 92, 92)
+    assert t.f(cap)[1] == 100
+    assert t.f(card) == (0, 0, 108, 124)
+
+
 def test_display_none(lib):
     t = Tree(lib)
     a = t.add(height=50, display="none")

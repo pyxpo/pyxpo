@@ -575,10 +575,15 @@ static void layout_flex(PxTree *t, PxNode *n, float W, int wm, float H, int hm, 
                 ca = inner[C] - it->ms[C] - it->me[C];
                 cm = (imode[C] == M_EXACT && it->align == A_STRETCH && s->wrap == 0) ? M_EXACT : M_ATMOST;
             }
-            if (M == 0) { caw = ma; cwm = mm; cah = ca; chm = cm; }
-            else { caw = ca; cwm = cm; cah = ma; chm = mm; }
-            measure_child(t, c, caw, cwm, cah, chm, innerw_ref, &cw, &ch);
-            b = (M == 0) ? cw : ch;
+            if (cm == M_EXACT && DEF(c->s.aspect) && c->s.aspect > 0) {
+                /* aspect ratio with a stretched cross size: the main size follows from it (as in Yoga) */
+                b = (M == 0) ? ca * c->s.aspect : ca / c->s.aspect;
+            } else {
+                if (M == 0) { caw = ma; cwm = mm; cah = ca; chm = cm; }
+                else { caw = ca; cwm = cm; cah = ma; chm = mm; }
+                measure_child(t, c, caw, cwm, cah, chm, innerw_ref, &cw, &ch);
+                b = (M == 0) ? cw : ch;
+            }
         }
         it->basis = b;
         it->hypo = clampf(b, it->lo[M], it->hi[M]);
@@ -691,9 +696,15 @@ static void layout_flex(PxTree *t, PxNode *n, float W, int wm, float H, int hm, 
                 cmode = DEF(ca) ? M_ATMOST : M_UNDEF;
             }
             (void)cm_;
-            if (M == 0) measure_child(t, it->c, it->target, M_EXACT, ca, cmode, innerw_ref, &cw, &ch);
-            else measure_child(t, it->c, ca, cmode, it->target, M_EXACT, innerw_ref, &cw, &ch);
-            it->cross = clampf(M == 0 ? ch : cw, it->lo[C], it->hi[C]);
+            if (!DEF(it->dim[C]) && DEF(it->c->s.aspect) && it->c->s.aspect > 0) {
+                /* aspect ratio: the cross size follows from the resolved main size */
+                it->cross = clampf(M == 0 ? it->target / it->c->s.aspect : it->target * it->c->s.aspect,
+                                   it->lo[C], it->hi[C]);
+            } else {
+                if (M == 0) measure_child(t, it->c, it->target, M_EXACT, ca, cmode, innerw_ref, &cw, &ch);
+                else measure_child(t, it->c, ca, cmode, it->target, M_EXACT, innerw_ref, &cw, &ch);
+                it->cross = clampf(M == 0 ? ch : cw, it->lo[C], it->hi[C]);
+            }
             float outer = it->cross + it->ms[C] + it->me[C];
             if (outer > lc) lc = outer;
         }
@@ -763,7 +774,7 @@ static void layout_flex(PxTree *t, PxNode *n, float W, int wm, float H, int hm, 
                 Item *it = &items[i];
                 float msize = it->target, csize = it->cross;
                 int al = it->align;
-                if (al == A_STRETCH && !DEF(it->dim[C])) {
+                if (al == A_STRETCH && !DEF(it->dim[C]) && !(DEF(it->c->s.aspect) && it->c->s.aspect > 0)) {
                     csize = clampf(line_cross[L] - it->ms[C] - it->me[C], it->lo[C], it->hi[C]);
                     if (csize < 0) csize = 0;
                 }

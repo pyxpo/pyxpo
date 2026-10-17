@@ -60,6 +60,10 @@ Python in the browser differs from Python on a phone in a few places:
   only thread, so the page does not repaint until it returns. Loop callbacks it schedules run after it.
 - numpy's `linalg.inv` and `linalg.solve` return NaN for a singular matrix instead of raising `LinAlgError`. Check
   the result with `numpy.isfinite` when the code depends on that exception.
+- Files in the documents folder (file-system, sqlite) and storage values are kept in the browser's IndexedDB, so
+  they outlive a reload. They are copied in before the app starts and written back about every 2 seconds after a
+  change and when the page is hidden. `await window.PYXPO_WEB.persist()` in page code writes them at once. The cache
+  folder is kept only until the page closes. Tabs of one site share the data, and the last one to write wins.
 
 Native modules work on web when their package has a `web.py` backend. The backend defines `call(method, args)` and
 may return an awaitable. Helpers for backends are in `pyxpo.renderers.web.browser`: `choose_files`, `save_file` and

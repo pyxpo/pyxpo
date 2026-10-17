@@ -22,6 +22,34 @@
     return r.arrayBuffer();
   }
 
+  // Documents (pyxpo-file-system, pyxpo-sqlite) and pyxpo-storage outlive a reload: IndexedDB holds the folders,
+  // copied in before the app starts and written back a moment after files change and when the page is hidden.
+  // The cache folder stays in memory. Tabs of one site share the data; the last one to write wins.
+  async function keepData(py, dirs) {
+    const FS = py.FS;
+    const sync = (load) => new Promise((ok) => FS.syncfs(load, (err) => {
+      if (err) console.warn("pyxpo: could not " + (load ? "load" : "save") + " app data", err);
+      ok();
+    }));
+    try {
+      for (const d of dirs) { FS.mkdirTree(d); FS.mount(FS.filesystems.IDBFS, {}, d); }
+    } catch (e) {
+      console.warn("pyxpo: app data is kept only until the page closes", e);
+      return () => Promise.resolve();
+    }
+    await sync(true);
+    let busy = null, again = false;
+    const save = () => {
+      if (busy) { again = true; return busy; }
+      busy = sync(false).then(() => { busy = null; if (again) { again = false; return save(); } });
+      return busy;
+    };
+    setInterval(save, 2000);   // syncfs only writes the files whose mtime changed
+    document.addEventListener("visibilitychange", () => { if (document.visibilityState === "hidden") save(); });
+    window.addEventListener("pagehide", save);
+    return save;
+  }
+
   const MIME = { png: "image/png", jpg: "image/jpeg", jpeg: "image/jpeg", gif: "image/gif", webp: "image/webp",
                  svg: "image/svg+xml", bmp: "image/bmp", ico: "image/x-icon", heic: "image/heic" };
 
@@ -35,12 +63,14 @@
       await py.pyimport("micropip").install(cfg.packages);
     }
     py.unpackArchive(await bundle, "zip", { extractDir: "/app" });
+    const persist = await keepData(py, ["/app/.pyxpo-data/documents", "/app/.pyxpo-data/storage"]);
 
     // Images the app writes or bundles live in Pyodide's in-memory file system: hand them to <img> as blob URLs,
     // made again when the file changes.
     const blobs = new Map();
     window.PYXPO_WEB = {
       base: BASE,
+      persist,   // writes app data to IndexedDB now (a Promise)
       send(body) { if (window.pyxpoPy) window.pyxpoPy(body); },
       fileUrl(path) {
         let st;

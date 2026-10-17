@@ -175,7 +175,10 @@ def FlatList(data: Optional[List[Any]] = None, render_item: Optional[Callable] =
                 cells = []
                 for c in range(cols):
                     i = r * cols + c
-                    cells.append(View(cell(i), style={"flex": 1}, key=_key_of(data[i], i, key_extractor))
+                    # Equal columns. The cell is a row, like RN's column wrapper the item sits in, so an item
+                    # styled {"flex": 1} fills the column's width instead of collapsing to zero height.
+                    cells.append(View(cell(i), style={"flex": 1, "flex_direction": "row"},
+                                      key=_key_of(data[i], i, key_extractor))
                                  if i < n else View(style={"flex": 1}, key="pad%d" % c))
                 out.append(View(*cells, style=[{"flex_direction": "row"}, column_wrapper_style, fixed],
                                 key="r%d" % r))
