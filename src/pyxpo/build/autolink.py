@@ -13,7 +13,7 @@ import json
 import re
 import shutil
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Tuple
 
 from .runtime import BuildError
 
@@ -145,6 +145,32 @@ def discover() -> Dict[str, Module]:
             raise BuildError("native module name %r is provided twice" % m.name)
         found[m.name] = m
     return found
+
+
+def linked_roots(project: Path) -> List[Path]:
+    """Package folders of the modules the app links, for dev watchers. Never raises: the build reports errors."""
+    from ..config import load_config
+
+    try:
+        return [m.root for m in resolve(load_config(Path(project)), Path(project))]
+    except Exception:  # noqa: BLE001
+        return []
+
+
+def module_files(roots: List[Path]) -> Dict[str, Tuple[int, int]]:
+    """{'<pkg dir>/<rel>': (mtime_ns, size)} for every source file under the given module package folders."""
+    out: Dict[str, Tuple[int, int]] = {}
+    for root in roots:
+        for f in root.rglob("*"):
+            if "__pycache__" in f.parts or f.name.startswith(".") or f.suffix == ".pyc":
+                continue
+            try:
+                st = f.stat()
+            except OSError:
+                continue
+            if f.is_file():
+                out["%s/%s" % (root.name, f.relative_to(root).as_posix())] = (st.st_mtime_ns, st.st_size)
+    return out
 
 
 def imported_modules(project: Path, known: Dict[str, Module]) -> Dict[str, str]:

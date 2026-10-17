@@ -232,3 +232,17 @@ def test_cli_web_build_error_is_printed(tmp_path, capsys):
     p = _project(tmp_path, '[tool.pyxpo.web]\nbase = "https://x.example"\n')
     assert cli.main(["build", "web", "--dir", str(p)]) == 1
     assert "plain path" in capsys.readouterr().err
+
+
+def test_watch_stamp_sees_linked_module_packages(tmp_path):
+    # A local editable module package (e.g. packages/whiteboard) is bundled into the web build, so editing it rebuilds.
+    from pyxpo.build.web import _watch_stamp
+
+    pkg = tmp_path / "pyxpo_demo"
+    pkg.mkdir()
+    (pkg / "__init__.py").write_text("X = 1\n")
+    (tmp_path / "app").mkdir()
+    before = _watch_stamp(tmp_path, [pkg])
+    assert _watch_stamp(tmp_path, [pkg]) == before
+    (pkg / "__init__.py").write_text("X = 22\n")
+    assert _watch_stamp(tmp_path, [pkg]) != before

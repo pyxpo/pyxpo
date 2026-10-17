@@ -55,6 +55,12 @@ class DevServer:
         self._sigs: Dict[str, Tuple[int, int]] = {}
         self._pending: Dict[str, Tuple[int, int]] = {}
         self._native = self._native_stamp()
+        from pathlib import Path
+
+        from ..build import autolink
+        self._module_files = autolink.module_files
+        self._module_roots = autolink.linked_roots(Path(self.project))
+        self._modules = self._module_files(self._module_roots)
         self._load_initial()
         server = self
 
@@ -187,8 +193,19 @@ class DevServer:
             sys.stderr.write("[pyxpo dev] native config changed (%s): hot reload cannot apply it. "
                              "Stop and re-run `pyxpo run` to rebuild the app.\n" % ", ".join(changed))
 
+    def _check_modules(self) -> None:
+        """Linked module packages are baked into the app build; warn when a local (editable) one changes."""
+        cur = self._module_files(self._module_roots)
+        if cur != self._modules:
+            changed = sorted({r.split("/", 1)[0] for r in set(cur) ^ set(self._modules)} |
+                             {r.split("/", 1)[0] for r in cur if r in self._modules and cur[r] != self._modules[r]})
+            self._modules = cur
+            sys.stderr.write("[pyxpo dev] module package changed (%s): hot reload cannot apply it. "
+                             "Stop and re-run `pyxpo run` to rebuild the app.\n" % ", ".join(changed))
+
     def _tick(self) -> None:
         self._check_native()
+        self._check_modules()
         cur = scan(self.app_dir)
         if cur != self._sigs:
             if cur != self._pending:  # debounce: publish after two identical scans

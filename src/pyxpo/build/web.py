@@ -142,13 +142,15 @@ _RELOAD = ('<script>(() => { const es = new EventSource("/__pyxpo/reload"); '
 _DEVTOOLS = '<script src="/__pyxpo/devtools.js"></script>\n'  # device preview panel, dev server only
 
 
-def _watch_stamp(project: Path) -> float:
+def _watch_stamp(project: Path, modules: Optional[List[Path]] = None) -> Any:
+    """Changes when the app, its assets, pyproject.toml or a linked module package (local editable install) changes."""
     paths = [project / "pyproject.toml"]
     for sub in ("app", "assets"):
         d = project / sub
         if d.is_dir():
             paths += [p for p in d.rglob("*") if p.is_file() and "__pycache__" not in p.parts]
-    return max((p.stat().st_mtime for p in paths if p.exists()), default=0.0)
+    newest = max((p.stat().st_mtime for p in paths if p.exists()), default=0.0)
+    return newest, autolink.module_files(modules or [])
 
 
 class DevServer:
@@ -176,10 +178,11 @@ class DevServer:
         return "http://%s:%d%s/" % (host, port, self.prefix)
 
     def watch(self, interval: float = 0.5) -> None:
-        stamp = _watch_stamp(self.project)
+        modules = autolink.linked_roots(self.project)
+        stamp = _watch_stamp(self.project, modules)
         while True:
             time.sleep(interval)
-            now = _watch_stamp(self.project)
+            now = _watch_stamp(self.project, modules)
             if now == stamp:
                 continue
             stamp = now

@@ -122,6 +122,35 @@ def test_native_config_change_warns(tmp_path, capsys):
         s.httpd.server_close()
 
 
+def test_module_package_change_warns(tmp_path, capsys, monkeypatch):
+    # A linked module from a local editable install is baked into the app; editing it needs a rebuild.
+    pkg = tmp_path / "pkgs" / "pyxpo_demo"
+    pkg.mkdir(parents=True)
+    (pkg / "__init__.py").write_text("X = 1\n")
+    (tmp_path / "app").mkdir()
+    monkeypatch.setattr("pyxpo.build.autolink.linked_roots", lambda project: [pkg])
+    s = srv.DevServer(str(tmp_path), port=0, token="tok")
+    try:
+        s._tick()
+        assert "module package changed" not in capsys.readouterr().err
+        (pkg / "__init__.py").write_text("X = 22\n")
+        (pkg / "__pycache__").mkdir()
+        (pkg / "__pycache__" / "x.pyc").write_bytes(b"")
+        s._tick()
+        assert "module package changed (pyxpo_demo)" in capsys.readouterr().err
+        s._tick()
+        assert "module package changed" not in capsys.readouterr().err  # warned once per change
+    finally:
+        s.httpd.server_close()
+
+
+def test_linked_roots_never_raises(tmp_path):
+    from pyxpo.build import autolink
+
+    (tmp_path / "pyproject.toml").write_text('[tool.pyxpo]\nname = "A"\nmodules = ["no-such-module"]\n')
+    assert autolink.linked_roots(tmp_path) == []
+
+
 def test_client_does_not_need_urllib_request():
     # The Mac (Catalyst) Python has no _scproxy, so `import urllib.request` fails there.
     import subprocess
