@@ -128,7 +128,9 @@ without an emulator. `pyxpo build web` never includes it; `--no-devtools` hides 
 - **Breakpoint**: the active breakpoint and window size. Click a breakpoint to view the app at that width.
 - **Appearance**: System, Light or Dark. **Behaviour**: Web, iOS or Android sets `Platform.OS`, so stacks slide and
   swipe like the phone app. On Android, Esc is the back button.
-- Zoom fits the device to the window, or pick 50 to 150%. Cmd/Ctrl+Shift+M turns the device view on and off.
+- A toolbar next to the device works like an emulator's: rotate, zoom in and out, fit, 1:1, light/dark, back,
+  reload. Zoom goes from 20 to 300%: use the toolbar, the panel slider, Ctrl/Cmd + scroll or a trackpad pinch over
+  the device, or drag the grip at its bottom right corner. Cmd/Ctrl+Shift+M turns the device view on and off.
   Settings are kept per browser.
 
 ## Responsive layout
