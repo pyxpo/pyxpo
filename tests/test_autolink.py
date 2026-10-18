@@ -227,3 +227,94 @@ def test_info_plist_conflict_and_direct_override(tmp_path):
     assert autolink.info_plist([a, b], {"bb": {"infoPlist": {"NSK": "mine"}}}) == {"NSK": "mine"}
     c = make_module(tmp_path, "cc", "pyxpo_cc", ios={"classes": ["C"], "infoPlist": {"NSK": {"default": "one"}}})
     assert autolink.info_plist([a, c], {}) == {"NSK": "one"}
+
+
+GMA = {"name": "GoogleMobileAds", "url": "https://github.com/googleads/swift-package-manager-google-mobile-ads",
+       "version": "12.0.0", "products": ["GoogleMobileAds"], "platformFilter": "iOS"}
+
+
+def _with_spm(root, name, pkgs):
+    return make_module(root, name, "pyxpo_" + name.replace("-", "_"),
+                       ios={"classes": ["DemoModule"], "swiftPackages": pkgs})
+
+
+def test_validate_swift_packages():
+    ok = {"name": "ok", "native": "X"}
+    autolink.validate(dict(ok, ios={"classes": ["A"], "swiftPackages": [GMA]}), "f")
+    bad = [
+        "GMA",
+        [dict(GMA, name="Bad\nname")],
+        [dict(GMA, url="http://github.com/x/y")],
+        [dict(GMA, url="https://github.com/x/y\n  evil: 1")],
+        [dict(GMA, url='https://github.com/x/y"')],
+        [dict(GMA, version="12")],
+        [dict(GMA, version="12.0.0\nx")],
+        [dict(GMA, products=[])],
+        [dict(GMA, products=["Ok", "no spaces"])],
+        [dict(GMA, platformFilter="tvOS")],
+    ]
+    for pkgs in bad:
+        with pytest.raises(BuildError, match="swiftPackages"):
+            autolink.validate(dict(ok, ios={"classes": ["A"], "swiftPackages": pkgs}), "f")
+
+
+def test_render_ios_writes_swift_package_include(tmp_path):
+    gen = tmp_path / "gen"
+    autolink.render_ios(gen, [make_module(tmp_path / "plain")], {})
+    assert "packages: {}" in (gen / "modules.project.yml").read_text()  # always present: project.yml includes it
+    ump = {"name": "GoogleUserMessagingPlatform", "url": "https://github.com/googleads/swift-package-manager-google-user-messaging-platform",
+           "version": "3.0.0", "products": ["GoogleUserMessagingPlatform"]}
+    m = _with_spm(tmp_path / "mods", "ads", [GMA, ump])
+    autolink.render_ios(gen, [m], {})
+    text = (gen / "modules.project.yml").read_text()
+    assert '"GoogleMobileAds":\n    url: "https://github.com/googleads/swift-package-manager-google-mobile-ads"\n    from: "12.0.0"' in text
+    assert '      - package: "GoogleMobileAds"\n        product: "GoogleMobileAds"\n        platformFilter: iOS' in text
+    assert '        product: "GoogleUserMessagingPlatform"\n' in text and text.count("platformFilter") == 1
+
+
+def test_swift_packages_merge_and_conflict(tmp_path):
+    a = _with_spm(tmp_path, "aa", [GMA])
+    b = _with_spm(tmp_path, "bb", [dict(GMA, version="12.2.0", products=["GoogleMobileAds", "Extra"], platformFilter="all")])
+    (p,) = autolink.swift_packages([a, b])
+    assert p["version"] == "12.2.0" and p["products"] == ["GoogleMobileAds", "Extra"] and p["platformFilter"] == "all"
+    c = _with_spm(tmp_path, "cc", [dict(GMA, url="https://github.com/someone/fork")])
+    with pytest.raises(BuildError, match="different URLs"):
+        autolink.swift_packages([a, c])
+
+
+def test_check_ios_wiring_needs_include_for_swift_packages(tmp_path):
+    base = "settings:\n  base:\n    GENERATE_INFOPLIST_FILE: YES\n    INFOPLIST_FILE: $(PYXPO_INFOPLIST)\n"
+    (tmp_path / "project.yml").write_text(base)
+    m = _with_spm(tmp_path / "mods", "ads", [GMA])
+    autolink.check_ios_wiring(tmp_path, [make_module(tmp_path / "plain")])
+    with pytest.raises(BuildError, match="include:\n  - path: pyxpo-gen/modules.project.yml"):
+        autolink.check_ios_wiring(tmp_path, [m])
+    (tmp_path / "project.yml").write_text("include:\n  - path: pyxpo-gen/modules.project.yml\n" + base)
+    autolink.check_ios_wiring(tmp_path, [m])
+
+
+def test_ios_template_includes_module_packages():
+    from pyxpo.build import ios
+    assert autolink.IOS_INCLUDE in (ios.TEMPLATE / "user" / "project.yml").read_text()
+
+
+def test_xcodegen_merges_module_packages(tmp_path):
+    """Real XcodeGen run: the generated include adds the package and a Catalyst-filtered product to PyxpoApp."""
+    import shutil
+    import subprocess
+    from pyxpo.build import ios
+    xg = shutil.which("xcodegen") or ("/opt/homebrew/bin/xcodegen" if shutil.os.path.exists("/opt/homebrew/bin/xcodegen") else None)
+    if not xg:
+        pytest.skip("xcodegen not installed")
+    native = tmp_path / "ios"
+    for rel in ("App", "pyxpo-gen/runtime", "pyxpo-gen/native", "pyxpo-gen/Python.xcframework"):
+        (native / rel).mkdir(parents=True)
+    (native / "pyxpo-gen" / "Pyxpo.xcconfig").write_text("")
+    (native / "project.yml").write_text((ios.TEMPLATE / "user" / "project.yml").read_text())
+    autolink.render_ios(native / "pyxpo-gen", [_with_spm(tmp_path / "mods", "ads", [GMA])], {})
+    subprocess.run([xg, "generate", "--spec", str(native / "project.yml"), "--project", str(native), "--quiet"],
+                   cwd=str(native), check=True, capture_output=True)
+    pbx = (native / "PyxpoApp.xcodeproj" / "project.pbxproj").read_text()
+    assert "swift-package-manager-google-mobile-ads" in pbx and "minimumVersion = 12.0.0" in pbx
+    assert "productName = GoogleMobileAds" in pbx and "platformFilter = ios" in pbx
+    assert "Python.xcframework" in pbx  # the user's own dependencies are kept (arrays append)

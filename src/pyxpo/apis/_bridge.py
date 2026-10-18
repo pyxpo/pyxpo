@@ -32,11 +32,16 @@ def report(exc: BaseException) -> None:
 
 
 def spawn(coro: Any) -> Any:
-    """Runs a coroutine on the app loop from a sync callback. Errors go to `report`."""
+    """Runs a coroutine on the app loop from a sync callback. Errors go to `report`.
+    An app mounted without a loop (tests, tooling) uses the running loop when there is one."""
     loop = getattr(_app, "loop", None)
     if loop is None:
-        coro.close()
-        return None
+        import asyncio
+        try:
+            loop = asyncio.get_running_loop()
+        except RuntimeError:
+            coro.close()
+            return None
 
     async def run() -> None:
         try:

@@ -1,6 +1,8 @@
 # Xcode project spec for xcodegen. This file is yours: edit it freely (it is never overwritten by `pyxpo build`).
 # App name, bundle id, version and signing team come from [tool.pyxpo] through pyxpo-gen/Pyxpo.xcconfig.
 name: PyxpoApp
+include:
+  - path: pyxpo-gen/modules.project.yml  # Swift packages of linked native modules (generated)
 options:
   bundleIdPrefix: dev.pyxpo
   createIntermediateGroups: true

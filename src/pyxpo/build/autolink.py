@@ -24,10 +24,16 @@ SCHEMA_VERSION = 1
 NAME_RE = re.compile(r"^[a-z][a-z0-9-]*$")
 CLASS_RE = re.compile(r"^[A-Za-z_][A-Za-z0-9_.]*$")
 PLIST_KEY_RE = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
+# Swift package fields end up in the generated XcodeGen include, so they are held to plain values.
+SPM_NAME_RE = re.compile(r"^[A-Za-z_][A-Za-z0-9_-]*$")
+SPM_URL_RE = re.compile(r"^https://[A-Za-z0-9.-]+(/[A-Za-z0-9._~-]+)+$")
+SPM_VERSION_RE = re.compile(r"^\d+\.\d+\.\d+$")
+SPM_FILTERS = ("all", "iOS", "macOS")
+IOS_INCLUDE = "pyxpo-gen/modules.project.yml"
 SETTINGS_LINE = 'apply(from = "pyxpo-gen/modules.settings.gradle.kts")'
 APP_LINE = 'apply(from = "../pyxpo-gen/modules.app.gradle.kts")'
 # First-party modules, published separately; known here only to tell the user which package to install.
-OFFICIAL = ("application", "audio", "camera", "device", "drawing-canvas", "fetch", "file-system", "haptics", "image-manipulator", "image-picker", "localization", "location", "media-library", "mesh-view", "network", "notifications", "secure-store", "sharing", "sqlite", "storage", "web-browser", "whiteboard")
+OFFICIAL = ("ads", "application", "audio", "camera", "device", "drawing-canvas", "fetch", "file-system", "haptics", "image-manipulator", "image-picker", "localization", "location", "media-library", "mesh-view", "network", "notifications", "secure-store", "sharing", "sqlite", "storage", "web-browser", "whiteboard")
 
 
 def dist_name(name: str) -> str:
@@ -103,6 +109,21 @@ def validate(meta: Any, where: str) -> Dict[str, Any]:
             raise bad("ios.infoPlist key %r must be a plain Info.plist key (letters, digits, underscores)" % key)
         if not isinstance(spec, dict) or "default" not in spec:
             raise bad("ios.infoPlist.%s needs a 'default'" % key)
+    pkgs = ios.get("swiftPackages", [])
+    if not isinstance(pkgs, list):
+        raise bad("ios.swiftPackages must be a list")
+    for p in pkgs:
+        if not isinstance(p, dict) or not SPM_NAME_RE.match(str(p.get("name", ""))):
+            raise bad("ios.swiftPackages entries need a 'name' (letters, digits, dashes, underscores)")
+        if not SPM_URL_RE.match(str(p.get("url", ""))):
+            raise bad("ios.swiftPackages.%s.url must be an https:// repository URL" % p["name"])
+        if not SPM_VERSION_RE.match(str(p.get("version", ""))):
+            raise bad("ios.swiftPackages.%s.version must be a version like 12.0.0 (used as the lowest allowed version)" % p["name"])
+        prods = p.get("products")
+        if not isinstance(prods, list) or not prods or not all(isinstance(x, str) and SPM_NAME_RE.match(x) for x in prods):
+            raise bad("ios.swiftPackages.%s.products must be a non-empty list of product names" % p["name"])
+        if p.get("platformFilter", "all") not in SPM_FILTERS:
+            raise bad("ios.swiftPackages.%s.platformFilter must be one of %s" % (p["name"], ", ".join(SPM_FILTERS)))
     return meta
 
 
@@ -304,6 +325,47 @@ def render_ios(gen: Path, mods: List[Module], options: Optional[Dict[str, Any]] 
                 dst.parent.mkdir(parents=True, exist_ok=True)
                 shutil.copy2(str(f), str(dst))
     (gen / "runtime" / "PxModuleRegistry.swift").write_text(registry_swift([m for m in mods if m.ios]))
+    (gen / "modules.project.yml").write_text(swift_packages_yml(mods))
+
+
+def swift_packages(mods: List[Module]) -> List[Dict[str, Any]]:
+    """Linked modules' Swift packages, one entry per package name. The highest lowest-version wins; products are merged."""
+    out: Dict[str, Dict[str, Any]] = {}
+    for m in mods:
+        for p in m.ios.get("swiftPackages", []):
+            cur = out.get(p["name"])
+            if cur is None:
+                out[p["name"]] = {"name": p["name"], "url": p["url"], "version": p["version"],
+                                  "products": list(p["products"]), "platformFilter": p.get("platformFilter", "all"), "owner": m.name}
+                continue
+            if cur["url"].rstrip("/").lower() != p["url"].rstrip("/").lower():
+                raise BuildError("modules %r and %r both use Swift package %r from different URLs (%s, %s)"
+                                 % (cur["owner"], m.name, p["name"], cur["url"], p["url"]))
+            if tuple(map(int, p["version"].split("."))) > tuple(map(int, cur["version"].split("."))):
+                cur["version"] = p["version"]
+            cur["products"] += [x for x in p["products"] if x not in cur["products"]]
+            if p.get("platformFilter", "all") != cur["platformFilter"]:
+                cur["platformFilter"] = "all"  # one module needs it on every platform
+    return sorted(out.values(), key=lambda p: p["name"])
+
+
+def swift_packages_yml(mods: List[Module]) -> str:
+    """The XcodeGen include that adds module Swift packages to the PyxpoApp target (project.yml includes it).
+    Values are validated plain strings, written JSON-quoted (valid YAML)."""
+    pkgs = swift_packages(mods)
+    head = "# Generated by pyxpo from linked modules' ios.swiftPackages. Do not edit; project.yml includes it.\n"
+    if not pkgs:
+        return head + "packages: {}\n"
+    lines = [head + "packages:"]
+    for p in pkgs:
+        lines += ["  %s:" % json.dumps(p["name"]), "    url: %s" % json.dumps(p["url"]), "    from: %s" % json.dumps(p["version"])]
+    lines += ["targets:", "  PyxpoApp:", "    dependencies:"]
+    for p in pkgs:
+        for prod in p["products"]:
+            lines += ["      - package: %s" % json.dumps(p["name"]), "        product: %s" % json.dumps(prod)]
+            if p["platformFilter"] != "all":
+                lines.append("        platformFilter: %s" % p["platformFilter"])
+    return "\n".join(lines) + "\n"
 
 
 def _gradle_str(s: str) -> str:
@@ -363,12 +425,15 @@ def check_android_wiring(native: Path) -> None:
             raise BuildError("%s is missing the native-module line; add this to it:\n    %s" % (f, line))
 
 
-def check_ios_wiring(native: Path) -> None:
+def check_ios_wiring(native: Path, mods: Optional[List[Module]] = None) -> None:
     """An ejected project predating autolinking sets GENERATE_INFOPLIST_FILE to NO, which drops module Info.plist keys."""
     f = Path(native) / "project.yml"
     if not f.is_file():
         return
     text = f.read_text()
+    if mods and swift_packages(mods) and IOS_INCLUDE not in text:
+        raise BuildError("%s does not include the module Swift packages (needed by %s); add this at the top level:\n"
+                         "include:\n  - path: %s" % (f, ", ".join(sorted({m.name for m in mods if m.ios.get("swiftPackages")})), IOS_INCLUDE))
     if not re.search(r"GENERATE_INFOPLIST_FILE:\s*[\"']?YES", text):
         raise BuildError("%s must set GENERATE_INFOPLIST_FILE: YES (under settings.base) so native-module Info.plist keys are applied" % f)
     if "PYXPO_INFOPLIST" not in text or "deploymentTarget" in text:

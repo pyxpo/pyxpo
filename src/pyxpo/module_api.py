@@ -11,7 +11,7 @@ from typing import Any, Callable, Dict, Optional
 from ._keys import snake_aliases
 from .element import _host
 from .apis import _env
-from .apis._bridge import call
+from .apis._bridge import call, report, spawn
 from .modules import ModuleNotLinkedError, dispatch, on_event, require_linked
 
 # 1: calls, events, permissions, presenter/activity hooks.
@@ -23,7 +23,7 @@ NATIVE_CONTRACT = 3
 __all__ = [
     "NATIVE_CONTRACT", "NotSupportedError", "ModuleNotLinkedError", "call", "on_event", "dispatch",
     "require_linked", "snake_aliases", "platform", "permission_response", "require_supported", "constants",
-    "native_view", "view_tag",
+    "native_view", "view_tag", "spawn", "report",
 ]
 
 

@@ -165,9 +165,9 @@ def stage(native: Path, project: Path, cfg: Dict[str, object], release: bool, ki
         raise BuildError("no iOS %s CPython in %s (device builds need an ios-arm64 slice in the runtime; "
                          "set PYXPO_IOS_DIST or see `pyxpo doctor`)" % (kind, DIST))
     nc = native_config.resolve(cfg, project)
-    if prebuild_mod.is_ejected(native):
-        autolink.check_ios_wiring(native)
     linked = autolink.link(cfg, project)
+    if prebuild_mod.is_ejected(native):
+        autolink.check_ios_wiring(native, linked.modules)
     gen = render_gen(native, nc, linked, project)
     st = gen / "stage"
     _stage_stdlib(slice_dir, st / ("python-" + kind), host_python())
