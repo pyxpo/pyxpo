@@ -401,7 +401,7 @@ name = "${APP_NAME:-My App}"
 bundle_identifier = "com.example.app${BUNDLE_SUFFIX:-}"    # .env.staging: BUNDLE_SUFFIX=.staging
 
 [tool.pyxpo.extra]
-api_docs = "${PYXPO_PUBLIC_API_URL}/docs"                  # read with Constants.extra()["api_docs"]
+api_docs = "${PYXPO_PUBLIC_API_URL}/docs"                  # read with Constants.extra["api_docs"]
 ```
 
 - `extra` ships inside the app, so it may only use `PYXPO_PUBLIC_` variables. A build-only variable there is an
