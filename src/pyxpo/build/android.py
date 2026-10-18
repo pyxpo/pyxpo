@@ -20,7 +20,10 @@ DIST = runtime.dist_path("android")
 COMMON = runtime.native_common()
 TEMPLATE = Path(__file__).resolve().parent.parent / "templates" / "android"
 
-ABI_TAGS = {"arm64-v8a": "android_24_arm64_v8a", "x86_64": "android_24_x86_64"}
+ABI_TAGS = {"arm64-v8a": "android_24_arm64_v8a", "armeabi-v7a": "android_24_armeabi_v7a", "x86_64": "android_24_x86_64"}
+# 32-bit ARM, for phones that run a 32-bit Android (Galaxy M13 5G and many low-cost phones). Unless [tool.pyxpo]
+# abis lists it, a build leaves it out with a warning when a requirement has no wheel for it.
+OPTIONAL_ABIS = ("armeabi-v7a",)
 SO_FOR_JNILIBS = ["libpython3.13.so", "libcrypto_python.so", "libssl_python.so", "libsqlite3_python.so"]
 STDLIB_SKIP = ("test", "idlelib", "tkinter", "turtledemo", "ensurepip", "lib2to3", "config-3.13")
 
@@ -249,17 +252,33 @@ def stage(native: Path, project: Path, cfg: Dict[str, object], release: bool, ab
     for old in ("app.zip", "manifest.txt"):  # older pyxpo kept the app in main assets
         if (assets / old).exists():
             (assets / old).unlink()
+    explicit = _cfg_abis(cfg) is not None
+    kept = []
     for abi in abis:
         prefix = DIST / abi / "prefix"
+        site = gen / "site" / abi
+        try:
+            install_requires(list(cfg.get("requires", [])), abi, site, pip_index_args(cfg, project))
+        except BuildError:
+            if explicit or abi not in OPTIONAL_ABIS:
+                raise
+            shutil.rmtree(str(site), ignore_errors=True)
+            term.warn("left out %s: a requirement has no %s wheel, so phones with a 32-bit Android cannot install "
+                      "this app. List abis in [tool.pyxpo] to make this an error." % (abi, ABI_TAGS[abi]))
+            continue
+        kept.append(abi)
         _zip_tree(assets / ("stdlib-%s.zip" % abi), prefix / "lib" / "python3.13",
                   arcprefix="lib/python3.13/", skip=STDLIB_SKIP)
-        site = gen / "site" / abi
-        install_requires(list(cfg.get("requires", [])), abi, site, pip_index_args(cfg, project))
         (jni / abi).mkdir(parents=True)
         _check_16kb(site, jni / abi, abi, bool(cfg.get("allow_4kb_libs", False)))
         _zip_tree(assets / ("site-%s.zip" % abi), site)
         for so in SO_FOR_JNILIBS:
             shutil.copy2(str(prefix / "lib" / so), str(jni / abi / so))
+    if kept != abis:
+        (gen / "pyxpo.properties").write_text(properties_text(nc, project, kept))
+    for old in list(assets.glob("stdlib-*.zip")) + list(assets.glob("site-*.zip")):
+        if old.stem.split("-", 1)[1] not in kept:  # an ABI an earlier build had
+            old.unlink()
     variant = gen / ("app-release" if release else "app-debug") / "pyxpo"
     variant.mkdir(parents=True, exist_ok=True)
     app_zip = variant / "app.zip"

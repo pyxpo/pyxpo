@@ -8,7 +8,7 @@ No Chaquopy, Briefcase, python-for-android, Kivy, Flet, or Pyodide (references o
 **One Python version per Pyxpo release** (default 3.13) on all targets.
 
 **Android loader** (`shell-android/`)
-- `libpython3.13.so` cross-built for `arm64-v8a`/`x86_64` in `jniLibs/<abi>`.
+- `libpython3.13.so` cross-built for `arm64-v8a`/`armeabi-v7a`/`x86_64` in `jniLibs/<abi>`. `armeabi-v7a` is for phones that run a 32-bit Android; a build leaves it out with a warning when a requirement has no wheel for it, unless `[tool.pyxpo] abis` lists it.
 - stdlib, `lib-dynload`, site-packages ship as a versioned asset, extracted to `filesDir/pyxpo/<hash>/` on first launch or hash change.
 - `pyxpo_jni.c` runs `Py_InitializeFromConfig` (home/path = extracted dirs) on a `PyxpoPython` thread, then `pyxpo.router.entry` (file-based routing over `app/`; legacy `app/main.py` still runs).
 

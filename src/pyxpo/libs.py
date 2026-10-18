@@ -5,7 +5,7 @@ import sys
 import tempfile
 from typing import Dict, List, Optional, Tuple
 
-from .platforms import PYTHON_VERSION, TARGET_TAGS
+from .platforms import OPTIONAL_TAGS, PYTHON_VERSION, TARGET_TAGS
 
 HEAVY = {
     "tensorflow": "full TensorFlow has no mobile build; use ai-edge-litert (TFLite) or onnxruntime instead",
@@ -38,5 +38,6 @@ def format_table(package: str, results: Dict[str, Tuple[bool, str]]) -> str:
     width = max(len(t) for t in results) if results else 10
     lines = ["%s wheel availability:" % package]
     for tag, (ok, msg) in results.items():
-        lines.append("  %-*s  %s" % (width, tag, "OK" if ok else "MISSING (%s)" % msg))
+        state = "OK" if ok else "MISSING (%s)%s" % (msg, ", optional" if tag in OPTIONAL_TAGS else "")
+        lines.append("  %-*s  %s" % (width, tag, state))
     return "\n".join(lines)

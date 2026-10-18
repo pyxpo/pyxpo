@@ -70,7 +70,9 @@ class PyxpoRuntime private constructor(context: Context) {
     fun start(module: String = "pyxpo.router.entry", devEnv: Map<String, String> = emptyMap()) {
         if (started) return
         started = true
-        val abi = Build.SUPPORTED_ABIS.first { it == "arm64-v8a" || it == "x86_64" }
+        // the first ABI the phone runs that the APK ships, the same pick Android makes for the native libs
+        val shipped = ctx.assets.list("pyxpo")?.toSet() ?: emptySet()
+        val abi = Build.SUPPORTED_ABIS.first { "stdlib-$it.zip" in shipped }
         // 8 MB stack: CPython recursion + numpy imports need more than the default
         Thread(null, {
             val root = extract(abi)

@@ -401,7 +401,10 @@ def cmd_add_lib(args: argparse.Namespace) -> int:
         return 2
     results = libs.check_package(pkg, cfg.get("targets", ["android", "ios"]))
     print(libs.format_table(pkg, results))
-    missing = [t for t, (ok, _) in results.items() if not ok]
+    missing = [t for t, (ok, _) in results.items() if not ok and t not in libs.OPTIONAL_TAGS]
+    if any(not ok for t, (ok, _) in results.items() if t in libs.OPTIONAL_TAGS):
+        print("note: no 32-bit ARM wheel; Android builds leave out armeabi-v7a, so phones with a 32-bit Android "
+              "cannot install the app")
     requires = list(cfg.get("requires", []))
     if pkg not in requires:
         requires.append(pkg)

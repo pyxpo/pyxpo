@@ -140,9 +140,13 @@ Users point `PYXPO_WINDOWS_DIST` at the shell folder. See windows/README.md.
 ```
 python tools/package_runtime.py ios dist/ios out/ --host-python .cache/Python-3.13.7/cross-build/build/python.exe
 python tools/package_runtime.py android-arm64-v8a dist/android/arm64-v8a out/
+python tools/package_runtime.py android-armeabi-v7a dist/android/armeabi-v7a out/
 python tools/package_runtime.py android-x86_64 dist/android/x86_64 out/
 gh release create runtime-3.13.7-1 out/*.tar.gz --title "pyxpo runtime 3.13.7-1"
 ```
+
+A new ABI for the same CPython (like `armeabi-v7a`) can go into the current runtime release with
+`gh release upload runtime-3.13.7-1 out/<file>`: the other assets and their hashes stay the same.
 
 Copy each printed entry into `assets` of `src/pyxpo/build/runtime_manifest.json` and set `runtime` and `base_url` to
 match. Then release a new core version, because the manifest is inside the core wheel. Never delete an old runtime

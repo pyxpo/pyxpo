@@ -9,7 +9,7 @@
 
 ## Remote push + remount fix: committed, tag v0.1.0a3 pushed
 - notifications FCM/APNs token, plugin, tools/send_push.py. Android activity remount fix (process-wide runtime, `remount` event).
-- Release run 38893625537 waits for user approval (pypi env). Then tag pkg/notifications/v0.1.0a2, user approves again.
+- Released (Oct 19): core 0.1.0a3 + 0.1.0a4, pyxpo-notifications 0.1.0a2, pyxpo-dot-env 0.1.0a1 (renamed from pyxpo-env), pyxpo-google-mobile-ads 0.1.0a1.
 - Later: real FCM e2e (~/.pyxpo-secrets/), missing packages batch, wheels CI.
 
 ## VS Code extension (editors/vscode): committed + pushed, 0.1.0 live on Marketplace (publisher pyxpo, hand upload; bump version each upload).
@@ -20,25 +20,16 @@
 - Windows CI green (run 38975954256): app renders imagekit. Fix was PyxpoShell.pri copied to resources.pri.
 - Windows open bugs (from CI home.png): Feather icons missing; card shadows draw grey rectangles, not rounded.
 
-## Web target (Oct 17, committed locally, NOT pushed)
-- `pyxpo run web` (dev server, SPA fallback, SSE reload) / `pyxpo build web` (static build/web, 404.html, hashed zip).
-- Pyodide 0.27.7 in page; reconciler = virtual DOM (keyed, LIS moves); app.js applies ops; History.sync from RouterRoot.
-- Module web backends: packages/*/web.py (image-picker, image-manipulator via Pillow micropip, media-library, sharing).
-- browser.boot puts linked module list in env (require_linked failed on web before).
-- `[tool.pyxpo.web]` title/base/packages/pyodide_url in schema. README "Web" section.
-- E2E (headless Chrome CDP, scratchpad/cdp): nav, back/forward, deep link, 404, pick 2 photos, resize, Save, Share OK.
-- Tests: tests/test_web_build.py, store href test. Full suite 561 pass.
-- Web feel (Oct 17): Stack on web = no animation/gesture, all pages mounted (visibility hidden + inert, scroll and focus kept); Link -> <a href> overlay; pressables tabindex/role, Enter/Space, hover, focus-visible; web header arrow-left 56px. router.runtime.on_web(). E2E OK in Chrome.
-
-## Responsive + layout + web dev tools (Oct 17, committed locally, NOT pushed)
+## Web target (Oct 17, pushed): run/build web.
+## Responsive + layout + web dev tools (Oct 17, pushed)
 - pyxpo/responsive.py breakpoints (xs..xxl), maps in style values/blocks; reconciler.refresh_responsive restyles without re-render.
-- hooks use_breakpoint/use_breakpoint_value/use_media_query; components/layout.py Container Row Col Grid GridItem Flex HStack VStack Center Spacer Show Hide. tests/test_responsive.py.
 - renderers/web/devtools.js: dev server only (`--no-devtools`), FAB panel, phone/tablet frames, rotate, custom size, zoom, scheme, platform (os override, reload), touch drag-scroll. app.js reads window.PYXPO_DEVICE(), `pyxpo-env` event, `pyxpo-statusbar` event. CDP e2e OK.
-- Full suite 588 pass.
-- Devtools v2 (bbb8073): side toolbar (rotate/zoom/fit/1:1/theme/back/reload), zoom 20-300% via slider, ctrl+wheel/pinch, corner grip; panel redesign; device sits left of open panel.
 - Later: `[tool.pyxpo] breakpoints` config (devtools ruler reads PYXPO_CONFIG.breakpoints).
 - Next: fix Windows icon/shadow bugs. Release with themes/web/responsive (0.1.0a3) needs user OK; then drop the "ships after 0.1.0a2" callouts in pyxpo-web.
 
-## imagekit responsive + StyleSheet refactor (Oct 17, committed 78ea5da + eea7ded; push pending: GitHub unreachable)
-- Responsive layout (Container/GridRow/Col/Grid) in imagekit.
-- Unistyles-3-style themes in core: src/pyxpo/themes.py, `StyleSheet.configure/create(lambda theme, rt)/setTheme`, dynamic styles, `useAppTheme` (router.useTheme name taken). Reconciler re-styles on theme/insets/scheme/bp change via style_key, no re-render. imagekit migrated (no makeStyles). tests/test_themes.py, README "Themes". 597 pass. Web verified light/dark/phone/desktop.
+## imagekit responsive + StyleSheet themes (Oct 17, pushed): src/pyxpo/themes.py, tests/test_themes.py.
+
+## armeabi-v7a (Oct 19, in progress)
+- Client SM-M136B (M13 5G) runs 32-bit Android; APK had only arm64-v8a/x86_64, so "not compatible".
+- Added v7a: build_cpython.py (patches android.py HOSTS), platforms/libs/cli (v7a optional tag), android.py stage drops v7a with a warning when no wheel (unless `abis` set), PyxpoRuntime.kt picks first shipped ABI. tests/test_android_abis.py. 857 pass.
+- Next: CPython v7a build (.cache/build_armv7.log), rebuild imagekit, check native-code, package runtime asset, user uploads it to runtime-3.13.7-1, add manifest entry, core release.

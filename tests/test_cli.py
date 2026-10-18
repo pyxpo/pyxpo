@@ -135,3 +135,17 @@ def test_python_dash_m_pyxpo():
 
     r = subprocess.run([sys.executable, "-m", "pyxpo", "stage", "--help"], capture_output=True, text=True)
     assert r.returncode == 0 and "--kind" in r.stdout
+
+
+def test_add_lib_missing_32bit_wheel_is_only_a_note(tmp_path, monkeypatch, capsys):
+    cli.main(["create", "demo", "--dir", str(tmp_path)])
+    proj = tmp_path / "demo"
+
+    def fake_run(cmd, **kw):
+        ok = cmd[cmd.index("--platform") + 1] != "android_24_armeabi_v7a"
+        return subprocess.CompletedProcess(cmd, 0 if ok else 1, "", "" if ok else "ERROR: no matching distribution")
+
+    monkeypatch.setattr(libs.subprocess, "run", fake_run)
+    assert cli.main(["add-lib", "numpy", "--dir", str(proj)]) == 0
+    out = capsys.readouterr().out
+    assert "android_24_armeabi_v7a" in out and "optional" in out and "32-bit" in out
