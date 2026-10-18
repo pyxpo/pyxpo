@@ -10,10 +10,13 @@ NAME = "_app_config.json"
 
 
 def public(nc: Dict[str, Any]) -> Dict[str, Any]:
-    return {"name": nc["name"], "slug": nc["slug"], "version": nc["version"], "build_number": nc["build_number"],
-            "scheme": nc["scheme"], "schemes": list(nc["schemes"]), "extra": dict(nc["extra"]),
-            "ios": {"bundle_identifier": nc["ios"]["bundle_id"], "build_number": nc["ios"]["build_number"]},
-            "android": {"package": nc["android"]["package"], "version_code": nc["android"]["version_code"]}}
+    out = {"name": nc["name"], "slug": nc["slug"], "version": nc["version"], "build_number": nc["build_number"],
+           "scheme": nc["scheme"], "schemes": list(nc["schemes"]), "extra": dict(nc["extra"]),
+           "ios": {"bundle_identifier": nc["ios"]["bundle_id"], "build_number": nc["ios"]["build_number"]},
+           "android": {"package": nc["android"]["package"], "version_code": nc["android"]["version_code"]}}
+    if nc.get("module_data"):  # what module build hooks shipped (pyxpo.modules.build_data)
+        out["modules"] = dict(nc["module_data"])
+    return out
 
 
 def write(pyxpo_dir: Path, nc: Dict[str, Any]) -> None:

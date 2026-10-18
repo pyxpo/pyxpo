@@ -12,7 +12,7 @@ from ._keys import snake_aliases
 from .element import _host
 from .apis import _env
 from .apis._bridge import call, report, spawn
-from .modules import ModuleNotLinkedError, dispatch, on_event, require_linked
+from .modules import ModuleNotLinkedError, build_data, dispatch, on_event, require_linked
 
 # 1: calls, events, permissions, presenter/activity hooks.
 # 2: adds module constants (`constants(native)`), read synchronously at startup, the iOS
@@ -23,7 +23,7 @@ NATIVE_CONTRACT = 3
 __all__ = [
     "NATIVE_CONTRACT", "NotSupportedError", "ModuleNotLinkedError", "call", "on_event", "dispatch",
     "require_linked", "snake_aliases", "platform", "permission_response", "require_supported", "constants",
-    "native_view", "view_tag", "spawn", "report",
+    "native_view", "view_tag", "spawn", "report", "build_data",
 ]
 
 

@@ -107,6 +107,7 @@ Only the modules an app lists are compiled into it.
 
 | Package | Import | `modules` entry |
 |---|---|---|
+| `pyxpo-env` | `from pyxpo_env import env` | `env` |
 | `pyxpo-file-system` | `from pyxpo_file_system import File, Directory, Paths` | `file-system` |
 | `pyxpo-image-manipulator` | `from pyxpo_image_manipulator import ImageManipulator` | `image-manipulator` |
 | `pyxpo-image-picker` | `from pyxpo_image_picker import ImagePicker` | `image-picker` |

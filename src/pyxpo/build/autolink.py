@@ -29,11 +29,13 @@ SPM_NAME_RE = re.compile(r"^[A-Za-z_][A-Za-z0-9_-]*$")
 SPM_URL_RE = re.compile(r"^https://[A-Za-z0-9.-]+(/[A-Za-z0-9._~-]+)+$")
 SPM_VERSION_RE = re.compile(r"^\d+\.\d+\.\d+$")
 SPM_FILTERS = ("all", "iOS", "macOS")
+# `"build": {"hook": "pkg.sub:function"}`: host-side code run while the config loads (see pyxpo.module_hooks).
+HOOK_RE = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*(\.[A-Za-z_][A-Za-z0-9_]*)*:[A-Za-z_][A-Za-z0-9_]*$")
 IOS_INCLUDE = "pyxpo-gen/modules.project.yml"
 SETTINGS_LINE = 'apply(from = "pyxpo-gen/modules.settings.gradle.kts")'
 APP_LINE = 'apply(from = "../pyxpo-gen/modules.app.gradle.kts")'
 # First-party modules, published separately; known here only to tell the user which package to install.
-OFFICIAL = ("application", "audio", "camera", "device", "drawing-canvas", "fetch", "file-system", "google-mobile-ads", "haptics", "image-manipulator", "image-picker", "localization", "location", "media-library", "mesh-view", "network", "notifications", "secure-store", "sharing", "sqlite", "storage", "web-browser", "whiteboard")
+OFFICIAL = ("application", "audio", "camera", "device", "drawing-canvas", "env", "fetch", "file-system", "google-mobile-ads", "haptics", "image-manipulator", "image-picker", "localization", "location", "media-library", "mesh-view", "network", "notifications", "secure-store", "sharing", "sqlite", "storage", "web-browser", "whiteboard")
 
 
 def dist_name(name: str) -> str:
@@ -80,6 +82,9 @@ def validate(meta: Any, where: str) -> Dict[str, Any]:
     if meta.get("nativeContract", 1) > NATIVE_CONTRACT:
         raise bad("module needs native contract %d but this pyxpo provides %d: upgrade pyxpo"
                   % (meta["nativeContract"], NATIVE_CONTRACT))
+    build = meta.get("build", {})
+    if not isinstance(build, dict) or ("hook" in build and not HOOK_RE.match(str(build["hook"]))):
+        raise bad("build.hook must look like 'package.module:function'")
     ios, android = meta.get("ios") or {}, meta.get("android") or {}
     if not isinstance(ios, dict) or not isinstance(android, dict):
         raise bad("'ios' and 'android' must be JSON objects")
@@ -166,6 +171,24 @@ def discover() -> Dict[str, Module]:
             raise BuildError("native module name %r is provided twice" % m.name)
         found[m.name] = m
     return found
+
+
+def find(names: List[str]) -> Dict[str, Module]:
+    """The installed modules among `names`, loading only their entry points. Never raises: a broken or missing
+    module is left out here and reported by `resolve()` when the build links the app."""
+    out: Dict[str, Module] = {}
+    for ep in _entry_points():
+        if ep.name not in names or ep.name in out:
+            continue
+        try:
+            mod = ep.load()
+            f = getattr(mod, "__file__", None)
+            m = _load(Path(f).resolve().parent, mod.__name__) if f and Path(f).name == "__init__.py" else None
+        except Exception:  # noqa: BLE001
+            continue
+        if m is not None and m.name == ep.name:
+            out[m.name] = m
+    return out
 
 
 def linked_roots(project: Path) -> List[Path]:

@@ -14,6 +14,7 @@ from typing import Dict, List, Optional
 
 from .. import config_plugins, native_config, term
 from ..config import load_config, pip_index_args
+from ..module_hooks import build_mode
 from . import prebuild as prebuild_mod
 from . import app_json, autolink, icons, ios_config, runtime, splash
 from .android import BuildError, _run, _skip_runtime_file  # noqa: F401  (shared helpers)
@@ -154,7 +155,7 @@ def prebuild(project: Path, clean: bool = False) -> Path:
 def stage_project(project: Path, release: bool = False, kind: str = "simulator") -> None:
     """`pyxpo stage ios`: what an Xcode build of an ejected project runs before compiling."""
     project = Path(project).resolve()
-    stage(native_dir(project), project, load_config(project), release, kind)
+    stage(native_dir(project), project, load_config(project, build_mode(release)), release, kind)
 
 
 def stage(native: Path, project: Path, cfg: Dict[str, object], release: bool, kind: str) -> None:
@@ -279,7 +280,7 @@ def launch(udid: str, app_id: str, extras: Optional[Dict[str, str]] = None, cons
 # -- build ----------------------------------------------------------------
 def build(project: Path, release: bool = False, kind: str = "simulator") -> Path:
     project = Path(project).resolve()
-    cfg = load_config(project)
+    cfg = load_config(project, build_mode(release))
     nc = native_config.resolve(cfg, project)
     tool_path("xcodegen")
     native = native_dir(project)
