@@ -150,6 +150,33 @@ def _make_gradlew_executable(native: Path) -> None:
         w.chmod(w.stat().st_mode | 0o111)
 
 
+MOVED_STATE = (".gradle", "build", "app/build", "app/.cxx")
+
+
+def _drop_moved_gradle_state(native: Path, inside_gradle: bool = False) -> None:
+    """Gradle keeps absolute paths in .gradle/ and build/. After the project folder moves, AGP's incremental dexing
+    mixes old and new paths ("is located outside the root directory"). The path is recorded in .gradle/ (it goes
+    when the state goes); when it differs, the stale state is removed. A running Gradle has it open already, so the
+    Gradle stage task only says what to run."""
+    state = native / ".gradle"
+    marker = state / "pyxpo-root"
+    here = str(native.resolve())
+    old = marker.read_text().strip() if marker.is_file() else here
+    if old != here:
+        if inside_gradle:
+            term.warn("this project moved from %s; if the build fails, run `./gradlew --stop`, delete android/.gradle "
+                      "and android/app/build, then build again" % old)
+            return
+        term.warn("this project moved from %s: removing stale Gradle state" % old)
+        for rel in MOVED_STATE:
+            shutil.rmtree(str(native / rel), ignore_errors=True)
+        for b in sorted((native / GEN).glob("*/build")):
+            shutil.rmtree(str(b), ignore_errors=True)
+    if native.is_dir():
+        state.mkdir(exist_ok=True)
+        marker.write_text(here + "\n")
+
+
 def prebuild(project: Path, clean: bool = False) -> Path:
     """Ejects `<project>/android`: user-owned files are written once (edited ones are kept), `pyxpo-gen/` is refreshed."""
     project = Path(project).resolve()
@@ -166,6 +193,7 @@ def prebuild(project: Path, clean: bool = False) -> Path:
         if action == "conflict":
             term.warn("kept your edited android/%s; new version saved as android/%s.pyxpo-new" % (rel, rel))
     _make_gradlew_executable(dest)
+    _drop_moved_gradle_state(dest)
     render_gen(dest, nc, project, available_abis(_cfg_abis(cfg)), linked)
     return dest
 
@@ -319,6 +347,7 @@ def stage_project(project: Path, release: bool = False) -> None:
     abis = available_abis(_cfg_abis(cfg))
     if not abis:
         raise BuildError("no Android CPython build in %s (set PYXPO_ANDROID_DIST, or see `pyxpo doctor`)" % DIST)
+    _drop_moved_gradle_state(native_dir(project), inside_gradle=True)
     stage(native_dir(project), project, cfg, release, abis)
 
 
@@ -338,6 +367,7 @@ def build(project: Path, release: bool = False, install: bool = False, run: bool
         if native.exists():
             shutil.rmtree(str(native))
         _write_user(native, prebuild_mod.render(TEMPLATE / "user", {}))
+    _drop_moved_gradle_state(native)
     stage(native, project, cfg, release, abis)
 
     # PYXPO_STAGED: the app is staged already, so the Gradle stage task (for direct ./gradlew builds) skips itself

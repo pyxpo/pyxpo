@@ -81,3 +81,28 @@ def test_64bit_abi_without_wheels_still_fails(tmp_path, monkeypatch):
 def test_runtime_picks_a_shipped_abi():
     kt = (droid.TEMPLATE / "gen" / "runtime" / "java" / "dev" / "pyxpo" / "runtime" / "PyxpoRuntime.kt").read_text()
     assert 'Build.SUPPORTED_ABIS.first { "stdlib-$it.zip" in shipped }' in kt
+
+
+def test_moved_project_drops_stale_gradle_state(tmp_path, capsys):
+    old = tmp_path / "old" / "android"
+    (old / ".gradle").mkdir(parents=True)
+    droid._drop_moved_gradle_state(old)
+    assert (old / ".gradle" / "pyxpo-root").read_text().strip() == str(old.resolve())
+    new = tmp_path / "new" / "android"
+    new.parent.mkdir()
+    old.rename(new)
+    for rel in (".gradle/8.10.2/executionHistory", "app/build/intermediates", "pyxpo-gen/module-api/build"):
+        (new / rel).mkdir(parents=True)
+    (new / "app" / "src").mkdir()
+    droid._drop_moved_gradle_state(new, inside_gradle=True)  # Gradle has the state open: only a hint
+    assert "moved from" in capsys.readouterr().out
+    assert (new / "app" / "build").is_dir()
+    droid._drop_moved_gradle_state(new)
+    assert "removing stale Gradle state" in capsys.readouterr().out
+    assert not (new / "app" / "build").exists()
+    assert not (new / "pyxpo-gen" / "module-api" / "build").exists()
+    assert not (new / ".gradle" / "8.10.2").exists()
+    assert (new / "app" / "src").is_dir()
+    assert (new / ".gradle" / "pyxpo-root").read_text().strip() == str(new.resolve())
+    droid._drop_moved_gradle_state(new)  # same place again: nothing to do
+    assert "moved from" not in capsys.readouterr().out
