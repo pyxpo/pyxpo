@@ -67,8 +67,7 @@ env.mode                    # "development", "production", "staging", ...
 | Web page (`pyxpo run web` / `pyxpo build web`) | Full. The dev server rebuilds when a `.env` file is added, edited or removed. |
 | Desktop: Mac and Windows apps, `pyxpo run desktop --preview` | Full. The preview window gets the values from the build process directly. |
 
-Requires Python 3.9+ and a pyxpo version with module build hooks (the release after `0.1.0a3`; until then, install
-pyxpo from the `main` branch).
+Requires Python 3.9+ and `pyxpo>=0.1.0a4` (module build hooks).
 
 ## Install
 
