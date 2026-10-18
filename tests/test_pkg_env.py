@@ -169,9 +169,12 @@ def test_parse_schema():
     vars_, errors = schema.parse_schema({
         "PYXPO_PUBLIC_A": "int", "B": {"type": "bool", "default": "yes"},
         "C": {"type": "nope"}, "D": {"colour": 1}, "E": {"choices": []}, "F": {"pattern": "("},
-        "G": {"type": "int", "default": "x"}, "1BAD": "str", "H": 5, "I": {"required": "yes"}})
-    assert set(vars_) == {"PYXPO_PUBLIC_A", "B"} and vars_["B"].default is True
-    assert len(errors) == 8
+        "G": {"type": "int", "default": "x"}, "1BAD": "str", "H": 5, "I": {"required": "yes"},
+        "J": {"required": []}, "K": {"required": ["production", ""]}, "L": {"required": ["production"]}})
+    assert set(vars_) == {"PYXPO_PUBLIC_A", "B", "L"} and vars_["B"].default is True
+    assert len(errors) == 10
+    assert vars_["L"].required_in("production") and not vars_["L"].required_in("staging")
+    assert vars_["B"].required_in("production") is False
     assert schema.parse_schema([1])[1]
 
 
@@ -298,6 +301,26 @@ def test_schema_errors_collected(tmp_path):
     assert "PXENV_BUILD_TOKEN is required" in msg
     assert "PYXPO_PUBLIC_EXTRA is not declared" in msg
 
+
+
+def test_required_in_some_modes(tmp_path):
+    p = proj(tmp_path, options=(
+        "[tool.pyxpo.module_options.env.vars]\n"
+        "PYXPO_PUBLIC_ADMOB_ID = { required = [\"production\"], pattern = \"ca-app-pub-\\\\d{16}~\\\\d{10}\", "
+        "example = \"ca-app-pub-0000000000000000~0000000000\" }\n"))
+    assert "PYXPO_PUBLIC_ADMOB_ID" not in resolve(load_config(p), p)["module_data"]["env"]["vars"]
+    load_config(p, "staging")
+    with pytest.raises(ConfigError, match="PYXPO_PUBLIC_ADMOB_ID is required in production builds but not set; "
+                                          "for example"):
+        load_config(p, "production")
+    (p / ".env.production").write_text("PYXPO_PUBLIC_ADMOB_ID=\n")       # an empty placeholder is not a value
+    with pytest.raises(ConfigError, match="required in production builds"):
+        load_config(p, "production")
+    (p / ".env.production").write_text("PYXPO_PUBLIC_ADMOB_ID=ca-app-pub-1234567890123456~1234567890\n")
+    assert resolve(load_config(p, "production"), p)["module_data"]["env"]["vars"] == {
+        "PYXPO_PUBLIC_ADMOB_ID": "ca-app-pub-1234567890123456~1234567890"}
+    report = build.analyze(p, "development", cli.read_config(p), environ={})
+    assert "required in production" in cli.example_text(report)
 
 def test_unknown_options(tmp_path):
     p = proj(tmp_path, options="[tool.pyxpo.module_options.env]\nstric = true\n")

@@ -96,10 +96,12 @@ def analyze(project: Path, mode: str, config: Mapping[str, Any],
                             % (name, p, PREFIX))
 
     for name, var in sorted(report.schema.items()):
-        if name not in values or (values[name] == "" and var.required):
-            if var.required:
-                errors.append("%s is required but not set%s%s" % (
-                    name, " (%s)" % var.description if var.description else "",
+        required = var.required_in(mode)
+        if name not in values or (values[name] == "" and required):
+            if required:
+                errors.append("%s is required%s but not set%s%s" % (
+                    name, "" if var.required is True else " in %s builds" % mode,
+                    " (%s)" % var.description if var.description else "",
                     "; for example %s=%s" % (name, var.example) if var.example else ""))
             elif var.default is not None and name.startswith(PREFIX):
                 report.public[name] = var.default

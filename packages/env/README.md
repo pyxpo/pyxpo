@@ -293,12 +293,13 @@ PYXPO_PUBLIC_THEME        = { choices = ["light", "dark"], default = "light" }
 PYXPO_PUBLIC_APP_ID       = { pattern = "[a-z]+\\.[a-z.]+" }
 PYXPO_PUBLIC_FLAGS        = "json"                      # short form: just the type
 SENTRY_AUTH_TOKEN         = { required = true }         # build-only: checked, never shipped
+PYXPO_PUBLIC_ADMOB_APP_ID = { required = ["production"], pattern = "ca-app-pub-\\d{16}~\\d{10}" }  # only release builds need it
 ```
 
 | Field | Meaning |
 | --- | --- |
 | `type` | `str` (default), `int`, `float`, `bool`, `url`, `list` (comma separated), `json` |
-| `required` | `true`: the build fails when the variable is missing or empty |
+| `required` | `true`: the build fails when the variable is missing or empty. A list of modes, like `["production"]`, requires it only in those builds (development can fall back to test values) |
 | `default` | used when the variable is not set (public variables only ship it) |
 | `choices` | the allowed values |
 | `pattern` | a regular expression the whole value must match |

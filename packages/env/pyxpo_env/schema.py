@@ -5,6 +5,7 @@
     PYXPO_PUBLIC_THEME   = { choices = ["light", "dark"], default = "light" }
     PYXPO_PUBLIC_FLAGS   = "list"                      # short form: just the type
     STRIPE_SECRET_KEY    = { required = true }         # build-only: checked, never shipped
+    PYXPO_PUBLIC_ADMOB_APP_ID = { required = ["production"] }   # required only in these build modes
 
 Types: str (default), int, float, bool (true/false, 1/0, yes/no, on/off), url, list (comma separated), json.
 Declared public variables ship as typed JSON; undeclared ones ship as strings.
@@ -13,7 +14,7 @@ from __future__ import annotations
 
 import json
 import re
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional, Tuple, Union
 from urllib.parse import urlsplit
 
 TYPES = ("str", "int", "float", "bool", "url", "list", "json")
@@ -25,11 +26,15 @@ NAME_RE = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
 class Var:
     __slots__ = ("name", "type", "required", "default", "description", "choices", "pattern", "example")
 
-    def __init__(self, name: str, type: str = "str", required: bool = False, default: Any = None,
+    def __init__(self, name: str, type: str = "str", required: Union[bool, List[str]] = False, default: Any = None,
                  description: str = "", choices: Optional[List[Any]] = None, pattern: Optional[str] = None,
                  example: Optional[str] = None) -> None:
         self.name, self.type, self.required, self.default = name, type, required, default
         self.description, self.choices, self.pattern, self.example = description, choices, pattern, example
+
+    def required_in(self, mode: str) -> bool:
+        """`required = true` holds in every mode; `required = ["production"]` only in the modes listed."""
+        return self.required if isinstance(self.required, bool) else mode in self.required
 
 
 def parse_schema(table: Any) -> Tuple[Dict[str, Var], List[str]]:
@@ -58,8 +63,10 @@ def parse_schema(table: Any) -> Tuple[Dict[str, Var], List[str]]:
         if t not in TYPES:
             errors.append("%s: type %r is not one of %s" % (where, t, ", ".join(TYPES)))
             continue
-        if not isinstance(spec.get("required", False), bool):
-            errors.append("%s: required must be true or false" % where)
+        required = spec.get("required", False)
+        if not isinstance(required, bool) and not (isinstance(required, list) and required and all(
+                isinstance(m, str) and m for m in required)):
+            errors.append("%s: required must be true, false or a list of build modes like [\"production\"]" % where)
             continue
         choices = spec.get("choices")
         if choices is not None and (not isinstance(choices, list) or not choices):

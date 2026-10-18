@@ -110,8 +110,10 @@ def example_text(report: Any) -> str:
         notes = []
         if var is not None:
             notes.append(var.type)
-            if var.required:
+            if var.required is True:
                 notes.append("required")
+            elif var.required:
+                notes.append("required in %s" % ", ".join(var.required))
             if var.choices:
                 notes.append("one of: %s" % ", ".join(str(c) for c in var.choices))
         notes.append("ships in the app" if name.startswith(PREFIX) else "build-only, keep it out of git")
