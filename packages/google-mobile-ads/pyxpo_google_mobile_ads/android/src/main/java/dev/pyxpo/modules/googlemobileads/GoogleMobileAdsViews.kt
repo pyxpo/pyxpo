@@ -1,4 +1,4 @@
-package dev.pyxpo.modules.ads
+package dev.pyxpo.modules.googlemobileads
 
 import android.app.Activity
 import android.graphics.Color

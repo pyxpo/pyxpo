@@ -264,7 +264,7 @@ def test_render_ios_writes_swift_package_include(tmp_path):
     assert "packages: {}" in (gen / "modules.project.yml").read_text()  # always present: project.yml includes it
     ump = {"name": "GoogleUserMessagingPlatform", "url": "https://github.com/googleads/swift-package-manager-google-user-messaging-platform",
            "version": "3.0.0", "products": ["GoogleUserMessagingPlatform"]}
-    m = _with_spm(tmp_path / "mods", "ads", [GMA, ump])
+    m = _with_spm(tmp_path / "mods", "google-mobile-ads", [GMA, ump])
     autolink.render_ios(gen, [m], {})
     text = (gen / "modules.project.yml").read_text()
     assert '"GoogleMobileAds":\n    url: "https://github.com/googleads/swift-package-manager-google-mobile-ads"\n    from: "12.0.0"' in text
@@ -285,7 +285,7 @@ def test_swift_packages_merge_and_conflict(tmp_path):
 def test_check_ios_wiring_needs_include_for_swift_packages(tmp_path):
     base = "settings:\n  base:\n    GENERATE_INFOPLIST_FILE: YES\n    INFOPLIST_FILE: $(PYXPO_INFOPLIST)\n"
     (tmp_path / "project.yml").write_text(base)
-    m = _with_spm(tmp_path / "mods", "ads", [GMA])
+    m = _with_spm(tmp_path / "mods", "google-mobile-ads", [GMA])
     autolink.check_ios_wiring(tmp_path, [make_module(tmp_path / "plain")])
     with pytest.raises(BuildError, match="include:\n  - path: pyxpo-gen/modules.project.yml"):
         autolink.check_ios_wiring(tmp_path, [m])
@@ -311,7 +311,7 @@ def test_xcodegen_merges_module_packages(tmp_path):
         (native / rel).mkdir(parents=True)
     (native / "pyxpo-gen" / "Pyxpo.xcconfig").write_text("")
     (native / "project.yml").write_text((ios.TEMPLATE / "user" / "project.yml").read_text())
-    autolink.render_ios(native / "pyxpo-gen", [_with_spm(tmp_path / "mods", "ads", [GMA])], {})
+    autolink.render_ios(native / "pyxpo-gen", [_with_spm(tmp_path / "mods", "google-mobile-ads", [GMA])], {})
     subprocess.run([xg, "generate", "--spec", str(native / "project.yml"), "--project", str(native), "--quiet"],
                    cwd=str(native), check=True, capture_output=True)
     pbx = (native / "PyxpoApp.xcodeproj" / "project.pbxproj").read_text()

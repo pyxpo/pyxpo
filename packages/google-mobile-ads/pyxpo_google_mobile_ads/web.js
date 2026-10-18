@@ -1,4 +1,4 @@
-// pyxpo-ads in the browser and the desktop window: simulated test ads, so ad flows can be tried in development.
+// pyxpo-google-mobile-ads in the browser and the desktop window: simulated test ads, so ad flows can be tried in development.
 // Python only sends Google's test unit IDs here (see `_sim_only` in __init__.py). Nothing is fetched from the network.
 // The page loads this file after app.js (see pyxpoPage in app.js).
 (function () {
@@ -185,7 +185,7 @@
     const type = ads.get(o.id);
     if (!type) return Promise.resolve({ shown: false, error: "not_loaded", message: "no loaded ad with id " + o.id });
     ads.delete(o.id);
-    const ev = (event, data) => { if (page.emit) page.emit("Ads.event", { id: o.id, event, data: data == null ? null : data }); };
+    const ev = (event, data) => { if (page.emit) page.emit("GoogleMobileAds.event", { id: o.id, event, data: data == null ? null : data }); };
     const rewarded = type === "rewarded" || type === "rewarded_interstitial";
     return new Promise((resolve) => {
       let left = COUNTDOWN[type] || 0, reward = null, tick = null;
@@ -235,7 +235,7 @@
 
   pyxpoPage.defineView("PxBannerAd", makeBanner);
   pyxpoPage.defineView("PxNativeAd", makeNative);
-  pyxpoPage.defineModule("Ads", (method, args, page) => {
+  pyxpoPage.defineModule("GoogleMobileAds", (method, args, page) => {
     const o = args[0] || {};
     switch (method) {
       case "load":
@@ -250,7 +250,7 @@
       case "consentRequestInfo": case "consentShowFormIfRequired": case "consentShowPrivacyOptionsForm":
         return { status: "not_required", canRequestAds: true, privacyOptionsRequired: false, formAvailable: false };
     }
-    throw new Error("Ads has no method " + method);
+    throw new Error("GoogleMobileAds has no method " + method);
   });
   makeBanner.bannerSize = bannerSize;   // for tests
   makeBanner.css = css;

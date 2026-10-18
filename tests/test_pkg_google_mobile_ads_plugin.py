@@ -1,4 +1,4 @@
-"""pyxpo_ads.plugin: AdMob app IDs in the Android manifest and Info.plist, SKAdNetwork, tracking text, AD_ID."""
+"""pyxpo_google_mobile_ads.plugin: AdMob app IDs in the Android manifest and Info.plist, SKAdNetwork, tracking text, AD_ID."""
 import xml.etree.ElementTree as ET
 
 import pytest
@@ -6,7 +6,7 @@ import pytest
 from pyxpo.app_config import ConfigError
 from pyxpo.config_plugins import ANDROID_NS, TOOLS_NS, Mods, PluginConfig
 
-from pyxpo_ads.plugin import TEST_ANDROID_APP_ID, TEST_IOS_APP_ID, plugin
+from pyxpo_google_mobile_ads.plugin import TEST_ANDROID_APP_ID, TEST_IOS_APP_ID, plugin
 
 MANIFEST = """<?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android" xmlns:tools="http://schemas.android.com/tools">

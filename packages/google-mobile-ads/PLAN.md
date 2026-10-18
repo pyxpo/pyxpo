@@ -1,6 +1,6 @@
-# pyxpo-ads plan
+# pyxpo-google-mobile-ads plan
 
-Ads module for pyxpo apps: `pip install pyxpo-ads`, `import pyxpo_ads as Ads`, `modules = ["ads"]`.
+Ads module for pyxpo apps: `pip install pyxpo-google-mobile-ads`, `import pyxpo_google_mobile_ads as Ads`, `modules = ["google-mobile-ads"]`.
 Backed by the Google Mobile Ads SDK (AdMob) on Android and iOS. The API follows react-native-google-mobile-ads,
 in pyxpo's Python style. First user: doodle-dance (an ad when Generate is pressed).
 
@@ -55,7 +55,7 @@ show_async, load}` and reload after close. An ad object is one-shot as in the SD
 - Request configuration: `test_device_ids`, `tag_for_child_directed_treatment`, `tag_for_under_age_of_consent`,
   `max_ad_content_rating` (G, PG, T, MA). Per request: `keywords`, `content_url`, `non_personalized`.
 - `Ads.TestIds.*`: Google's official test unit IDs. A debug build uses them unless the app passes its own.
-- Config plugin `pyxpo_ads.plugin` with options `androidAppId`, `iosAppId` (defaults: Google's test app IDs),
+- Config plugin `pyxpo_google_mobile_ads.plugin` with options `androidAppId`, `iosAppId` (defaults: Google's test app IDs),
   `userTrackingUsageDescription`, `skAdNetworkItems` (default: Google's list), `delayAppMeasurementInit`.
   It writes the Android manifest `com.google.android.gms.ads.APPLICATION_ID` meta-data and the Info.plist
   `GADApplicationIdentifier`, `SKAdNetworkItems` and `NSUserTrackingUsageDescription` keys.

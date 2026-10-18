@@ -1,4 +1,4 @@
-# pyxpo-ads
+# pyxpo-google-mobile-ads
 
 Google AdMob ads for [pyxpo](https://github.com/pyxpo/pyxpo) apps: banner, interstitial, rewarded, rewarded
 interstitial, app open and native ads, with consent (Google's User Messaging Platform) and request settings. The API
@@ -6,18 +6,18 @@ follows [react-native-google-mobile-ads](https://docs.page/invertase/react-nativ
 Python style. Android uses `play-services-ads`, iOS the GoogleMobileAds Swift package.
 
 ```sh
-pip install pyxpo-ads
+pip install pyxpo-google-mobile-ads
 ```
 
 ```toml
 [tool.pyxpo]
-modules = ["ads"]
+modules = ["google-mobile-ads"]
 # Your AdMob app IDs (AdMob > Apps > App settings). Leave them out to use Google's test app IDs.
-plugins = [["pyxpo_ads.plugin", { androidAppId = "ca-app-pub-XXXXXXXXXXXXXXXX~YYYYYYYYYY", iosAppId = "ca-app-pub-XXXXXXXXXXXXXXXX~ZZZZZZZZZZ" }]]
+plugins = [["pyxpo_google_mobile_ads.plugin", { androidAppId = "ca-app-pub-XXXXXXXXXXXXXXXX~YYYYYYYYYY", iosAppId = "ca-app-pub-XXXXXXXXXXXXXXXX~ZZZZZZZZZZ" }]]
 ```
 
 ```python
-import pyxpo_ads as Ads
+import pyxpo_google_mobile_ads as Ads
 
 async def start():
     await Ads.consent.request_info_async()          # every app start (EEA, UK, US states)
@@ -75,7 +75,7 @@ Per-request options: `keywords`, `content_url`, `neighboring_content_urls`, `non
 
 ## Config plugin
 
-`pyxpo_ads.plugin` options:
+`pyxpo_google_mobile_ads.plugin` options:
 
 - `androidAppId`, `iosAppId`: AdMob app IDs (with `~`). Default: Google's test app IDs.
 - `userTrackingUsageDescription`: the iOS tracking prompt text, needed for `request_tracking_async()`.

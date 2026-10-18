@@ -1,4 +1,4 @@
-"""pyxpo_ads native sources answer the whole wire contract Python uses (Kotlin, Swift, web.js), and the iOS module
+"""pyxpo_google_mobile_ads native sources answer the whole wire contract Python uses (Kotlin, Swift, web.js), and the iOS module
 compiles to an `available: false` stub where the SDK is not linked (Mac Catalyst)."""
 import json
 import re
@@ -6,10 +6,10 @@ from pathlib import Path
 
 import pytest
 
-import pyxpo_ads
+import pyxpo_google_mobile_ads
 
-ROOT = Path(pyxpo_ads.__path__[0])
-KT = ROOT / "android/src/main/java/dev/pyxpo/modules/ads"
+ROOT = Path(pyxpo_google_mobile_ads.__path__[0])
+KT = ROOT / "android/src/main/java/dev/pyxpo/modules/googlemobileads"
 METHODS = ["initialize", "setRequestConfiguration", "requestTracking", "trackingStatus", "openAdInspector",
            "consentRequestInfo", "consentShowFormIfRequired", "consentShowPrivacyOptionsForm", "consentReset",
            "load", "show", "destroy"]
@@ -21,7 +21,7 @@ AD_EVENTS = ["opened", "impression", "clicked", "show_failed", "closed", "earned
 def sources():
     return {
         "kotlin": "\n".join(p.read_text() for p in sorted(KT.glob("*.kt"))),
-        "swift": (ROOT / "ios/AdsModule.swift").read_text(),
+        "swift": (ROOT / "ios/GoogleMobileAdsModule.swift").read_text(),
         "web": (ROOT / "web.js").read_text(),
     }
 
@@ -42,7 +42,7 @@ def test_every_method_and_view(lang):
         assert '"%s"' % v in src
     for e in ["interstitial", "rewarded", "rewarded_interstitial", "app_open"]:
         assert '"%s"' % e in src
-    assert "Ads.event" in src
+    assert "GoogleMobileAds.event" in src
 
 
 @pytest.mark.parametrize("lang", ["kotlin", "swift"])
@@ -59,7 +59,7 @@ def test_error_codes_python_knows(lang):
     src = sources()[lang]
     for code in re.findall(r'"(no_fill|network|timeout|invalid_request|app_id_missing|already_used|not_ready|'
                            r'not_loaded|app_not_foreground)"', src):
-        assert "`%s`" % code in pyxpo_ads.AdError.__doc__
+        assert "`%s`" % code in pyxpo_google_mobile_ads.AdError.__doc__
 
 
 def test_swift_guards_the_sdk():
@@ -83,8 +83,8 @@ def test_swift_guards_the_sdk():
 
 def test_module_json_names_the_classes():
     j = json.loads((ROOT / "pyxpo-module.json").read_text())
-    assert j["native"] == "Ads"
-    assert "class AdsModule" in sources()["swift"] and j["ios"]["classes"] == ["AdsModule"]
+    assert j["native"] == "GoogleMobileAds"
+    assert "class GoogleMobileAdsModule" in sources()["swift"] and j["ios"]["classes"] == ["GoogleMobileAdsModule"]
     for cls in j["android"]["classes"]:
         name = cls.rsplit(".", 1)[1]
         assert re.search(r"\bclass %s\b" % name, sources()["kotlin"])

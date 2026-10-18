@@ -1,10 +1,10 @@
 {
   "schemaVersion": 1,
   "nativeContract": 3,
-  "name": "ads",
-  "native": "Ads",
+  "name": "google-mobile-ads",
+  "native": "GoogleMobileAds",
   "ios": {
-    "classes": ["AdsModule"],
+    "classes": ["GoogleMobileAdsModule"],
     "swiftPackages": [
       {
         "name": "GoogleMobileAds",
@@ -23,8 +23,8 @@
     ]
   },
   "android": {
-    "namespace": "dev.pyxpo.modules.ads",
-    "classes": ["dev.pyxpo.modules.ads.AdsModule"],
+    "namespace": "dev.pyxpo.modules.googlemobileads",
+    "classes": ["dev.pyxpo.modules.googlemobileads.GoogleMobileAdsModule"],
     "minSdk": 24,
     "dependencies": [
       "com.google.android.gms:play-services-ads:24.4.0",

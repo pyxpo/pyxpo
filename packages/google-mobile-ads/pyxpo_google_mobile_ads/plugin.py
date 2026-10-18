@@ -1,8 +1,8 @@
 """Config plugin for the AdMob app IDs and the platform keys the Google Mobile Ads SDK reads at startup.
 
     [tool.pyxpo]
-    modules = ["ads"]
-    plugins = [["pyxpo_ads.plugin", {"androidAppId": "ca-app-pub-XXXXXXXXXXXXXXXX~YYYYYYYYYY",
+    modules = ["google-mobile-ads"]
+    plugins = [["pyxpo_google_mobile_ads.plugin", {"androidAppId": "ca-app-pub-XXXXXXXXXXXXXXXX~YYYYYYYYYY",
                                      "iosAppId": "ca-app-pub-XXXXXXXXXXXXXXXX~ZZZZZZZZZZ"}]]
 
 Options:
@@ -41,7 +41,7 @@ OPTIONS = ("androidAppId", "iosAppId", "userTrackingUsageDescription", "skAdNetw
 
 
 def _fail(msg: str) -> ConfigError:
-    return ConfigError("pyxpo_ads.plugin: " + msg)
+    return ConfigError("pyxpo_google_mobile_ads.plugin: " + msg)
 
 
 def _app_id(props: Dict[str, Any], key: str, default: str) -> str:

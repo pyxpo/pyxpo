@@ -1,4 +1,4 @@
-package dev.pyxpo.modules.ads
+package dev.pyxpo.modules.googlemobileads
 
 import android.content.Context
 import android.os.Bundle
@@ -34,13 +34,13 @@ import org.json.JSONObject
 import kotlin.concurrent.thread
 
 /**
- * pyxpo-ads on Android: the Google Mobile Ads SDK. Full-screen ads live here by the id Python gives them
+ * pyxpo-google-mobile-ads on Android: the Google Mobile Ads SDK. Full-screen ads live here by the id Python gives them
  * (`load` keeps the SDK ad, `show` uses it once and lets it go); events go to Python as
- * `Ads.event {id, event, data}`. Consent is Google's User Messaging Platform. The views are in AdsViews.kt.
+ * `GoogleMobileAds.event {id, event, data}`. Consent is Google's User Messaging Platform. The views are in GoogleMobileAdsViews.kt.
  * SDK errors are reply values (`{error, message, code, domain}`), so Python can tell no fill from a broken call.
  */
-class AdsModule : PxModule() {
-    override val name = "Ads"
+class GoogleMobileAdsModule : PxModule() {
+    override val name = "GoogleMobileAds"
     override val viewTypes = setOf("PxBannerAd", "PxNativeAd")
 
     private val ads = HashMap<Int, Any>()
@@ -70,7 +70,7 @@ class AdsModule : PxModule() {
                 reply(e?.let(::formError) ?: consentInfo(ctx.activity), null)
             }
             "consentReset" -> { UserMessagingPlatform.getConsentInformation(ctx.activity).reset(); reply(null, null) }
-            else -> reply(null, "Ads has no method $method")
+            else -> reply(null, "GoogleMobileAds has no method $method")
         }
     }
 
@@ -80,7 +80,7 @@ class AdsModule : PxModule() {
         configure(o)
         val app = ctx.activity.applicationContext
         // Google: initialize off the main thread, it reads disk and starts the mediation adapters.
-        thread(name = "Ads.initialize") {
+        thread(name = "GoogleMobileAds.initialize") {
             MobileAds.initialize(app) { status ->
                 reply(status.adapterStatusMap.mapValues { (_, s) ->
                     mapOf("state" to if (s.initializationState == AdapterStatus.State.READY) "ready" else "not_ready",
@@ -116,7 +116,7 @@ class AdsModule : PxModule() {
     // -- full-screen ads ----------------------------------------------------------------------------------------
 
     private fun event(ctx: PxModuleContext, id: Int, name: String, data: Any? = null) =
-        ctx.emit("Ads.event", mapOf("id" to id, "event" to name, "data" to data))
+        ctx.emit("GoogleMobileAds.event", mapOf("id" to id, "event" to name, "data" to data))
 
     private fun load(ctx: PxModuleContext, o: JSONObject, reply: PxReply) {
         val id = o.optInt("id")

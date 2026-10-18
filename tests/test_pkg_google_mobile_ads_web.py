@@ -1,13 +1,13 @@
-"""pyxpo_ads web.js: simulated test ads in the page (full-screen show, banner and native views), run in node."""
+"""pyxpo_google_mobile_ads web.js: simulated test ads in the page (full-screen show, banner and native views), run in node."""
 import json
 import shutil
 import subprocess
 
 import pytest
 
-import pyxpo_ads
+import pyxpo_google_mobile_ads
 
-WEB_JS = pyxpo_ads.__path__[0] + "/web.js"
+WEB_JS = pyxpo_google_mobile_ads.__path__[0] + "/web.js"
 pytestmark = pytest.mark.skipif(not shutil.which("node"), reason="needs node")
 
 # A tiny DOM: enough for web.js to build its elements, plus click() on them.
@@ -111,7 +111,7 @@ def test_interstitial_overlay_counts_down_then_closes(run):
     assert run["bodyAfter"] == 0
     assert run["again"]["error"] == "not_loaded"
     assert [e[2] for e in run["events"] if e[1] == 1] == ["opened", "impression", "closed"]
-    assert all(e[0] == "Ads.event" for e in run["events"])
+    assert all(e[0] == "GoogleMobileAds.event" for e in run["events"])
 
 
 def test_rewarded_earns_once(run):
@@ -123,7 +123,7 @@ def test_rewarded_earns_once(run):
 def test_destroy_and_errors(run):
     assert run["destroyed"]["error"] == "not_loaded"
     assert run["badType"] == "unknown ad type nope"
-    assert run["badMethod"] == "Ads has no method nope"
+    assert run["badMethod"] == "GoogleMobileAds has no method nope"
     assert run["consent"]["canRequestAds"] is True
 
 
@@ -145,4 +145,4 @@ def test_banner_size_rules(run):
 
 def test_page_loads_it():
     from pyxpo.renderers.web import page_js
-    assert str(page_js({"Ads": "pyxpo_ads"})["Ads"]) == WEB_JS
+    assert str(page_js({"GoogleMobileAds": "pyxpo_google_mobile_ads"})["GoogleMobileAds"]) == WEB_JS

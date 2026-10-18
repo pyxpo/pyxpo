@@ -1,4 +1,4 @@
-"""pyxpo-ads: request config, consent, full-screen ad state machine and events, hooks, banner/native views."""
+"""pyxpo-google-mobile-ads: request config, consent, full-screen ad state machine and events, hooks, banner/native views."""
 import asyncio
 import json
 from pathlib import Path
@@ -8,10 +8,10 @@ import pytest
 from pyxpo.module_api import dispatch
 from pyxpo.module_testing import FakeBridge
 
-import pyxpo_ads as Ads
+import pyxpo_google_mobile_ads as Ads
 
 PKG = Path(Ads.__file__).parent
-ON = {"Ads": {"available": True}}
+ON = {"GoogleMobileAds": {"available": True}}
 REAL = "ca-app-pub-1234567890123456/1234567890"
 
 
@@ -37,13 +37,13 @@ def run(coro):
 
 
 def event(ad, name, data=None):
-    dispatch({"name": "Ads.event", "data": {"id": ad._id, "event": name, "data": data}})
+    dispatch({"name": "GoogleMobileAds.event", "data": {"id": ad._id, "event": name, "data": data}})
 
 
 def native(fb, show=None, load=None):
-    fb.on("Ads", "load", load or (lambda a: {"ok": True}))
-    fb.on("Ads", "show", show or (lambda a: {"shown": True}))
-    fb.on("Ads", "destroy", lambda a: None)
+    fb.on("GoogleMobileAds", "load", load or (lambda a: {"ok": True}))
+    fb.on("GoogleMobileAds", "show", show or (lambda a: {"shown": True}))
+    fb.on("GoogleMobileAds", "destroy", lambda a: None)
     return fb
 
 
@@ -66,8 +66,8 @@ def test_test_ids_follow_platform():
 
 def test_manifest_valid():
     from pyxpo.build import autolink
-    meta = autolink.validate(json.loads((PKG / "pyxpo-module.json").read_text()), "ads")
-    assert meta["native"] == "Ads" and "ads" in autolink.OFFICIAL
+    meta = autolink.validate(json.loads((PKG / "pyxpo-module.json").read_text()), "google-mobile-ads")
+    assert meta["native"] == "GoogleMobileAds" and meta["name"] == "google-mobile-ads" and meta["name"] in autolink.OFFICIAL
     assert {p["name"] for p in meta["ios"]["swiftPackages"]} == {"GoogleMobileAds", "GoogleUserMessagingPlatform"}
     assert all(p["platformFilter"] == "iOS" for p in meta["ios"]["swiftPackages"])  # kept out of Mac Catalyst
     assert any(d.startswith("com.google.android.gms:play-services-ads:") for d in meta["android"]["dependencies"])
@@ -103,8 +103,8 @@ def not_started():
 def test_config_applied_live_after_initialize():
     not_started()
     with FakeBridge("android", constants=ON) as fb:
-        fb.on("Ads", "initialize", lambda cfg: {"com.google.ads.mediation.AdMob": {"state": "ready"}})
-        fb.on("Ads", "setRequestConfiguration", lambda cfg: None)
+        fb.on("GoogleMobileAds", "initialize", lambda cfg: {"com.google.ads.mediation.AdMob": {"state": "ready"}})
+        fb.on("GoogleMobileAds", "setRequestConfiguration", lambda cfg: None)
         Ads.set_request_configuration(max_ad_content_rating="PG")
         assert fb.calls == []                       # not started yet: kept for initialize
         res = run(Ads.initialize_async())
@@ -130,7 +130,7 @@ def test_unit_id_checked():
 def test_unavailable_native_carries_on():
     """Not linked, or Mac Catalyst (native says available False): loads fail as unavailable, show is not shown."""
     not_started()                      # and they fail at once, not waiting for an initialize that does nothing
-    for consts in ({}, {"Ads": {"available": False}}):
+    for consts in ({}, {"GoogleMobileAds": {"available": False}}):
         with FakeBridge("ios", constants=consts) as fb:
             assert not Ads.is_available()
             assert run(Ads.initialize_async()) == {}
@@ -200,7 +200,7 @@ def test_load_show_close_and_reload():
         assert res.shown and res.error is None and res.reward is None
         assert [e for e, _ in seen] == ["loaded", "opened", "impression", "clicked", "paid", "closed"]
         assert seen[4][1] == {"value_micros": 1500, "currency_code": "USD", "precision": "estimated"}
-        assert fb.calls[1] == ("Ads", "show", ({"id": first, "immersive": False},))
+        assert fb.calls[1] == ("GoogleMobileAds", "show", ({"id": first, "immersive": False},))
         assert not ad.loaded and ad._id == 0 and first not in Ads._live
         r2 = run(ad.show_async())                   # one show per load
         assert not r2.shown and r2.error.code == "not_loaded"
@@ -308,7 +308,7 @@ def test_show_guards():
         assert again.error.code == "already_showing"
         assert other.error.code == "already_showing" and b.loaded  # b keeps its ad for later
         assert Ads._showing_any[0] is None
-        assert [c for c in fb.calls if c[1] == "show"] == [("Ads", "show", ({"id": a_ids[0], "immersive": False},))]
+        assert [c for c in fb.calls if c[1] == "show"] == [("GoogleMobileAds", "show", ({"id": a_ids[0], "immersive": False},))]
 
 
 def test_expiry():
@@ -323,7 +323,7 @@ def test_expiry():
         assert not ad.loaded
         res = run(ad.show_async())
         assert not res.shown and res.error.code == "expired"
-        assert ("Ads", "destroy", ({"id": loaded_id},)) in fb.calls
+        assert ("GoogleMobileAds", "destroy", ({"id": loaded_id},)) in fb.calls
         app_open = Ads.AppOpenAd(Ads.TestIds.APP_OPEN)
         app_open.clock = lambda: now[0]
         run(app_open.load_async())
@@ -353,7 +353,7 @@ def test_rewarded_reward_from_event_and_reply():
         res = run(ad.show_async())
         assert res.shown and res.reward == Ads.Reward("coins", 10) and got == [Ads.Reward("coins", 10)]
         # reward only in the reply (no event), and an interstitial has no reward event
-        fb._handlers[("Ads", "show")] = lambda a: {"shown": True, "reward": {"type": "gem", "amount": 1}}
+        fb._handlers[("GoogleMobileAds", "show")] = lambda a: {"shown": True, "reward": {"type": "gem", "amount": 1}}
         run(ad.load_async())
         assert run(ad.show_async()).reward == Ads.Reward("gem", 1)
         with pytest.raises(ValueError):
@@ -383,7 +383,7 @@ def test_show_failure_is_a_result():
         def boom(a):
             raise RuntimeError("bridge gone")
 
-        fb._handlers[("Ads", "show")] = boom
+        fb._handlers[("GoogleMobileAds", "show")] = boom
         run(ad.load_async())
         res = run(ad.show_async())
         assert not res.shown and res.error.code == "internal" and "bridge gone" in res.error.message
@@ -408,10 +408,10 @@ def test_listener_error_is_reported_and_remove():
         sub.remove()
         sub.remove()                                # twice is fine
         event(ad, "closed")                         # routed by id
-        dispatch({"name": "Ads.event", "data": {"id": 999999, "event": "closed"}})  # unknown id: ignored
-        dispatch({"name": "Ads.event", "data": "junk"})
+        dispatch({"name": "GoogleMobileAds.event", "data": {"id": 999999, "event": "closed"}})  # unknown id: ignored
+        dispatch({"name": "GoogleMobileAds.event", "data": "junk"})
         ad.destroy()
-        assert ("Ads", "destroy", ({"id": fb.calls[0][2][0]["id"]},)) in fb.calls and not ad.loaded
+        assert ("GoogleMobileAds", "destroy", ({"id": fb.calls[0][2][0]["id"]},)) in fb.calls and not ad.loaded
 
 
 def test_events_for_other_ads_do_not_leak():
@@ -432,12 +432,12 @@ def test_events_for_other_ads_do_not_leak():
 def test_consent_flow():
     not_started()
     with FakeBridge("android", constants=ON) as fb:
-        fb.on("Ads", "consentRequestInfo", lambda a: {"status": "required", "canRequestAds": False,
+        fb.on("GoogleMobileAds", "consentRequestInfo", lambda a: {"status": "required", "canRequestAds": False,
                                                        "privacyOptionsRequired": False, "formAvailable": True})
-        fb.on("Ads", "consentShowFormIfRequired", lambda: {"status": "obtained", "canRequestAds": True,
+        fb.on("GoogleMobileAds", "consentShowFormIfRequired", lambda: {"status": "obtained", "canRequestAds": True,
                                                            "privacyOptionsRequired": True, "formAvailable": True})
-        fb.on("Ads", "consentShowPrivacyOptionsForm", lambda: {"error": "internal", "message": "no form"})
-        fb.on("Ads", "consentReset", lambda: None)
+        fb.on("GoogleMobileAds", "consentShowPrivacyOptionsForm", lambda: {"error": "internal", "message": "no form"})
+        fb.on("GoogleMobileAds", "consentReset", lambda: None)
         Ads.set_request_configuration(tag_for_under_age_of_consent=True, test_device_ids=["T1"])
         info = run(Ads.consent.request_info_async(debug_geography="eea"))
         assert info["status"] == "required" and not Ads.consent.can_request_ads()
@@ -454,8 +454,8 @@ def test_consent_flow():
 
 def test_tracking_ios_only():
     with FakeBridge("ios", constants=ON) as fb:
-        fb.on("Ads", "requestTracking", lambda: "denied")
-        fb.on("Ads", "trackingStatus", lambda: "not_determined")
+        fb.on("GoogleMobileAds", "requestTracking", lambda: "denied")
+        fb.on("GoogleMobileAds", "trackingStatus", lambda: "not_determined")
         assert run(Ads.request_tracking_async()) == "denied"
         assert run(Ads.get_tracking_status_async()) == "not_determined"
     with FakeBridge("android", constants=ON) as fb:
@@ -620,7 +620,7 @@ def test_views_render_nothing_without_ads():
     def body():
         return View(Ads.BannerAd(Ads.TestIds.BANNER), Ads.NativeAd(Ads.TestIds.NATIVE), Ads.BannerAd(REAL))
 
-    for consts in ({}, {"Ads": {"available": False}}):
+    for consts in ({}, {"GoogleMobileAds": {"available": False}}):
         with Mounted(body, "ios", consts) as m:
             assert m.r.find_all("PxBannerAd") == [] and m.r.find_all("PxNativeAd") == []
     with Mounted(body, "desktop") as m:             # simulated: test units only
@@ -664,7 +664,7 @@ def test_load_waits_for_initialize():
     async def go():
         with FakeBridge("android", constants=ON) as fb:
             native(fb)
-            fb.on("Ads", "initialize", lambda cfg: {})
+            fb.on("GoogleMobileAds", "initialize", lambda cfg: {})
             ad = Ads.InterstitialAd(Ads.TestIds.INTERSTITIAL)
             task = asyncio.ensure_future(ad.load_async())
             for _ in range(3):
@@ -694,7 +694,7 @@ def test_views_wait_for_initialize_then_render_once():
     from pyxpo import View
     with Mounted(body, "android", ON) as m:
         app, r = m.app, m.r
-        m.fb.on("Ads", "initialize", lambda cfg: {})
+        m.fb.on("GoogleMobileAds", "initialize", lambda cfg: {})
         assert r.find_all("PxBannerAd") == [] and r.find_all("PxNativeAd") == []
         assert len(Ads._on_ready) == 3
         Ads.set_request_configuration(tag_for_child_directed_treatment=True)

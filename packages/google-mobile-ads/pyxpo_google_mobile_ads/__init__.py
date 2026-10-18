@@ -1,6 +1,6 @@
 """Google AdMob ads for pyxpo apps: banner, interstitial, rewarded, rewarded interstitial, app open and native ads.
 
-    import pyxpo_ads as Ads
+    import pyxpo_google_mobile_ads as Ads
 
     Ads.set_request_configuration(tag_for_child_directed_treatment=True, max_ad_content_rating="G")
     await Ads.consent.request_info_async()
@@ -20,7 +20,7 @@ False, loads raise `AdError("unavailable")` and `show_async()` returns `shown=Fa
 The web page and the desktop window show simulated test ads for Google's test unit IDs (`TestIds`) only, so ad
 flows can be tried in development; other unit IDs do not fill there.
 
-An app lists `"ads"` in `[tool.pyxpo] modules` and adds the `pyxpo_ads.plugin` config plugin with its AdMob app
+An app lists `"ads"` in `[tool.pyxpo] modules` and adds the `pyxpo_google_mobile_ads.plugin` config plugin with its AdMob app
 IDs (`androidAppId`, `iosAppId`; Google's test app IDs by default).
 """
 from __future__ import annotations
@@ -37,8 +37,8 @@ from pyxpo.module_api import call, constants, native_view, on_event, platform, r
 
 __version__ = "0.1.0a1"
 
-NATIVE = "Ads"
-EVENT = "Ads.event"
+NATIVE = "GoogleMobileAds"
+EVENT = "GoogleMobileAds.event"
 
 __all__ = [
     "AdError", "Reward", "ShowResult", "TestIds", "BannerAdSize", "AdEventType", "MaxAdContentRating",

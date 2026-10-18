@@ -5,13 +5,13 @@ import GoogleMobileAds
 import UserMessagingPlatform
 #endif
 
-/// pyxpo-ads on iOS: the Google Mobile Ads SDK (v12 Swift names). Full-screen ads live here by the id Python gives
+/// pyxpo-google-mobile-ads on iOS: the Google Mobile Ads SDK (v12 Swift names). Full-screen ads live here by the id Python gives
 /// them (`load` keeps the SDK ad, `show` uses it once and lets it go); events go to Python as
-/// `Ads.event {id, event, data}`. Consent is Google's User Messaging Platform. SDK errors are reply values
+/// `GoogleMobileAds.event {id, event, data}`. Consent is Google's User Messaging Platform. SDK errors are reply values
 /// (`{error, message, code, domain}`), so Python can tell no fill from a broken call.
 /// Mac Catalyst links no ads SDK (the Swift packages are iOS only): `available` is false and Python never calls in.
-final class AdsModule: PxViewModule {
-    static let moduleName = "Ads"
+final class GoogleMobileAdsModule: PxViewModule {
+    static let moduleName = "GoogleMobileAds"
     static let viewTypes = ["PxBannerAd", "PxNativeAd"]
     #if canImport(GoogleMobileAds) && !targetEnvironment(macCatalyst)
     static var constants: [String: Any] { ["available": true] }
@@ -63,7 +63,7 @@ final class AdsModule: PxViewModule {
             guard let vc = ctx.presenter() else { reply(["error": "consent", "message": "no view controller"], nil); return }
             ConsentForm.presentPrivacyOptionsForm(from: vc) { e in reply(e.map(Self.nsError("consent")) ?? Self.consentInfo(), nil) }
         case "consentReset": ConsentInformation.shared.reset(); reply(nil, nil)
-        default: reply(nil, "Ads has no method \(method)")
+        default: reply(nil, "GoogleMobileAds has no method \(method)")
         }
         #else
         reply(nil, "ads are not available on this platform")
@@ -172,7 +172,7 @@ final class AdsModule: PxViewModule {
             s.customRewardText = $0["customData"] as? String
             return s
         }
-        let paid: (AdValue) -> Void = { [weak ctx] v in ctx?.emit("Ads.event", ["id": id, "event": "paid", "data": Self.paid(v)]) }
+        let paid: (AdValue) -> Void = { [weak ctx] v in ctx?.emit("GoogleMobileAds.event", ["id": id, "event": "paid", "data": Self.paid(v)]) }
         let done: (AnyObject?, Error?) -> Void = { [weak self] ad, e in
             if let ad = ad { self?.ads[id] = ad; reply([String: Any](), nil) }
             else { reply(Self.loadError(e ?? NSError(domain: "pyxpo.ads", code: -1)), nil) }
@@ -280,7 +280,7 @@ final class AdShow: NSObject, FullScreenContentDelegate {
     }
 
     func event(_ name: String, _ data: Any? = nil) {
-        ctx?.emit("Ads.event", ["id": id, "event": name, "data": data ?? NSNull()])
+        ctx?.emit("GoogleMobileAds.event", ["id": id, "event": name, "data": data ?? NSNull()])
     }
 
     func finish(_ result: [String: Any]) {
@@ -293,7 +293,7 @@ final class AdShow: NSObject, FullScreenContentDelegate {
     func adDidRecordImpression(_ ad: FullScreenPresentingAd) { event("impression") }
     func adDidRecordClick(_ ad: FullScreenPresentingAd) { event("clicked") }
     func ad(_ ad: FullScreenPresentingAd, didFailToPresentFullScreenContentWithError error: Error) {
-        var err = AdsModule.showError(error)
+        var err = GoogleMobileAdsModule.showError(error)
         event("show_failed", err)
         err["shown"] = false
         finish(err)
@@ -386,11 +386,11 @@ final class PxBannerAdView: NSObject, PxNativeView, BannerViewDelegate {
         b.adUnitID = unit
         b.rootViewController = ctx?.presenter()
         b.delegate = self
-        b.paidEventHandler = { [weak self] v in self?.emit("paid", AdsModule.paid(v)) }
+        b.paidEventHandler = { [weak self] v in self?.emit("paid", GoogleMobileAdsModule.paid(v)) }
         b.frame = CGRect(origin: .zero, size: size.size)
         box.addSubview(b)
         banner = b
-        b.load(AdsModule.request(props["request"] as? [String: Any]))
+        b.load(GoogleMobileAdsModule.request(props["request"] as? [String: Any]))
     }
 
     func bannerViewDidReceiveAd(_ bannerView: BannerView) {
@@ -402,7 +402,7 @@ final class PxBannerAdView: NSObject, PxNativeView, BannerViewDelegate {
         emit("size", dims)
         emit("load", dims)
     }
-    func bannerView(_ bannerView: BannerView, didFailToReceiveAdWithError error: Error) { emit("error", AdsModule.loadError(error)) }
+    func bannerView(_ bannerView: BannerView, didFailToReceiveAdWithError error: Error) { emit("error", GoogleMobileAdsModule.loadError(error)) }
     func bannerViewDidRecordImpression(_ bannerView: BannerView) { emit("impression", nil) }
     func bannerViewDidRecordClick(_ bannerView: BannerView) { emit("click", nil) }
     func bannerViewWillPresentScreen(_ bannerView: BannerView) { emit("open", nil) }
@@ -448,7 +448,7 @@ final class PxNativeAdView: NSObject, PxNativeView, NativeAdLoaderDelegate, Nati
             let l = AdLoader(adUnitID: unit, rootViewController: ctx?.presenter(), adTypes: [.native], options: nil)
             l.delegate = self
             loader = l
-            l.load(AdsModule.request(self.props["request"] as? [String: Any]))
+            l.load(GoogleMobileAdsModule.request(self.props["request"] as? [String: Any]))
         } else if let ad = current, look() != drawnLook {
             render(ad)  // a color or template change
         }
@@ -465,12 +465,12 @@ final class PxNativeAdView: NSObject, PxNativeView, NativeAdLoaderDelegate, Nati
         guard adLoader === loader else { return }
         current = nativeAd
         nativeAd.delegate = self
-        nativeAd.paidEventHandler = { [weak self] v in self?.emit("paid", AdsModule.paid(v)) }
+        nativeAd.paidEventHandler = { [weak self] v in self?.emit("paid", GoogleMobileAdsModule.paid(v)) }
         render(nativeAd)
         emit("load", nil)
     }
     func adLoader(_ adLoader: AdLoader, didFailToReceiveAdWithError error: Error) {
-        if adLoader === loader { emit("error", AdsModule.loadError(error)) }
+        if adLoader === loader { emit("error", GoogleMobileAdsModule.loadError(error)) }
     }
     func nativeAdDidRecordImpression(_ nativeAd: NativeAd) { emit("impression", nil) }
     func nativeAdDidRecordClick(_ nativeAd: NativeAd) { emit("click", nil) }
