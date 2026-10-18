@@ -138,7 +138,103 @@ final class ScrollHost: UIScrollView, UIScrollViewDelegate {
         if emit { send("scroll") }
         if onMomentum { send("momentum_scroll_end") }
     }
+
+    #if targetEnvironment(macCatalyst)
+    // In the Mac idiom a UIScrollView scrolls only with a trackpad or wheel; a mouse click-drag does nothing.
+    // This pan adds click-drag scrolling with a short glide. Touches on controls, raw-touch views (a canvas)
+    // and custom views that handle touches are left alone, and only a drag along the scroll axis starts it.
+    private lazy var mouseDrag: UIPanGestureRecognizer = {
+        let g = UIPanGestureRecognizer(target: self, action: #selector(dragged(_:)))
+        g.allowedTouchTypes = [NSNumber(value: UITouch.TouchType.direct.rawValue),
+                               NSNumber(value: UITouch.TouchType.indirectPointer.rawValue)]
+        gate.host = self
+        g.delegate = gate
+        return g
+    }()
+    private let gate = DragGate()
+    private var dragStart = CGPoint.zero
+
+    override func didMoveToWindow() {
+        super.didMoveToWindow()
+        if window != nil, mouseDrag.view == nil { addGestureRecognizer(mouseDrag) }
+    }
+
+    private var maxOffset: CGPoint {
+        CGPoint(x: max(0, contentSize.width - bounds.width), y: max(0, contentSize.height - bounds.height))
+    }
+
+    private func clamped(_ p: CGPoint) -> CGPoint {
+        let m = maxOffset
+        return CGPoint(x: min(max(p.x, 0), m.x), y: min(max(p.y, 0), m.y))
+    }
+
+    @objc private func dragged(_ g: UIPanGestureRecognizer) {
+        let t = g.translation(in: self)
+        switch g.state {
+        case .began:
+            setContentOffset(contentOffset, animated: false)  // stops a glide still running
+            dragStart = contentOffset
+            if onBegin { send("scroll_begin_drag") }
+        case .changed:
+            contentOffset = clamped(horizontal ? CGPoint(x: dragStart.x - t.x, y: dragStart.y)
+                                               : CGPoint(x: dragStart.x, y: dragStart.y - t.y))
+        case .ended, .cancelled:
+            if onEnd { send("scroll_end_drag") }
+            let v = g.state == .ended ? g.velocity(in: self) : .zero
+            var target = clamped(horizontal ? CGPoint(x: contentOffset.x - v.x * 0.2, y: contentOffset.y)
+                                            : CGPoint(x: contentOffset.x, y: contentOffset.y - v.y * 0.2))
+            if isPagingEnabled, bounds.width > 0, bounds.height > 0 {
+                target = clamped(horizontal ? CGPoint(x: (target.x / bounds.width).rounded() * bounds.width, y: target.y)
+                                            : CGPoint(x: target.x, y: (target.y / bounds.height).rounded() * bounds.height))
+            }
+            if target == contentOffset { settled() } else { setContentOffset(target, animated: true) }
+        default: break
+        }
+    }
+
+    /// True when a touch on `v` belongs to that view (or one between it and this scroll view), not to a drag.
+    private func ownsTouch(_ v: UIView?) -> Bool {
+        var cur = v
+        while let u = cur, u !== self {
+            if u is UIControl || u is UITextView { return true }
+            if let s = u as? ScrollHost, s.horizontal == horizontal, s.isScrollEnabled,
+               (horizontal ? s.maxOffset.x : s.maxOffset.y) > 0 { return true }
+            if let p = u as? PxGroup {
+                if p.onRaw != nil { return true }
+            } else if !(u is UIScrollView), Bundle(for: type(of: u)) == Bundle.main {
+                // An app or module view (a canvas, a mesh view) that reads touches or has its own gestures.
+                // Compared with its nearest UIKit class, so a label or image subclass still counts as passive.
+                let sel = #selector(UIResponder.touchesBegan(_:with:))
+                var base: AnyClass = type(of: u)
+                while Bundle(for: base) == Bundle.main, let up = class_getSuperclass(base) { base = up }
+                if class_getMethodImplementation(type(of: u), sel) != class_getMethodImplementation(base, sel) { return true }
+                if !(u.gestureRecognizers ?? []).isEmpty { return true }
+            }
+            cur = u.superview
+        }
+        return false
+    }
+
+    fileprivate func dragMayReceive(_ t: UITouch) -> Bool { !ownsTouch(t.view) }
+
+    fileprivate func dragMayBegin(_ g: UIGestureRecognizer) -> Bool {
+        guard isScrollEnabled, let p = g as? UIPanGestureRecognizer else { return false }
+        // The system pan already scrolling (trackpad) wins; so does a view with nothing to scroll.
+        if panGestureRecognizer.state == .began || panGestureRecognizer.state == .changed { return false }
+        let v = p.velocity(in: self), m = maxOffset
+        return horizontal ? (m.x > 0 && abs(v.x) > abs(v.y)) : (m.y > 0 && abs(v.y) > abs(v.x))
+    }
+    #endif
 }
+
+#if targetEnvironment(macCatalyst)
+/// Delegate of a ScrollHost's mouse drag. A separate object, so the scroll view's own delegate methods stay as UIKit set them.
+private final class DragGate: NSObject, UIGestureRecognizerDelegate {
+    weak var host: ScrollHost?
+    func gestureRecognizer(_ g: UIGestureRecognizer, shouldReceive touch: UITouch) -> Bool { host?.dragMayReceive(touch) ?? false }
+    func gestureRecognizerShouldBegin(_ g: UIGestureRecognizer) -> Bool { host?.dragMayBegin(g) ?? false }
+}
+#endif
 
 /// Label that draws inside padding + border insets (the engine's frame includes them).
 final class PxLabel: UILabel {

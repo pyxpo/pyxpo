@@ -136,6 +136,18 @@ def test_ios_module_view_fill_is_under_its_drawing():
     assert "if v is UIImageView || modules.view(id) != nil {" in ios
 
 
+def test_mac_scroll_view_scrolls_by_mouse_drag():
+    # In the Mac idiom a UIScrollView ignores a mouse click-drag; ScrollHost adds its own drag on Catalyst,
+    # which leaves controls and raw-touch views (a canvas) alone and only starts along the scroll axis.
+    from pathlib import Path
+    v = (Path(__file__).resolve().parents[1] / "src" / "pyxpo" / "templates" / "ios" / "gen" / "runtime"
+         / "PxViews.swift").read_text()
+    host = v[v.index("final class ScrollHost"):v.index("final class PxLabel")]
+    assert "#if targetEnvironment(macCatalyst)" in host and "addGestureRecognizer(mouseDrag)" in host
+    assert "UITouch.TouchType.indirectPointer" in host and "p.onRaw != nil" in host and "u is UIControl" in host
+    assert "abs(v.y) > abs(v.x)" in host and "panGestureRecognizer.state == .changed" in host
+
+
 def test_android_slider_track_and_thumb_stay_visible():
     # A split SeekBar track is clipped around the thumb, and on some images that clip hides the whole track
     # (thumb only on screen). With no side padding the thumb also hangs half outside the view at 0 % and 100 %.
