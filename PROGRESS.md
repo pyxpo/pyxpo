@@ -32,4 +32,4 @@
 ## armeabi-v7a (Oct 19, pushed fe55e66)
 - Client SM-M136B (M13 5G) runs 32-bit Android; APK had only arm64-v8a/x86_64, so "not compatible".
 - Added v7a: build_cpython.py (patches android.py HOSTS), platforms/libs/cli (v7a optional tag), android.py stage drops v7a with a warning when no wheel (unless `abis` set), PyxpoRuntime.kt picks first shipped ABI. tests/test_android_abis.py. 857 pass.
-- Done: v7a CPython built, imagekit APK has arm64-v8a+armeabi-v7a+x86_64, 64-bit OK on emulator, manifest entry added (tarball .cache/runtime-out). Next: user uploads v7a tarball to runtime-3.13.7-1, then core 0.1.0a5 release; client tests APK on M13.
+- Done: v7a CPython built, imagekit APK has arm64-v8a+armeabi-v7a+x86_64, 64-bit OK on emulator, manifest entry added (tarball .cache/runtime-out). Released: runtime asset uploaded, core 0.1.0a5 on PyPI (fresh install fetches v7a OK). Open: client tests APK on M13.
