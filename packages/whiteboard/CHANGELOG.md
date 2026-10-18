@@ -8,6 +8,7 @@
 
 ## 0.1.0a1
 
+- Docs: detailed README with screenshots, and fuller PyPI metadata (keywords, classifiers, project URLs).
 - First release: `Whiteboard` with pen, marker, eraser, fill bucket and six shapes (line, arrow, rectangle,
   ellipse, triangle, star; outline or filled), opacity, undo, redo, clear, `get_elements_async`,
   `set_elements_async` and `to_image_async` (PNG or JPEG, optional trim to the ink). `use_whiteboard()` and the
