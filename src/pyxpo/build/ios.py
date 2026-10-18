@@ -185,6 +185,19 @@ def install_requires(requires: List[str], kind: str, target: Path, index_args: L
         return
     _run([sys.executable, "-m", "pip", "install", "--target", target, "--platform", PIP_TAGS[kind],
           "--python-version", "3.13", "--implementation", "cp", "--only-binary=:all:", "--no-compile"] + list(index_args) + requires)
+    prune_site(target)
+
+
+# App Store upload refuses standalone binaries in the bundle ("Invalid bundle structure"): static libraries and
+# objects (numpy ships libnpymath.a for building against it) and console scripts. None of them run in the app.
+SITE_SKIP_SUFFIXES = (".a", ".o", ".la")
+
+
+def prune_site(target: Path) -> None:
+    shutil.rmtree(str(target / "bin"), ignore_errors=True)
+    for f in sorted(target.rglob("*")):
+        if f.suffix in SITE_SKIP_SUFFIXES and f.is_file():
+            f.unlink()
 
 
 def host_python() -> Optional[Path]:

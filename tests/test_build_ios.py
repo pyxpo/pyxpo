@@ -178,3 +178,16 @@ def test_sync_tree_rewrites_only_changes_and_keeps_build_outputs(tmp_path):
     assert not (dst / "stale.txt").exists() and not (dst / "sub" / "stale").exists()
     assert (dst / "module-api" / "build" / "out.jar").is_file() and (dst / "stage" / "app.py").is_file()
     assert os.readlink(str(dst / "link")) == str(tmp_path)
+
+
+def test_prune_site_drops_what_the_app_store_refuses(tmp_path):
+    from pyxpo.build import ios
+    site = tmp_path / "site"
+    for rel in ("numpy/_core/lib/libnpymath.a", "numpy/random/lib/libnpyrandom.a", "bin/f2py", "x/y.o",
+                "numpy/__init__.py", "numpy/_core/_multiarray_umath.cpython-313-iphoneos.so", "numpy/_core/lib/pkgconfig/npymath.pc"):
+        (site / rel).parent.mkdir(parents=True, exist_ok=True)
+        (site / rel).write_text("x")
+    ios.prune_site(site)
+    left = sorted(str(p.relative_to(site)) for p in site.rglob("*") if p.is_file())
+    assert left == ["numpy/__init__.py", "numpy/_core/_multiarray_umath.cpython-313-iphoneos.so",
+                    "numpy/_core/lib/pkgconfig/npymath.pc"]

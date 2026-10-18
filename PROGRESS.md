@@ -13,17 +13,17 @@
 - Later: real FCM e2e (~/.pyxpo-secrets/), missing packages batch, wheels CI.
 
 ## VS Code extension (editors/vscode): committed + pushed, 0.1.0 live on Marketplace (publisher pyxpo, hand upload; bump version each upload).
-- data/pyxpo.json from tools/gen_vscode_data.py; tests/test_vscode_data.py fails when stale. Restricted Mode needs `capabilities.untrustedWorkspaces`; prove with `npm run test:e2e:vsix`.
+- data/pyxpo.json from tools/gen_vscode_data.py (test fails when stale).
 
 ## Desktop apps (Oct 17, committed + pushed)
 - Mac native = Catalyst, Windows native = WinUI 3 shell (windows/PyxpoShell), preview = `run desktop --preview`.
-- Windows CI green (run 38975954256): app renders imagekit. Fix was PyxpoShell.pri copied to resources.pri.
+- Windows CI green: app renders imagekit.
 - Windows open bugs (from CI home.png): Feather icons missing; card shadows draw grey rectangles, not rounded.
 
 ## Web target (Oct 17, pushed): run/build web.
 ## Responsive + layout + web dev tools (Oct 17, pushed)
 - pyxpo/responsive.py breakpoints (xs..xxl), maps in style values/blocks; reconciler.refresh_responsive restyles without re-render.
-- renderers/web/devtools.js: dev server only (`--no-devtools`), FAB panel, phone/tablet frames, rotate, custom size, zoom, scheme, platform (os override, reload), touch drag-scroll. app.js reads window.PYXPO_DEVICE(), `pyxpo-env` event, `pyxpo-statusbar` event. CDP e2e OK.
+- renderers/web/devtools.js: dev-server-only device frames/scheme/platform panel. CDP e2e OK.
 - Later: `[tool.pyxpo] breakpoints` config (devtools ruler reads PYXPO_CONFIG.breakpoints).
 - Next: fix Windows icon/shadow bugs. Release with themes/web/responsive (0.1.0a3) needs user OK; then drop the "ships after 0.1.0a2" callouts in pyxpo-web.
 
@@ -33,3 +33,5 @@
 - Client SM-M136B (M13 5G) runs 32-bit Android; APK had only arm64-v8a/x86_64, so "not compatible".
 - Added v7a: build_cpython.py (patches android.py HOSTS), platforms/libs/cli (v7a optional tag), android.py stage drops v7a with a warning when no wheel (unless `abis` set), PyxpoRuntime.kt picks first shipped ABI. tests/test_android_abis.py. 857 pass.
 - Done: v7a CPython built, imagekit APK has arm64-v8a+armeabi-v7a+x86_64, 64-bit OK on emulator, manifest entry added (tarball .cache/runtime-out). Released: runtime asset uploaded, core 0.1.0a5 on PyPI (fresh install fetches v7a OK). Open: client tests APK on M13.
+- Release dex fail ("located outside the root directory") = project moved, stale .gradle paths. Guard `_drop_moved_gradle_state` (marker .gradle/pyxpo-root) in prebuild/build; Gradle stage task only warns. imagekit assembleRelease OK after clean.
+- iOS App Store upload: ios.prune_site drops .a/.o/bin from site-packages; iPad always gets 4 orientations (unless require_full_screen).

@@ -301,3 +301,14 @@ def test_mini_parse_reads_multi_line_arrays():
     assert _mini_parse(text) == {"name": "x", "modules": ["whiteboard", "sqlite", "image-picker"], "icon": "a.png"}
     with pytest.raises(ValueError):
         _mini_parse('[tool.pyxpo]\nmodules = ["a",\n')
+
+
+def test_ios_ipad_gets_all_orientations_by_default():
+    # The template is portrait-only for iPhone; App Store upload refuses an iPad app without all four.
+    import plistlib
+
+    from pyxpo.build import ios, ios_config
+    base = plistlib.loads((ios.TEMPLATE / "user" / "App" / "Info.plist").read_bytes())
+    p = ios_config.info_plist(base, native_config.resolve({"name": "A"}, Path(".")))
+    assert p["UISupportedInterfaceOrientations"] == [ios_config.PORTRAIT]
+    assert p["UISupportedInterfaceOrientations~ipad"] == ios_config.ALL_ORIENTATIONS

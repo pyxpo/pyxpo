@@ -32,10 +32,11 @@ def info_plist(base: Dict[str, Any], nc: Dict[str, Any]) -> Dict[str, Any]:
         p["UISupportedInterfaceOrientations"] = [PORTRAIT]
     elif orient == "landscape":
         p["UISupportedInterfaceOrientations"] = list(LANDSCAPE)
-    if orient != "default" or ios["require_full_screen"] or "UISupportedInterfaceOrientations~ipad" in p:
-        if ios["supports_tablet"]:
-            p["UISupportedInterfaceOrientations~ipad"] = list(ALL_ORIENTATIONS) if not ios["require_full_screen"] \
-                else list(p.get("UISupportedInterfaceOrientations") or ALL_ORIENTATIONS)
+    # App Store upload refuses an iPad app whose orientations are not all four (iPad multitasking), unless it
+    # requires full screen. The template's iPhone list is portrait only, so iPad always gets its own list.
+    if ios["supports_tablet"]:
+        p["UISupportedInterfaceOrientations~ipad"] = list(ALL_ORIENTATIONS) if not ios["require_full_screen"] \
+            else list(p.get("UISupportedInterfaceOrientations") or ALL_ORIENTATIONS)
     style = ios["user_interface_style"]
     if style in STYLES:
         p["UIUserInterfaceStyle"] = STYLES[style]
