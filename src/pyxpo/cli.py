@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import argparse
+import json
 import os
 import re
 import runpy
@@ -61,6 +62,9 @@ def cmd_run(args: argparse.Namespace) -> int:
         return 2
     os.environ["PYXPO_TARGET"] = "desktop"
     os.environ.setdefault("PYXPO_APP_NAME", str(cfg.get("name") or project.name))
+    from .app_config.resolve import MODULE_DATA
+    from .module_hooks import DATA_ENV
+    os.environ[DATA_ENV] = json.dumps(cfg.get(MODULE_DATA) or {})  # no staged _app_config.json in this process
     sys.path.insert(0, str(project))
     if not getattr(args, "no_reload", False):
         from .component import enable_registry
@@ -246,7 +250,7 @@ def _web(args: argparse.Namespace, run: bool) -> int:
             return 0
         web.serve(project, port=args.port or 8000, base=args.base, open_browser=not args.no_open,
                   devtools=not args.no_devtools)
-    except (BuildError, OSError) as e:
+    except (BuildError, OSError, ValueError) as e:
         print("error: %s" % e, file=sys.stderr)
         return 1
     return 0
@@ -431,6 +435,10 @@ def cmd_config(args: argparse.Namespace) -> int:
     return 0
 
 
+MODE_HELP = ("build mode for module build hooks such as pyxpo-env (.env.<mode>); default: production with "
+             "--release, else development")
+
+
 def build_parser() -> argparse.ArgumentParser:
     p = argparse.ArgumentParser(prog="pyxpo", description="Python mobile app framework")
     from . import __version__
@@ -448,6 +456,7 @@ def build_parser() -> argparse.ArgumentParser:
     r.add_argument("--preview", action="store_true",
                    help="desktop only: quick preview in a browser window instead of building the native Mac or Windows app")
     r.add_argument("--base", help="web only: path the site is served under, such as /myapp")
+    r.add_argument("--mode", help=MODE_HELP)
     r.add_argument("--no-open", action="store_true", help="web only: do not open a browser")
     r.add_argument("--no-devtools", action="store_true",
                    help="web only: hide the dev tools button (device preview, breakpoints)")
@@ -455,6 +464,7 @@ def build_parser() -> argparse.ArgumentParser:
     b = sub.add_parser("build", help="build a mobile package")
     b.add_argument("target", choices=["android", "ios", "desktop", "web"])
     b.add_argument("--release", action="store_true")
+    b.add_argument("--mode", help=MODE_HELP)
     b.add_argument("--base", help="web only: path the site is served under, such as /myapp")
     b.add_argument("--dir")
     b.set_defaults(fn=cmd_build)
@@ -467,6 +477,7 @@ def build_parser() -> argparse.ArgumentParser:
     st = sub.add_parser("stage", help="refresh the Python app inside ejected native projects (run by Gradle/Xcode)")
     st.add_argument("target", choices=["android", "ios"])
     st.add_argument("--release", action="store_true")
+    st.add_argument("--mode", help=MODE_HELP)
     st.add_argument("--kind", choices=["simulator", "device", "catalyst"], default="simulator", help="iOS only")
     st.add_argument("--dir")
     st.set_defaults(fn=cmd_stage)
@@ -493,6 +504,13 @@ def build_parser() -> argparse.ArgumentParser:
 
 def main(argv: Optional[List[str]] = None) -> int:
     args = build_parser().parse_args(argv)
+    if getattr(args, "mode", None):
+        from .module_hooks import MODE_ENV, check_mode
+        try:
+            os.environ[MODE_ENV] = check_mode(args.mode)
+        except ValueError as e:
+            print("error: %s" % e, file=sys.stderr)
+            return 2
     return args.fn(args)
 
 

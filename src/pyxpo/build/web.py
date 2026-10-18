@@ -28,6 +28,7 @@ from typing import Any, Dict, List, Optional
 
 from .. import native_config
 from ..config import load_config
+from ..module_hooks import build_mode
 from ..renderers.web import page_html
 from . import app_json, autolink
 from .android import BuildError
@@ -82,7 +83,7 @@ def _script_json(v: Any) -> str:
 def build(project: Path, release: bool = False, base: Optional[str] = None, out: Optional[Path] = None) -> Path:
     """Writes the static site to `build/web/` (or `out`) and returns that folder."""
     project = Path(project).resolve()
-    cfg = load_config(project)
+    cfg = load_config(project, build_mode(release))
     nc = native_config.resolve(cfg, project)
     web = web_config(cfg)
     base = base_path(web.get("base", "") if base is None else base)
@@ -143,14 +144,16 @@ _DEVTOOLS = '<script src="/__pyxpo/devtools.js"></script>\n'  # device preview p
 
 
 def _watch_stamp(project: Path, modules: Optional[List[Path]] = None) -> Any:
-    """Changes when the app, its assets, pyproject.toml or a linked module package (local editable install) changes."""
-    paths = [project / "pyproject.toml"]
+    """Changes when the app, its assets, pyproject.toml, a `.env*` file (pyxpo-env) or a linked module package
+    (local editable install) changes."""
+    env_files = sorted(project.glob(".env*"))
+    paths = [project / "pyproject.toml"] + env_files
     for sub in ("app", "assets"):
         d = project / sub
         if d.is_dir():
             paths += [p for p in d.rglob("*") if p.is_file() and "__pycache__" not in p.parts]
     newest = max((p.stat().st_mtime for p in paths if p.exists()), default=0.0)
-    return newest, autolink.module_files(modules or [])
+    return newest, [p.name for p in env_files], autolink.module_files(modules or [])
 
 
 class DevServer:

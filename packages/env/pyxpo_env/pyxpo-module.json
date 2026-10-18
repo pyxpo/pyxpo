@@ -1,0 +1,7 @@
+{
+  "schemaVersion": 1,
+  "nativeContract": 1,
+  "name": "env",
+  "native": "Env",
+  "build": { "hook": "pyxpo_env.build:configure" }
+}

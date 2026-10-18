@@ -6,6 +6,8 @@ modules listed in `[tool.pyxpo] modules = [...]` are compiled into the app, like
 """
 from __future__ import annotations
 
+import json
+import os
 from typing import Any, Callable, Dict, List, Optional
 
 from .apis import _env
@@ -34,6 +36,23 @@ def require_linked(native: str, module: str, package: Optional[str] = None) -> N
             "native module '%s' is not linked into this app. %sAdd '%s' to [tool.pyxpo] modules in pyproject.toml "
             "and rebuild." % (native, "Install it with `pip install %s` if needed. " % package if package else "", module)
         )
+
+
+def build_data(name: str) -> Any:
+    """The JSON data module `name`'s build hook shipped with `ctx.ship(...)` (see `pyxpo.module_hooks`), or None.
+
+    Built apps read it from the bundled `_app_config.json`; `pyxpo run desktop --preview`, which has no bundle,
+    passes it in the `PYXPO_MODULE_DATA` environment variable. Returns a fresh copy on each call."""
+    from .apis.constants import _load
+
+    data = _load().get("modules")
+    if data is None:
+        try:
+            data = json.loads(os.environ.get("PYXPO_MODULE_DATA") or "{}")
+        except ValueError:
+            data = {}
+    v = data.get(name) if isinstance(data, dict) else None
+    return None if v is None else json.loads(json.dumps(v))
 
 
 def on_event(name: str, handler: Callable[[Any], Any]) -> Callable[[], None]:

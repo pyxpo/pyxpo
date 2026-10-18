@@ -11,6 +11,7 @@ from typing import Dict, List, Optional
 
 from .. import config_plugins, native_config, term
 from ..config import load_config, pip_index_args
+from ..module_hooks import build_mode
 from . import prebuild as prebuild_mod
 from . import android_config, app_json, autolink, elfcheck, runtime
 from .runtime import BuildError  # noqa: F401  (re-exported)
@@ -266,8 +267,9 @@ def stage(native: Path, project: Path, cfg: Dict[str, object], release: bool, ab
         for sub in ("app", "assets"):
             d = project / sub
             for p in sorted(d.rglob("*")) if d.is_dir() else []:
-                if p.is_file() and "__pycache__" not in p.parts:
-                    z.write(str(p), str(p.relative_to(project)))
+                rel = p.relative_to(project)
+                if p.is_file() and ships_in_app(rel):
+                    z.write(str(p), str(rel))
         # framework runtime (no CLI/templates/build tooling)
         pkg = Path(__file__).resolve().parent.parent
         for p in sorted(pkg.rglob("*.py")):
@@ -285,10 +287,16 @@ def stage(native: Path, project: Path, cfg: Dict[str, object], release: bool, ab
     (variant / "manifest.txt").write_text(h.hexdigest()[:16])
 
 
+def ships_in_app(rel: Path) -> bool:
+    """Whether a file under app/ or assets/ goes into app.zip. Dotfiles (.env, .env.local, .git, .DS_Store) never
+    ship, as on iOS, web and Windows."""
+    return "__pycache__" not in rel.parts and not any(x.startswith(".") for x in rel.parts)
+
+
 def stage_project(project: Path, release: bool = False) -> None:
     """`pyxpo stage android`: what `./gradlew assemble*` or Android Studio runs before building an ejected project."""
     project = Path(project).resolve()
-    cfg = load_config(project)
+    cfg = load_config(project, build_mode(release))
     abis = available_abis(_cfg_abis(cfg))
     if not abis:
         raise BuildError("no Android CPython build in %s (set PYXPO_ANDROID_DIST, or see `pyxpo doctor`)" % DIST)
@@ -297,7 +305,7 @@ def stage_project(project: Path, release: bool = False) -> None:
 
 def build(project: Path, release: bool = False, install: bool = False, run: bool = False) -> Path:
     project = Path(project).resolve()
-    cfg = load_config(project)
+    cfg = load_config(project, build_mode(release))
     nc = native_config.resolve(cfg, project)
     abis = available_abis(_cfg_abis(cfg))
     if not abis:

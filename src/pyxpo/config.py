@@ -4,7 +4,7 @@ import ast
 import os
 import re
 from pathlib import Path
-from typing import Any, Dict
+from typing import Any, Dict, Optional
 
 try:
     import tomllib as _toml  # type: ignore
@@ -49,7 +49,9 @@ def _mini_parse(text: str) -> Dict[str, Any]:
     return out
 
 
-def load_config(project_dir: Path) -> Dict[str, Any]:
+def load_config(project_dir: Path, mode: Optional[str] = None) -> Dict[str, Any]:
+    """The validated `[tool.pyxpo]` table. `mode` (default `module_hooks.build_mode()`) is passed to module build
+    hooks; builders pass `build_mode(release)`. Data the hooks ship is kept under `MODULE_DATA` for the app config."""
     path = Path(project_dir) / "pyproject.toml"
     if not path.is_file():
         raise FileNotFoundError("no pyproject.toml in %s (run inside a pyxpo project)" % project_dir)
@@ -60,8 +62,14 @@ def load_config(project_dir: Path) -> Dict[str, Any]:
         cfg = _mini_parse(text) or None
     if cfg is None:
         raise ValueError("pyproject.toml has no [tool.pyxpo] table")
-    from . import app_config
-    return app_config.prepare(cfg, project_dir)
+    from . import app_config, module_hooks
+    from .app_config.resolve import MODULE_DATA
+    mode = module_hooks.check_mode(mode) if mode else module_hooks.build_mode()
+    cfg, shipped = module_hooks.run(cfg, Path(project_dir), mode)
+    cfg = app_config.prepare(cfg, project_dir)
+    if shipped:
+        cfg[MODULE_DATA] = shipped
+    return cfg
 
 
 def set_requires(project_dir: Path, requires: list) -> None:

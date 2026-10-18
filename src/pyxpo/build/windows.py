@@ -23,6 +23,7 @@ from typing import Dict, List, Optional
 
 from .. import native_config
 from ..config import load_config, pip_index_args
+from ..module_hooks import build_mode
 from . import app_json, autolink, runtime
 from .android import BuildError, _run
 from .ios import _stage_app
@@ -68,7 +69,7 @@ def window_config(cfg: Dict[str, object], nc: Dict[str, object]) -> Dict[str, ob
 def stage(project: Path, release: bool = False, shell: Optional[Path] = None) -> Path:
     """Builds `build/windows/<Name>/` and returns the path of `<Name>.exe`."""
     project = Path(project).resolve()
-    cfg = load_config(project)
+    cfg = load_config(project, build_mode(release))
     nc = native_config.resolve(cfg, project)
     shell = Path(shell) if shell is not None else runtime.ensure("windows", path=dist())
     if not shell_available(shell):

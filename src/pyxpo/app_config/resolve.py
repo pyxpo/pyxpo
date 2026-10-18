@@ -9,6 +9,8 @@ from . import images
 from .schema import ConfigError
 
 PERM_PREFIX = "android.permission."
+# Set by load_config after validation: {module: data} from module build hooks, shipped in `_app_config.json`.
+MODULE_DATA = "_module_data"
 
 
 def safe_name(name: str) -> str:
@@ -63,6 +65,7 @@ def resolve(cfg: Dict[str, Any], project: Path, project_version: str = "") -> Di
         "status_bar": {"style": sb.get("style", "auto"), "hidden": bool(sb.get("hidden", False))},
         "navigation_bar": {"style": nb.get("style", "auto"), "hidden": bool(nb.get("hidden", False))},
         "extra": dict(cfg.get("extra") or {}), "plugins": list(cfg.get("plugins") or []),
+        "module_data": dict(cfg.get(MODULE_DATA) or {}),
         "ios": {
             "bundle_id": ios.get("bundle_identifier", bundle), "build_number": str(ios.get("build_number", build)),
             "team_id": str(ios.get("team_id", "")), "supports_tablet": bool(ios.get("supports_tablet", True)),
