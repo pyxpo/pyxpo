@@ -9,7 +9,7 @@ config: after pyproject.toml is read and before `app_config.py` and validation. 
 - stop the build with `ctx.fail(msg)` (or by raising `ValueError`), or print `ctx.warn(msg)` once per process.
 
 `ctx.mode` is the build mode: `PYXPO_MODE` (`--mode`) when set, else `production` for release builds and
-`development` otherwise. pyxpo-env uses all of this to load `.env` files.
+`development` otherwise. pyxpo-dot-env uses all of this to load `.env` files.
 """
 from __future__ import annotations
 

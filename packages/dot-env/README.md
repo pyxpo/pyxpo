@@ -1,11 +1,11 @@
-# pyxpo-env
+# pyxpo-dot-env
 
 Environment variables for [pyxpo](https://github.com/pyxpo/pyxpo) apps. Put settings such as API URLs, feature
 flags and keys in `.env` files, one set per build mode (development, staging, production). Read them in the app
 with typed getters. The build stops when something that looks like a server secret would ship inside the app.
 
 <p align="center">
-  <img src="https://raw.githubusercontent.com/pyxpo/pyxpo/main/packages/env/docs/images/hero.png" width="820" alt="The pyxpo-env demo app: a staging build on Android and a production build on iOS, each with its own API URL, retries, feature flag and locales">
+  <img src="https://raw.githubusercontent.com/pyxpo/pyxpo/main/packages/dot-env/docs/images/hero.png" width="820" alt="The pyxpo-dot-env demo app: a staging build on Android and a production build on iOS, each with its own API URL, retries, feature flag and locales">
 </p>
 
 ```sh
@@ -15,7 +15,7 @@ SENTRY_AUTH_TOKEN=...                          # everything else stays on the bu
 ```
 
 ```python
-from pyxpo_env import env
+from pyxpo_dot_env import env
 
 env.url("API_URL")          # "https://api.example.com" (the PYXPO_PUBLIC_ prefix is optional)
 env.int("RETRIES", 3)       # typed getters with defaults
@@ -40,7 +40,7 @@ env.mode                    # "development", "production", "staging", ...
 - **Git checks:** warnings when `.env*.local` is not git-ignored, or when a committed `.env` holds a secret.
 - **`${VAR}` in `[tool.pyxpo]`:** use variables in the app config (for example a per-mode bundle ID or an
   `extra` value), with a guard that keeps build-only values out of `extra`, which ships.
-- **A command line tool:** `python -m pyxpo_env check | show | example | init`.
+- **A command line tool:** `python -m pyxpo_dot_env check | show | example | init`.
 - **dotenvx friendly:** encrypted values are detected, and `dotenvx run -- pyxpo build ...` decrypts them for the
   build.
 - **Pure Python, no native code:** the same on Android, iOS, the web, Mac and Windows. Typed (`py.typed`).
@@ -72,20 +72,20 @@ Requires Python 3.9+ and `pyxpo>=0.1.0a4` (module build hooks).
 ## Install
 
 ```sh
-pip install pyxpo-env
+pip install pyxpo-dot-env
 ```
 
 Add the module to your app's `pyproject.toml`:
 
 ```toml
 [tool.pyxpo]
-modules = ["env"]
+modules = ["dot-env"]
 ```
 
 Then create the starter files and the `.gitignore` entries in the project folder:
 
 ```sh
-python -m pyxpo_env init
+python -m pyxpo_dot_env init
 ```
 
 `init` creates `.env` and `.env.example`, and adds `.env*.local` and `.env.keys` to `.gitignore`. It never
@@ -117,7 +117,7 @@ SENTRY_AUTH_TOKEN=...
 
 ```python
 from pyxpo import Text, View, component, use_async
-from pyxpo_env import env
+from pyxpo_dot_env import env
 
 import app.api as api
 
@@ -147,7 +147,7 @@ pyxpo build android --release           # production: .env.production wins over 
 **4. Check before you ship:**
 
 ```sh
-python -m pyxpo_env check --mode production
+python -m pyxpo_dot_env check --mode production
 ```
 
 `check` runs the same checks as the build and prints what would ship. Add it to CI so a missing or leaked value
@@ -162,7 +162,7 @@ known weakness ([MASWE-0005](https://mas.owasp.org/MASWE/MASVS-AUTH/MASWE-0005/)
 not to put secrets in the app at all
 ([Insecure API usage](https://developer.android.com/privacy-and-security/risks/insecure-api-usage)).
 
-So pyxpo-env sorts variables by name:
+So pyxpo-dot-env sorts variables by name:
 
 | Kind | Name | Where it goes | Examples |
 | --- | --- | --- | --- |
@@ -184,7 +184,7 @@ Keychain and the Android Keystore. `.env` files are for the app's own settings, 
 
 ## Files and modes
 
-pyxpo-env reads these files from the project folder (next to `pyproject.toml`), lowest priority first:
+pyxpo-dot-env reads these files from the project folder (next to `pyproject.toml`), lowest priority first:
 
 | File | For | Commit it? |
 | --- | --- | --- |
@@ -244,7 +244,7 @@ References can use variables from any file and from the environment, in any orde
 ## Reading values in the app
 
 ```python
-from pyxpo_env import EnvError, env
+from pyxpo_dot_env import EnvError, env
 
 env.str("THEME")                  # "dark"
 env.int("RETRIES", 3)             # 3 when not set; EnvError when set to "three"
@@ -274,7 +274,7 @@ env.to_dict()                     # {"PYXPO_PUBLIC_API_URL": "...", ...}
   `os.environ` either.
 
 <p align="center">
-  <img src="https://raw.githubusercontent.com/pyxpo/pyxpo/main/packages/env/docs/images/typed.png" width="720" alt="Typed values in the demo app on Android and iOS, and a build-only token that does not reach the app">
+  <img src="https://raw.githubusercontent.com/pyxpo/pyxpo/main/packages/dot-env/docs/images/typed.png" width="720" alt="Typed values in the demo app on Android and iOS, and a build-only token that does not reach the app">
 </p>
 
 ## Schema
@@ -283,7 +283,7 @@ The schema is optional. Without it, every `PYXPO_PUBLIC_` variable ships as a st
 when you read it. With it, the build checks each value, fills in defaults and ships typed values.
 
 ```toml
-[tool.pyxpo.module_options.env.vars]
+[tool.pyxpo.module_options.dot-env.vars]
 PYXPO_PUBLIC_API_URL      = { type = "url", required = true, description = "Backend base URL", example = "https://api.example.com" }
 PYXPO_PUBLIC_RETRIES      = { type = "int", default = 3 }
 PYXPO_PUBLIC_NEW_CHECKOUT = { type = "bool", default = false, description = "Feature flag" }
@@ -311,7 +311,7 @@ Schema entries without the prefix are build-only: they are checked (for example,
 All schema problems are collected and reported together, so one build shows every mistake:
 
 ```text
-error: env: 3 problems with the environment for mode 'production' (.env, .env.production in /path/to/app):
+error: dot-env: 3 problems with the environment for mode 'production' (.env, .env.production in /path/to/app):
   - PYXPO_PUBLIC_API_URL must be a full URL such as https://api.example.com, got 'api.example.com' (from .env.production)
   - PYXPO_PUBLIC_THEME must be one of light, dark, got 'blue' (from .env)
   - SENTRY_AUTH_TOKEN is required but not set (Uploads debug symbols at build time)
@@ -320,7 +320,7 @@ error: env: 3 problems with the environment for mode 'production' (.env, .env.pr
 ## Options
 
 ```toml
-[tool.pyxpo.module_options.env]
+[tool.pyxpo.module_options.dot-env]
 strict = true                          # every PYXPO_PUBLIC_ variable must be in vars
 allow = ["PYXPO_PUBLIC_DEMO_TOKEN"]    # skip the leak guard for these names
 dir = "config"                         # read the .env files from ./config instead of the project folder
@@ -342,7 +342,7 @@ An unknown option is an error, so a misspelled option does not get ignored witho
 Every build checks each public value and name before anything is shipped. A hit stops the build:
 
 <p align="center">
-  <img src="https://raw.githubusercontent.com/pyxpo/pyxpo/main/packages/env/docs/images/leak-guard.png" width="820" alt="python -m pyxpo_env check stopping on a Stripe secret key, an OpenAI key and a password in public variables, with the values masked">
+  <img src="https://raw.githubusercontent.com/pyxpo/pyxpo/main/packages/dot-env/docs/images/leak-guard.png" width="820" alt="python -m pyxpo_dot_env check stopping on a Stripe secret key, an OpenAI key and a password in public variables, with the values masked">
 </p>
 
 | It stops on | Looks like |
@@ -371,7 +371,7 @@ Values are masked in every message (`sk_l************ (32 chars)`), so build log
 2. If it is a false alarm, or a key that is public by design, add the name to `allow`:
 
 ```toml
-[tool.pyxpo.module_options.env]
+[tool.pyxpo.module_options.dot-env]
 allow = ["PYXPO_PUBLIC_DEMO_TOKEN"]
 ```
 
@@ -408,7 +408,7 @@ api_docs = "${PYXPO_PUBLIC_API_URL}/docs"                  # read with Constants
   error.
 - A setting elsewhere that uses a value that looks like a secret gets a warning, so you can check that setting does
   not end up in the app.
-- `module_options.env` itself is not expanded, so patterns and examples can hold `${` as written.
+- `module_options.dot-env` itself is not expanded, so patterns and examples can hold `${` as written.
 
 In `app_config.py`, build-only and public variables are plain `os.environ` values:
 
@@ -428,13 +428,13 @@ Run these in the project folder (or pass `--dir path/to/app`). Each one takes `-
 
 | Command | What it does |
 | --- | --- |
-| `python -m pyxpo_env check --mode production` | Runs every build check. Prints the files read, the number of variables that ship, warnings and errors. Exits 1 on an error, so it fits in CI. |
-| `python -m pyxpo_env show --mode staging` | Lists every variable: whether it ships, the file it came from, and its value. Build-only values are masked. |
-| `python -m pyxpo_env example` | Prints a `.env.example`: each name with its type, whether it is required and whether it ships, and only safe example values. `--write` saves it. |
-| `python -m pyxpo_env init` | Creates `.env` and `.env.example`, and adds `.env*.local` and `.env.keys` to `.gitignore`. |
+| `python -m pyxpo_dot_env check --mode production` | Runs every build check. Prints the files read, the number of variables that ship, warnings and errors. Exits 1 on an error, so it fits in CI. |
+| `python -m pyxpo_dot_env show --mode staging` | Lists every variable: whether it ships, the file it came from, and its value. Build-only values are masked. |
+| `python -m pyxpo_dot_env example` | Prints a `.env.example`: each name with its type, whether it is required and whether it ships, and only safe example values. `--write` saves it. |
+| `python -m pyxpo_dot_env init` | Creates `.env` and `.env.example`, and adds `.env*.local` and `.env.keys` to `.gitignore`. |
 
 <p align="center">
-  <img src="https://raw.githubusercontent.com/pyxpo/pyxpo/main/packages/env/docs/images/show.png" width="820" alt="python -m pyxpo_env show --mode staging listing each variable, whether it ships, its source file and its value">
+  <img src="https://raw.githubusercontent.com/pyxpo/pyxpo/main/packages/dot-env/docs/images/show.png" width="820" alt="python -m pyxpo_dot_env show --mode staging listing each variable, whether it ships, its source file and its value">
 </p>
 
 ## CI and the environment
@@ -444,8 +444,8 @@ on disk:
 
 ```yaml
 # GitHub Actions
-- run: pip install pyxpo pyxpo-env
-- run: python -m pyxpo_env check --mode production
+- run: pip install pyxpo pyxpo-dot-env
+- run: python -m pyxpo_dot_env check --mode production
   env:
     PYXPO_PUBLIC_API_URL: https://api.example.com
     SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
@@ -464,7 +464,7 @@ on disk:
 [dotenvx](https://dotenvx.com) can encrypt the values in a `.env` file, so the file can be committed. The private
 key stays in `.env.keys` (git-ignored by `init`) or in the `DOTENV_PRIVATE_KEY` CI secret.
 
-pyxpo-env does not decrypt files itself. When it finds an `encrypted:...` value, the build stops and tells you to
+pyxpo-dot-env does not decrypt files itself. When it finds an `encrypted:...` value, the build stops and tells you to
 run the build through dotenvx, which decrypts the values into the environment:
 
 ```sh
@@ -476,7 +476,7 @@ still ships as plain text, and the leak guard still checks it.
 
 ## Errors
 
-Build problems stop the build with one message that lists them all (`error: env: N problems with the environment
+Build problems stop the build with one message that lists them all (`error: dot-env: N problems with the environment
 for mode ...`). At run time, the getters raise `EnvError`, a subclass of `LookupError`.
 
 | Error | What to do |
@@ -486,7 +486,7 @@ for mode ...`). At run time, the getters raise `EnvError`, a subclass of `Lookup
 | `X must be one of light, dark, got 'blue'` | Use one of the `choices`. |
 | `X looks like a Stripe secret or restricted key (...)` | See [What to do when it stops](#the-leak-guard). |
 | `X has SECRET in its name but would ship inside the app` | Drop the prefix, or add `X` to `allow` if it is not a secret. |
-| `X is not declared in module_options.env.vars (strict = true)` | Add it to the schema, or fix the typo in the name. |
+| `X is not declared in module_options.dot-env.vars (strict = true)` | Add it to the schema, or fix the typo in the name. |
 | `[tool.pyxpo] extra.x uses ${Y}, but extra ships inside the app` | Only use `PYXPO_PUBLIC_` variables in `extra`. |
 | `.env:4: ${NAME} is not set` | Set `NAME`, or give a fallback: `${NAME:-}`. |
 | `.env:7: ... has a ${ that is never closed with }` | Close the reference, write `$${` for a literal `${`, or single-quote the value. |
@@ -496,7 +496,7 @@ for mode ...`). At run time, the getters raise `EnvError`, a subclass of `Lookup
 
 ## Web and desktop
 
-pyxpo-env works the same on every target, because it runs on the build machine and ships plain data.
+pyxpo-dot-env works the same on every target, because it runs on the build machine and ships plain data.
 
 - `pyxpo run web` rebuilds the page when you add, edit or delete a `.env` file.
 - `pyxpo run desktop --preview` hands the values to the preview window directly.
@@ -543,7 +543,7 @@ async def summarize(body: dict, user=Depends(current_user)):
 # app/api.py (the pyxpo app; the user's session token is in pyxpo-secure-store)
 import pyxpo_fetch as fetch
 import pyxpo_secure_store as SecureStore
-from pyxpo_env import env
+from pyxpo_dot_env import env
 
 
 async def summarize(text):
@@ -566,13 +566,13 @@ For extra trust, check Play Integrity / App Attest tokens on the server as well.
 
 Before you publish:
 
-- [ ] **Run the check** for the release mode: `python -m pyxpo_env check --mode production` passes, and the list of
+- [ ] **Run the check** for the release mode: `python -m pyxpo_dot_env check --mode production` passes, and the list of
       shipped variables is what you expect (`show` prints them).
 - [ ] **No server secrets in the app.** Every `PYXPO_PUBLIC_` value is one you would put on a public web page.
       Paid API keys, database passwords and service keys live on your server.
 - [ ] **Public keys are restricted** in their console: Google / Firebase keys to your package name, signing
       certificate and bundle ID; Supabase with row level security; spending caps set.
-- [ ] **`.env*.local` and `.env.keys` are git-ignored** (`python -m pyxpo_env init` adds them), and no committed
+- [ ] **`.env*.local` and `.env.keys` are git-ignored** (`python -m pyxpo_dot_env init` adds them), and no committed
       `.env` holds a secret (`check` warns about both).
 - [ ] **`strict = true`** with a schema, so a typo in a variable name cannot ship.
 - [ ] **HTTPS only** in production: no `http://` URLs except local development addresses.
@@ -585,7 +585,7 @@ Before you publish:
 **In unit tests**, set values with `env.override`, a context manager. `None` removes a variable:
 
 ```python
-from pyxpo_env import EnvError, env
+from pyxpo_dot_env import EnvError, env
 
 import app.api as api
 
@@ -607,16 +607,16 @@ def test_missing_url_fails_loudly():
 
 Outside a pyxpo build (plain `pytest`), nothing has been shipped, so `env` is empty until you override it.
 
-**For the build checks**, `pyxpo_env.build.analyze` runs them without a build and returns a report:
+**For the build checks**, `pyxpo_dot_env.build.analyze` runs them without a build and returns a report:
 
 ```python
 from pathlib import Path
 
-from pyxpo_env.build import analyze
+from pyxpo_dot_env.build import analyze
 
 
 def test_production_env_is_clean():
-    report = analyze(Path("."), "production", {"module_options": {"env": {"strict": True}}}, environ={})
+    report = analyze(Path("."), "production", {"module_options": {"dot-env": {"strict": True}}}, environ={})
     assert report.errors == []
     assert "PYXPO_PUBLIC_API_URL" in report.public
 ```
@@ -629,14 +629,14 @@ def test_production_env_is_clean():
 | --- | --- |
 | `EnvError: PYXPO_PUBLIC_X is not set` but `.env` has `X=...` | Only `PYXPO_PUBLIC_` variables ship. Rename it to `PYXPO_PUBLIC_X`. |
 | A changed value does not show up on Android or iOS | Values are read at build time. Run `pyxpo run android` / `ios` again. |
-| The staging value is not used | Build with `--mode staging` (or `PYXPO_MODE=staging`). Check with `python -m pyxpo_env show --mode staging`. |
+| The staging value is not used | Build with `--mode staging` (or `PYXPO_MODE=staging`). Check with `python -m pyxpo_dot_env show --mode staging`. |
 | A value from `.env` is ignored | The same variable is set in your shell or CI environment, which wins. `show` prints `environment` as its source. Unset it, or set `PYXPO_NO_DOTENV=1` on purpose. |
 | `EXPO_PUBLIC_X` / `VITE_X` does not reach the app | pyxpo uses its own prefix: rename it to `PYXPO_PUBLIC_X`. |
-| The leak guard stops on a key that is meant to be public | Add its name to `module_options.env.allow`. |
+| The leak guard stops on a key that is meant to be public | Add its name to `module_options.dot-env.allow`. |
 | `${PRICE}` is replaced in a value | Write `$${PRICE}`, or single-quote the value. |
 | `.env` files in `app/` | Move them next to `pyproject.toml`, or point `dir` at their folder. |
 | `X is a plain http:// URL in a production build` | Use `https://` for the production server. |
-| `ConfigError: module_options.env: unknown key ...` | An option is misspelled. The message lists the known ones. |
+| `ConfigError: module_options.dot-env: unknown key ...` | An option is misspelled. The message lists the known ones. |
 
 ## FAQ
 
@@ -663,12 +663,12 @@ defaults and typed values, and with `strict = true` it catches typos.
 
 **Can I use python-dotenv instead?**
 python-dotenv reads `.env` files at run time, which would mean shipping the files inside the app, secrets included.
-pyxpo-env reads them at build time and ships only the public values. The file format is the same, so existing
+pyxpo-dot-env reads them at build time and ships only the public values. The file format is the same, so existing
 files keep working.
 
 ## API reference
 
-`from pyxpo_env import env, Env, EnvError, PREFIX`
+`from pyxpo_dot_env import env, Env, EnvError, PREFIX`
 
 **`env`** is the shared `Env` instance. Every name may be given with or without the `PYXPO_PUBLIC_` prefix.
 
@@ -698,9 +698,9 @@ not fit the type.
 | --- | --- |
 | `EnvError` | Subclass of `LookupError`, raised by the getters. |
 | `PREFIX` | `"PYXPO_PUBLIC_"` |
-| `pyxpo_env.build.analyze(project, mode, config, environ=None)` | Runs the build checks. Returns a report with `public` (what ships), `errors`, `warnings`, `schema` and `loaded` (`values`, `sources`, `files`). |
-| `pyxpo_env.guard.secret_kind(value)` | The kind of secret a value looks like, or `None`. |
-| `pyxpo_env.guard.mask(value)` | The value with all but a short prefix hidden. |
+| `pyxpo_dot_env.build.analyze(project, mode, config, environ=None)` | Runs the build checks. Returns a report with `public` (what ships), `errors`, `warnings`, `schema` and `loaded` (`values`, `sources`, `files`). |
+| `pyxpo_dot_env.guard.secret_kind(value)` | The kind of secret a value looks like, or `None`. |
+| `pyxpo_dot_env.guard.mask(value)` | The value with all but a short prefix hidden. |
 
 **Environment variables**
 
@@ -709,7 +709,7 @@ not fit the type.
 | `PYXPO_MODE` | The build mode when `--mode` is not given. |
 | `PYXPO_NO_DOTENV=1` | Ignore the `.env` files; use only the environment. |
 
-**`[tool.pyxpo.module_options.env]`**: `vars`, `strict`, `allow`, `dir`, `git_check` (see [Options](#options)).
+**`[tool.pyxpo.module_options.dot-env]`**: `vars`, `strict`, `allow`, `dir`, `git_check` (see [Options](#options)).
 
 ## License
 

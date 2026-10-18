@@ -83,11 +83,11 @@ def check_public(name: str, value: str, allow: Iterable[str] = ()) -> Optional[s
     if kind:
         return "%s looks like %s (%s). It would ship inside the app, where anyone can extract it. Keep it " \
                "build-only (drop the PYXPO_PUBLIC_ prefix) and call the API from your server, or add %s to " \
-               "module_options.env.allow if this value is meant to be public." % (name, kind, mask(value), name)
+               "module_options.dot-env.allow if this value is meant to be public." % (name, kind, mask(value), name)
     word = name_hint(name)
     if word:
         return "%s has %s in its name but would ship inside the app, where anyone can extract it. Rename it " \
-               "without the PYXPO_PUBLIC_ prefix to keep it build-only, or add it to module_options.env.allow " \
+               "without the PYXPO_PUBLIC_ prefix to keep it build-only, or add it to module_options.dot-env.allow " \
                "if it is not a secret." % (name, word)
     return None
 

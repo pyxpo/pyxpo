@@ -435,7 +435,7 @@ def cmd_config(args: argparse.Namespace) -> int:
     return 0
 
 
-MODE_HELP = ("build mode for module build hooks such as pyxpo-env (.env.<mode>); default: production with "
+MODE_HELP = ("build mode for module build hooks such as pyxpo-dot-env (.env.<mode>); default: production with "
              "--release, else development")
 
 

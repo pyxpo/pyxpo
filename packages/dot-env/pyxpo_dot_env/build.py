@@ -1,12 +1,12 @@
-"""The pyxpo build hook of pyxpo-env (runs on the build machine, never inside the app).
+"""The pyxpo build hook of pyxpo-dot-env (runs on the build machine, never inside the app).
 
 Each time pyxpo loads `[tool.pyxpo]` it
 
 1. reads `.env`, `.env.<mode>`, `.env.local`, `.env.<mode>.local` (the environment wins) and puts the values
    into `os.environ` for `app_config.py` and build tools,
 2. replaces `${VAR}` in `[tool.pyxpo]` strings (only `PYXPO_PUBLIC_` variables may go into `extra`, which ships),
-3. checks the schema in `module_options.env.vars`, the leak guard and git hygiene,
-4. ships the `PYXPO_PUBLIC_` variables into the app, read with `from pyxpo_env import env`.
+3. checks the schema in `module_options.dot-env.vars`, the leak guard and git hygiene,
+4. ships the `PYXPO_PUBLIC_` variables into the app, read with `from pyxpo_dot_env import env`.
 """
 from __future__ import annotations
 
@@ -19,7 +19,7 @@ from . import PREFIX, guard, schema
 from .dotenv import DotenvError, expand
 from .loader import Loaded, environment_values, inject, load
 
-NAME = "env"
+NAME = "dot-env"
 OPTION_KEYS = ("vars", "strict", "allow", "dir", "git_check")
 
 
@@ -50,13 +50,13 @@ def env_dir(project: Path, options: Mapping[str, Any]) -> Path:
     if d is None:
         return Path(project)
     if not isinstance(d, str) or not d.strip():
-        raise DotenvError("module_options.env.dir must be a folder path")
+        raise DotenvError("module_options.dot-env.dir must be a folder path")
     return (Path(project) / d).resolve()
 
 
 def analyze(project: Path, mode: str, config: Mapping[str, Any],
             environ: Optional[Mapping[str, str]] = None) -> Report:
-    """Loads the env files for `mode` and runs every check. Shared by the build hook and `python -m pyxpo_env`."""
+    """Loads the env files for `mode` and runs every check. Shared by the build hook and `python -m pyxpo_dot_env`."""
     options = options_of(config)
     loaded = load(env_dir(project, options), mode, environ)
     report = Report(loaded)
@@ -64,18 +64,18 @@ def analyze(project: Path, mode: str, config: Mapping[str, Any],
 
     unknown = sorted(set(options) - set(OPTION_KEYS))
     if unknown:
-        errors.append("module_options.env: unknown key %s (known: %s)" % (", ".join(unknown), ", ".join(OPTION_KEYS)))
+        errors.append("module_options.dot-env: unknown key %s (known: %s)" % (", ".join(unknown), ", ".join(OPTION_KEYS)))
     allow = options.get("allow", [])
     if not isinstance(allow, list) or not all(isinstance(a, str) for a in allow):
-        errors.append("module_options.env.allow must be a list of variable names")
+        errors.append("module_options.dot-env.allow must be a list of variable names")
         allow = []
     strict = options.get("strict", False)
     if not isinstance(strict, bool):
-        errors.append("module_options.env.strict must be true or false")
+        errors.append("module_options.dot-env.strict must be true or false")
         strict = False
     git_check = options.get("git_check", True)
     if not isinstance(git_check, bool):
-        errors.append("module_options.env.git_check must be true or false")
+        errors.append("module_options.dot-env.git_check must be true or false")
         git_check = True
     report.git_check = git_check
     report.schema, schema_errors = schema.parse_schema(options.get("vars"))
@@ -118,7 +118,7 @@ def analyze(project: Path, mode: str, config: Mapping[str, Any],
         if not name.startswith(PREFIX) or name in report.public or name in report.schema:
             continue
         if strict:
-            errors.append("%s is not declared in module_options.env.vars (strict = true)" % name)
+            errors.append("%s is not declared in module_options.dot-env.vars (strict = true)" % name)
             continue
         report.public[name] = value
 
@@ -133,7 +133,7 @@ def analyze(project: Path, mode: str, config: Mapping[str, Any],
 
 
 def interpolate(config: Dict[str, Any], values: Mapping[str, str]) -> Tuple[Dict[str, Any], List[str], List[str]]:
-    """`config` with `${VAR}` replaced in every string (but not inside module_options.env). Returns the new table,
+    """`config` with `${VAR}` replaced in every string (but not inside module_options.dot-env). Returns the new table,
     the errors, and the names used in each place for the leak checks."""
     errors: List[str] = []
     notes: List[str] = []
@@ -195,7 +195,7 @@ def git_warnings(project: Path, loaded: Loaded) -> List[str]:
             return out
         if r.returncode == 1:
             out.append("%s is not in .gitignore; add .env*.local and .env.keys so machine secrets are never "
-                       "committed (python -m pyxpo_env init does it)" % name)
+                       "committed (python -m pyxpo_dot_env init does it)" % name)
     try:
         tracked = subprocess.run(["git", "-C", str(d), "ls-files", "--", ".env", ".env.%s" % loaded.mode],
                                  capture_output=True, text=True, timeout=5).stdout.split()

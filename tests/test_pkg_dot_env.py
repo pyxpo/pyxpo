@@ -1,4 +1,4 @@
-"""pyxpo-env: the .env parser, file priority, schema, leak guard, build hook, runtime `env` and the CLI.
+"""pyxpo-dot-env: the .env parser, file priority, schema, leak guard, build hook, runtime `env` and the CLI.
 All secret-looking values here are fake, made up for the tests."""
 import json
 import os
@@ -14,11 +14,11 @@ from pyxpo.app_config.schema import ConfigError
 from pyxpo.build import app_json
 from pyxpo.config import load_config
 
-import pyxpo_env
-from pyxpo_env import Env, EnvError, env
-from pyxpo_env import __main__ as cli
-from pyxpo_env import build, guard, loader, schema
-from pyxpo_env.dotenv import DotenvError, dumps_value, expand, parse, resolve as resolve_refs
+import pyxpo_dot_env
+from pyxpo_dot_env import Env, EnvError, env
+from pyxpo_dot_env import __main__ as cli
+from pyxpo_dot_env import build, guard, loader, schema
+from pyxpo_dot_env.dotenv import DotenvError, dumps_value, expand, parse, resolve as resolve_refs
 
 FAKE_STRIPE = "sk_live_" + "4eC39HqLyjWDarjtT1zdp7dc"
 FAKE_AWS = "AKIA" + "IOSFODNN7EXAMPLE"
@@ -69,7 +69,7 @@ def test_parse_errors_have_line():
 
 
 def test_duplicate_last_wins():
-    from pyxpo_env.loader import load
+    from pyxpo_dot_env.loader import load
     assert [e.raw for e in parse("A=1\nA=2\n")] == ["1", "2"]
 
 
@@ -233,10 +233,10 @@ def test_check_public_and_allow():
 
 # analyze / build hook ----------------------------------------------------------------------------------------------
 
-def proj(tmp_path, dotenv="", extra="", options="", modules='["env"]'):
+def proj(tmp_path, dotenv="", extra="", options="", modules='["dot-env"]'):
     p = tmp_path / "proj"
     (p / "app").mkdir(parents=True, exist_ok=True)
-    (p / "app" / "index.py").write_text("from pyxpo_env import env\ndefault = None\n")
+    (p / "app" / "index.py").write_text("from pyxpo_dot_env import env\ndefault = None\n")
     (p / "pyproject.toml").write_text('[tool.pyxpo]\nname = "Demo"\nmodules = %s\n%s\n%s' % (modules, extra, options))
     if dotenv:
         (p / ".env").write_text(dotenv)
@@ -246,11 +246,11 @@ def proj(tmp_path, dotenv="", extra="", options="", modules='["env"]'):
 def test_build_ships_public_only(tmp_path):
     p = proj(tmp_path, "PYXPO_PUBLIC_API_URL=https://api.example.com\nPXENV_SERVER_KEY=build-only-dummy\n",
              '[tool.pyxpo.extra]\napi = "${PYXPO_PUBLIC_API_URL}/v2"\n',
-             "[tool.pyxpo.module_options.env.vars]\nPYXPO_PUBLIC_RETRIES = { type = \"int\", default = 2 }\n")
+             "[tool.pyxpo.module_options.dot-env.vars]\nPYXPO_PUBLIC_RETRIES = { type = \"int\", default = 2 }\n")
     cfg = load_config(p)
     nc = resolve(cfg, p)
     shipped = app_json.public(nc)
-    assert shipped["modules"]["env"] == {"mode": "development", "vars": {
+    assert shipped["modules"]["dot-env"] == {"mode": "development", "vars": {
         "PYXPO_PUBLIC_API_URL": "https://api.example.com", "PYXPO_PUBLIC_RETRIES": 2}}
     assert shipped["extra"]["api"] == "https://api.example.com/v2"
     assert "build-only-dummy" not in json.dumps(shipped)
@@ -260,15 +260,15 @@ def test_build_ships_public_only(tmp_path):
 def test_build_mode_files(tmp_path):
     p = proj(tmp_path, "PYXPO_PUBLIC_NAME=dev\n")
     (p / ".env.production").write_text("PYXPO_PUBLIC_NAME=prod\n")
-    assert resolve(load_config(p, "production"), p)["module_data"]["env"] == {
+    assert resolve(load_config(p, "production"), p)["module_data"]["dot-env"] == {
         "mode": "production", "vars": {"PYXPO_PUBLIC_NAME": "prod"}}
-    assert resolve(load_config(p), p)["module_data"]["env"]["vars"]["PYXPO_PUBLIC_NAME"] == "dev"
+    assert resolve(load_config(p), p)["module_data"]["dot-env"]["vars"]["PYXPO_PUBLIC_NAME"] == "dev"
 
 
 def test_environment_public_vars_ship(tmp_path, monkeypatch):
     monkeypatch.setenv("PYXPO_PUBLIC_FROM_CI", "ci")
     p = proj(tmp_path)
-    assert resolve(load_config(p), p)["module_data"]["env"]["vars"] == {"PYXPO_PUBLIC_FROM_CI": "ci"}
+    assert resolve(load_config(p), p)["module_data"]["dot-env"]["vars"] == {"PYXPO_PUBLIC_FROM_CI": "ci"}
 
 
 def test_leak_stops_build(tmp_path):
@@ -278,7 +278,7 @@ def test_leak_stops_build(tmp_path):
     msg = str(e.value)
     assert "2 problems" in msg and "Stripe" in msg and "AWS" in msg and FAKE_STRIPE not in msg
     p2 = proj(tmp_path / "b", "PYXPO_PUBLIC_STRIPE=%s\n" % FAKE_STRIPE,
-              options='[tool.pyxpo.module_options.env]\nallow = ["PYXPO_PUBLIC_STRIPE"]\n')
+              options='[tool.pyxpo.module_options.dot-env]\nallow = ["PYXPO_PUBLIC_STRIPE"]\n')
     load_config(p2)
     p3 = proj(tmp_path / "c", "STRIPE=%s\n" % FAKE_STRIPE)  # build-only: fine
     load_config(p3)
@@ -286,8 +286,8 @@ def test_leak_stops_build(tmp_path):
 
 def test_schema_errors_collected(tmp_path):
     p = proj(tmp_path, "PYXPO_PUBLIC_RETRIES=many\nPYXPO_PUBLIC_EXTRA=1\n", options=(
-        "[tool.pyxpo.module_options.env]\nstrict = true\n"
-        "[tool.pyxpo.module_options.env.vars]\n"
+        "[tool.pyxpo.module_options.dot-env]\nstrict = true\n"
+        "[tool.pyxpo.module_options.dot-env.vars]\n"
         "PYXPO_PUBLIC_RETRIES = \"int\"\n"
         "PYXPO_PUBLIC_API_URL = { type = \"url\", required = true, description = \"Backend\", "
         "example = \"https://api.example.com\" }\n"
@@ -305,10 +305,10 @@ def test_schema_errors_collected(tmp_path):
 
 def test_required_in_some_modes(tmp_path):
     p = proj(tmp_path, options=(
-        "[tool.pyxpo.module_options.env.vars]\n"
+        "[tool.pyxpo.module_options.dot-env.vars]\n"
         "PYXPO_PUBLIC_ADMOB_ID = { required = [\"production\"], pattern = \"ca-app-pub-\\\\d{16}~\\\\d{10}\", "
         "example = \"ca-app-pub-0000000000000000~0000000000\" }\n"))
-    assert "PYXPO_PUBLIC_ADMOB_ID" not in resolve(load_config(p), p)["module_data"]["env"]["vars"]
+    assert "PYXPO_PUBLIC_ADMOB_ID" not in resolve(load_config(p), p)["module_data"]["dot-env"]["vars"]
     load_config(p, "staging")
     with pytest.raises(ConfigError, match="PYXPO_PUBLIC_ADMOB_ID is required in production builds but not set; "
                                           "for example"):
@@ -317,13 +317,13 @@ def test_required_in_some_modes(tmp_path):
     with pytest.raises(ConfigError, match="required in production builds"):
         load_config(p, "production")
     (p / ".env.production").write_text("PYXPO_PUBLIC_ADMOB_ID=ca-app-pub-1234567890123456~1234567890\n")
-    assert resolve(load_config(p, "production"), p)["module_data"]["env"]["vars"] == {
+    assert resolve(load_config(p, "production"), p)["module_data"]["dot-env"]["vars"] == {
         "PYXPO_PUBLIC_ADMOB_ID": "ca-app-pub-1234567890123456~1234567890"}
     report = build.analyze(p, "development", cli.read_config(p), environ={})
     assert "required in production" in cli.example_text(report)
 
 def test_unknown_options(tmp_path):
-    p = proj(tmp_path, options="[tool.pyxpo.module_options.env]\nstric = true\n")
+    p = proj(tmp_path, options="[tool.pyxpo.module_options.dot-env]\nstric = true\n")
     with pytest.raises(ConfigError, match="unknown key stric"):
         load_config(p)
 
@@ -375,20 +375,20 @@ def test_git_warnings(tmp_path):
 
 
 def test_git_check_option(tmp_path, capsys):
-    p = proj(tmp_path, "PXENV_DB_PASSWORD=dummy\n", options='[tool.pyxpo.module_options.env]\ngit_check = false\n')
+    p = proj(tmp_path, "PXENV_DB_PASSWORD=dummy\n", options='[tool.pyxpo.module_options.dot-env]\ngit_check = false\n')
     subprocess.run(["git", "-C", str(p), "init", "-q"], capture_output=True, check=True)
     subprocess.run(["git", "-C", str(p), "add", ".env"], capture_output=True, check=True)
     assert cli.main(["check", "--dir", str(p)]) == 0
     assert "committed to git" not in capsys.readouterr().out
-    report = build.analyze(p, "development", {"module_options": {"env": {"git_check": "no"}}}, environ={})
-    assert "module_options.env.git_check must be true or false" in report.errors
+    report = build.analyze(p, "development", {"module_options": {"dot-env": {"git_check": "no"}}}, environ={})
+    assert "module_options.dot-env.git_check must be true or false" in report.errors
 
 
 def test_env_dir_option(tmp_path):
-    p = proj(tmp_path, options='[tool.pyxpo.module_options.env]\ndir = "config"\n')
+    p = proj(tmp_path, options='[tool.pyxpo.module_options.dot-env]\ndir = "config"\n')
     (p / "config").mkdir()
     (p / "config" / ".env").write_text("PYXPO_PUBLIC_A=from-config\n")
-    assert resolve(load_config(p), p)["module_data"]["env"]["vars"] == {"PYXPO_PUBLIC_A": "from-config"}
+    assert resolve(load_config(p), p)["module_data"]["dot-env"]["vars"] == {"PYXPO_PUBLIC_A": "from-config"}
 
 
 # runtime -----------------------------------------------------------------------------------------------------------
@@ -400,7 +400,7 @@ def shipped(monkeypatch):
                                         "PYXPO_PUBLIC_RETRIES": "3", "PYXPO_PUBLIC_ON": "yes",
                                         "PYXPO_PUBLIC_TAGS": "a,b", "PYXPO_PUBLIC_CFG": {"k": [1]},
                                         "PYXPO_PUBLIC_RATE": 0.5}}
-    monkeypatch.setattr(constants, "_load", lambda: {"modules": {"env": data}})
+    monkeypatch.setattr(constants, "_load", lambda: {"modules": {"dot-env": data}})
     e = Env()
     return e
 
@@ -439,14 +439,14 @@ def test_runtime_without_data(monkeypatch):
     monkeypatch.delenv(module_hooks.DATA_ENV, raising=False)
     e = Env()
     assert e.mode == "development" and e.is_development and len(e) == 0 and e.to_dict() == {}
-    assert isinstance(pyxpo_env.env, Env) and pyxpo_env.PREFIX == "PYXPO_PUBLIC_"
+    assert isinstance(pyxpo_dot_env.env, Env) and pyxpo_dot_env.PREFIX == "PYXPO_PUBLIC_"
 
 
 # CLI ---------------------------------------------------------------------------------------------------------------
 
 def test_cli_check_show_example(tmp_path, capsys):
     p = proj(tmp_path, "PYXPO_PUBLIC_API_URL=https://api.example.com\nPXENV_TOKEN=dummy-build-only-token\n",
-             options='[tool.pyxpo.module_options.env.vars]\n'
+             options='[tool.pyxpo.module_options.dot-env.vars]\n'
                      'PYXPO_PUBLIC_API_URL = { type = "url", required = true, description = "Backend URL", '
                      'example = "https://api.example.com" }\n'
                      'PYXPO_PUBLIC_DEBUG = { type = "bool", default = false }\n')
@@ -482,9 +482,9 @@ def test_cli_init(tmp_path, capsys):
 
 
 def test_module_metadata():
-    root = Path(pyxpo_env.__file__).parent
+    root = Path(pyxpo_dot_env.__file__).parent
     meta = json.loads((root / "pyxpo-module.json").read_text())
-    assert meta["name"] == "env" and meta["build"]["hook"] == "pyxpo_env.build:configure"
+    assert meta["name"] == "dot-env" and meta["build"]["hook"] == "pyxpo_dot_env.build:configure"
     assert (root / "py.typed").is_file()
     from pyxpo.build import autolink
     autolink.validate(meta, "pyxpo-module.json")
@@ -495,7 +495,7 @@ def test_pyxpo_build_reports_leak_without_traceback(tmp_path, capsys):
     p = proj(tmp_path, "PYXPO_PUBLIC_PAY=%s\n" % FAKE_STRIPE)
     assert pyxpo_cli.main(["build", "web", "--dir", str(p)]) == 1
     err = capsys.readouterr().err
-    assert err.startswith("error: env: 1 problem") and "Traceback" not in err and FAKE_STRIPE not in err
+    assert err.startswith("error: dot-env: 1 problem") and "Traceback" not in err and FAKE_STRIPE not in err
 
 
 def test_web_watch_sees_env_files(tmp_path):

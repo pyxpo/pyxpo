@@ -1,10 +1,10 @@
-"""pyxpo-env: `.env` files for pyxpo apps, with typed access and a build-time leak guard.
+"""pyxpo-dot-env: `.env` files for pyxpo apps, with typed access and a build-time leak guard.
 
     # .env
     PYXPO_PUBLIC_API_URL=https://api.example.com     # PYXPO_PUBLIC_ variables ship inside the app
     SENTRY_AUTH_TOKEN=...                            # everything else stays on the build machine
 
-    from pyxpo_env import env
+    from pyxpo_dot_env import env
 
     env.url("API_URL")                    # "https://api.example.com" (the PYXPO_PUBLIC_ prefix is optional)
     env.int("RETRIES", 3)                 # typed getters with defaults: str, int, float, bool, url, list, json
@@ -35,7 +35,7 @@ def _data() -> Dict[str, Any]:
         from pyxpo.module_api import build_data
     except ImportError:  # outside a pyxpo app (plain scripts, tests)
         return {}
-    data = build_data("env")
+    data = build_data("dot-env")
     return data if isinstance(data, dict) else {}
 
 
@@ -169,7 +169,7 @@ class Env:
         self._loaded = None
 
     def __repr__(self) -> str:
-        return "<pyxpo_env.env mode=%s %s>" % (self.mode, json.dumps(sorted(self._all())))
+        return "<pyxpo_dot_env.env mode=%s %s>" % (self.mode, json.dumps(sorted(self._all())))
 
 
 env = Env()

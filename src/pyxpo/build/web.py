@@ -144,7 +144,7 @@ _DEVTOOLS = '<script src="/__pyxpo/devtools.js"></script>\n'  # device preview p
 
 
 def _watch_stamp(project: Path, modules: Optional[List[Path]] = None) -> Any:
-    """Changes when the app, its assets, pyproject.toml, a `.env*` file (pyxpo-env) or a linked module package
+    """Changes when the app, its assets, pyproject.toml, a `.env*` file (pyxpo-dot-env) or a linked module package
     (local editable install) changes."""
     env_files = sorted(project.glob(".env*"))
     paths = [project / "pyproject.toml"] + env_files

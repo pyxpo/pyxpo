@@ -3,7 +3,7 @@ requires = ["setuptools>=77"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "pyxpo-env"
+name = "pyxpo-dot-env"
 dynamic = ["version"]
 description = "Environment variables for pyxpo apps: .env files per build mode, typed access, and a build-time guard that stops secrets from shipping inside the app."
 readme = "README.md"
@@ -34,23 +34,23 @@ dependencies = ["pyxpo>=0.1.0a4,<0.2"]
 [project.urls]
 Homepage = "https://github.com/pyxpo/pyxpo/tree/main/packages/env"
 Documentation = "https://github.com/pyxpo/pyxpo/tree/main/packages/env#readme"
-Changelog = "https://github.com/pyxpo/pyxpo/blob/main/packages/env/CHANGELOG.md"
+Changelog = "https://github.com/pyxpo/pyxpo/blob/main/packages/dot-env/CHANGELOG.md"
 Source = "https://github.com/pyxpo/pyxpo/tree/main/packages/env"
 Issues = "https://github.com/pyxpo/pyxpo/issues"
 
 # How `pyxpo build` finds this module: the entry point name is the module name apps list in
 # `[tool.pyxpo] modules`, its value the import package holding pyxpo-module.json.
 [project.entry-points."pyxpo.modules"]
-env = "pyxpo_env"
+dot-env = "pyxpo_dot_env"
 
 [tool.setuptools]
-packages = ["pyxpo_env"]
+packages = ["pyxpo_dot_env"]
 
 [tool.setuptools.dynamic]
-version = { attr = "pyxpo_env.__version__" }
+version = { attr = "pyxpo_dot_env.__version__" }
 
 [tool.setuptools.package-data]
-pyxpo_env = ["pyxpo-module.json", "py.typed"]
+pyxpo_dot_env = ["pyxpo-module.json", "py.typed"]
 
 [tool.setuptools.exclude-package-data]
 "*" = ["__pycache__", "*.pyc", ".DS_Store"]

@@ -1,4 +1,4 @@
-"""The optional variable schema in `[tool.pyxpo.module_options.env.vars]`:
+"""The optional variable schema in `[tool.pyxpo.module_options.dot-env.vars]`:
 
     PYXPO_PUBLIC_API_URL = { type = "url", required = true, description = "Backend base URL" }
     PYXPO_PUBLIC_RETRIES = { type = "int", default = 3 }
@@ -44,9 +44,9 @@ def parse_schema(table: Any) -> Tuple[Dict[str, Var], List[str]]:
     if table is None:
         return out, errors
     if not isinstance(table, dict):
-        return out, ["module_options.env.vars must be a table of NAME = { type = ... }"]
+        return out, ["module_options.dot-env.vars must be a table of NAME = { type = ... }"]
     for name, spec in table.items():
-        where = "module_options.env.vars.%s" % name
+        where = "module_options.dot-env.vars.%s" % name
         if not NAME_RE.match(name):
             errors.append("%s: %r is not a valid variable name" % (where, name))
             continue
