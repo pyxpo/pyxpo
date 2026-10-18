@@ -3,6 +3,8 @@ package dev.pyxpo.runtime
 import android.content.Context
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
+import android.graphics.ColorSpace
+import android.os.Build
 import android.os.Handler
 import android.os.Looper
 import android.util.Base64
@@ -66,7 +68,13 @@ class Images(private val ctx: Context) {
         run(b)
         var s = 1
         while (b.outWidth / s > cap || b.outHeight / s > cap) s *= 2
-        return run(BitmapFactory.Options().apply { inSampleSize = s })
+        return run(srgb(BitmapFactory.Options().apply { inSampleSize = s }))
+    }
+
+    /** Decode into sRGB: wide-gamut bitmaps (Display P3 iPhone photos) draw blank on some GPUs. */
+    private fun srgb(o: BitmapFactory.Options): BitmapFactory.Options {
+        if (Build.VERSION.SDK_INT >= 26) o.inPreferredColorSpace = ColorSpace.get(ColorSpace.Named.SRGB)
+        return o
     }
 
     private fun download(url: String, to: File) {
