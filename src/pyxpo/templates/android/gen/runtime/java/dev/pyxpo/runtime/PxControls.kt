@@ -41,6 +41,9 @@ class PxControls(private val ctx: Context, private val emit: (String, Int, JSONO
         "NativeRadio" -> RadioButton(ctx).also { it.isClickable = false; it.isFocusable = false }
         "NativeSlider" -> SeekBar(ctx).also { s ->
             s.max = RES
+            // A split track is clipped around the thumb's bounds; on some images that clip swallows the whole track
+            // and only the thumb reaches the screen. The thumb is drawn over the track anyway.
+            s.splitTrack = false
             s.setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
                 override fun onProgressChanged(b: SeekBar, p: Int, fromUser: Boolean) {
                     if (fromUser) emit("value_change", id, JSONObject().put("value", valueOf(id, b)))

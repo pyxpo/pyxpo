@@ -134,3 +134,13 @@ def test_ios_module_view_fill_is_under_its_drawing():
     ios = (Path(__file__).resolve().parents[1] / "src" / "pyxpo" / "templates" / "ios" / "gen" / "runtime"
            / "OpApplier.swift").read_text()
     assert "if v is UIImageView || modules.view(id) != nil {" in ios
+
+
+def test_android_slider_track_and_thumb_stay_visible():
+    # A split SeekBar track is clipped around the thumb, and on some images that clip hides the whole track
+    # (thumb only on screen). With no side padding the thumb also hangs half outside the view at 0 % and 100 %.
+    from pathlib import Path
+    kt = (Path(__file__).resolve().parents[1] / "src" / "pyxpo" / "templates" / "android" / "gen" / "runtime"
+          / "java" / "dev" / "pyxpo" / "runtime")
+    assert "s.splitTrack = false" in (kt / "PxControls.kt").read_text()
+    assert "p[0] += v.thumbOffset; p[2] += v.thumbOffset" in (kt / "OpApplier.kt").read_text()

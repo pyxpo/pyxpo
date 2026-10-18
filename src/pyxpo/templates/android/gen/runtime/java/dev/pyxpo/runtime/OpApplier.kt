@@ -1092,6 +1092,8 @@ class OpApplier(
         if (types[id] in LEAVES) {
             fun e(side: String) = ((num(s, "padding_$side") + num(s, "border_${side}_width")) * d).roundToInt()
             val p = intArrayOf(e("left"), e("top"), e("right"), e("bottom"))
+            // A SeekBar with no side padding draws half its thumb outside the view at either end: keep half a thumb
+            if (v is android.widget.SeekBar) { p[0] += v.thumbOffset; p[2] += v.thumbOffset }
             pads[id] = p
             v.setPadding(p[0], p[1], p[2], p[3])
         }
