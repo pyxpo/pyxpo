@@ -10,8 +10,7 @@ This is the full release runbook. Follow the steps in order.
 | Each module package | PyPI project `pyxpo-<name>` | `pkg/<name>/vX.Y.Z` (for example `pkg/image-picker/v0.1.1`) | `.github/workflows/release-packages.yml` |
 | CPython runtime tarballs | GitHub Release `runtime-<python>-<n>` | none (manual `gh release create`) | none |
 
-Module packages live in `packages/`: `application`, `camera`, `device`, `fetch`, `file-system`, `haptics`, `image-manipulator`, `image-picker`, `localization`, `location`, `media-library`, `network`, `notifications`,
-`secure-store`, `sharing`, `sqlite`, `storage`, `web-browser`. Each one has its own version and is released on its own.
+Module packages live in `packages/`: `application`, `audio`, `camera`, `device`, `dot-env`, `drawing-canvas`, `fetch`, `file-system`, `google-mobile-ads`, `haptics`, `image-manipulator`, `image-picker`, `localization`, `location`, `media-library`, `mesh-view`, `network`, `notifications`, `secure-store`, `sharing`, `sqlite`, `storage`, `web-browser`, `whiteboard`. Each one has its own version and is released on its own.
 
 Where the versions live:
 
