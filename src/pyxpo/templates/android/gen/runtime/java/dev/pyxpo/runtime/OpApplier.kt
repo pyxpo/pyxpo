@@ -966,7 +966,11 @@ class OpApplier(
         g.addView(v, min(index, g.childCount), ViewGroup.LayoutParams(-2, -2))
         layout.remove(parentNode(parent), id)
         layout.insert(parentNode(parent), id, index)
-        if (g is PxNav && v.parent === g) g.pushed(v)
+        if (g is PxNav && v.parent === g) {
+            g.pushed(v)
+            // a screen pushed over a field being edited: the hidden field would keep the keyboard over the new screen
+            if (g.indexOfChild(v) == g.childCount - 1 && g.hasFocus() && !v.hasFocus()) dropFocus(g)
+        }
         if (types[id] == "Modal") v.bringToFront()
     }
 
@@ -978,13 +982,16 @@ class OpApplier(
         layout.remove(parentNode(parent), id)
     }
 
+    /** Hides the keyboard and gives the focus inside `v` to the root (see init), which sends the field's blur. */
+    private fun dropFocus(v: View) {
+        (ctx.getSystemService(Context.INPUT_METHOD_SERVICE) as android.view.inputmethod.InputMethodManager)
+            .hideSoftInputFromWindow(v.windowToken, 0)
+        views[1]?.requestFocus()
+    }
+
     private fun delete(id: Int) {
         val v = views.remove(id)
-        if (v != null && v.hasFocus()) {     // e.g. a screen popped while one of its fields was being edited
-            (ctx.getSystemService(Context.INPUT_METHOD_SERVICE) as android.view.inputmethod.InputMethodManager)
-                .hideSoftInputFromWindow(v.windowToken, 0)
-            views[1]?.requestFocus()
-        }
+        if (v != null && v.hasFocus()) dropFocus(v)   // e.g. a screen popped while one of its fields was being edited
         binds.remove(id)
         touching.remove(id); pressy.remove(id); rawTouch.remove(id); touchKeys.remove(id); closeListeners.remove(id); a11y.remove(id); inputCfg.remove(id); wired.remove(id)
         texts.remove(id); spans.remove(id); pendingText.remove(id)

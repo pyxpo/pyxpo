@@ -26,6 +26,17 @@ def test_scroll_view_reveals_the_focused_field_when_the_keyboard_shrinks_it():
     assert "computeScrollDeltaToGetChildRectOnScreen" in scroll
 
 
+def test_a_pushed_screen_takes_the_keyboard_away_from_the_screen_it_covers():
+    kt = (RUNTIME / "OpApplier.kt").read_text()
+    insert = kt[kt.index("private fun insert("):kt.index("private fun remove(")]
+    # a field still focused on the covered screen kept the keyboard open over the new one and swallowed taps
+    assert "g.pushed(v)" in insert and "g.hasFocus() && !v.hasFocus()) dropFocus(g)" in insert
+    drop = kt[kt.index("private fun dropFocus("):]
+    assert "hideSoftInputFromWindow" in drop[:400] and "views[1]?.requestFocus()" in drop[:400]
+    delete = kt[kt.index("private fun delete("):]
+    assert "v.hasFocus()) dropFocus(v)" in delete[:300]
+
+
 def test_a_service_can_run_python_without_an_activity():
     api = (droid.TEMPLATE / "gen/module-api/src/main/java/dev/pyxpo/moduleapi/PxModule.kt").read_text()
     assert "object PxProcess" in api and '"dev.pyxpo.runtime.PyxpoRuntime"' in api and '"startHeadless"' in api
