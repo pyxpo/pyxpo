@@ -15,7 +15,7 @@
 
 ## Desktop apps (Oct 17, committed + pushed)
 - Mac native = Catalyst, Windows native = WinUI 3 shell (windows/PyxpoShell), preview = `run desktop --preview`.
-- Windows open bugs: Feather icons missing; card shadows grey rectangles.
+- Windows bugs: Feather icons, grey card shadows.
 
 ## Web target, responsive, web devtools, StyleSheet themes (Oct 17, pushed). Later: `[tool.pyxpo] breakpoints`.
 
@@ -34,6 +34,7 @@
 ## AI Keyboard (pyxpo-apps/ai-keyboard, Oct 19, pushed)
 - packages/keyboard (pyxpo-keyboard): Android InputMethodService, native Kotlin keys; phase 1 emulator-verified. App PROGRESS.md has detail.
 - README + docs/images, pushed 5632121.
-- Phase 2 voice (UNCOMMITTED): native contract 4 (headless PxProcess, module android.cmake, 16 KB page link flag; DESIGN.md 4b); packages/speech (pyxpo-speech: whisper.cpp 1.9.5 pinned, README + docs/images hero/keyboard, CHANGELOG, 17 tests); keyboard toolbar API (set_toolbar/status/commit_text/get_text + listeners). Emulator-verified IME 🎤 flow. 933 pass, 14 skipped.
+- Phase 2 voice committed local 9628c0b (not pushed): contract 4, packages/speech (whisper 1.9.5), keyboard toolbar API.
+- UNCOMMITTED: speech shared ggml + runtime CPU variant pick (libpyxpo_speech_*.so, S23 1.6x faster), audio_ctx option (S23-measured: "fit" fast but unreliable, default stays 30 s), README/CHANGELOG/DESIGN 4b; OpApplier push dropFocus fix + test. Full suite 938 pass, 14 skip.
 - Release: keyboard + speech deps -> `pyxpo>=0.1.0a6` (contract 4).
 - Next: commit, push on user go-ahead, check raw image URLs; Phase 3 pyxpo-llm.

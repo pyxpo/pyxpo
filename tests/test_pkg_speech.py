@@ -69,20 +69,26 @@ def test_android_calls():
         run(Speech.start_async(max_seconds=10, levels=True))
         assert run(Speech.stop_async(language="hi", prompt="Hinglish", threads=4, beam_size=2)) == TRANSCRIPT
         assert run(Speech.transcribe_file_async("/data/a.wav", translate=True)) == TRANSCRIPT
+        run(Speech.transcribe_file_async("/data/a.wav", audio_ctx="fit"))
+        run(Speech.transcribe_file_async("/data/a.wav", audio_ctx=768))
         run(Speech.cancel_async())
         run(Speech.unload_model_async())
         names = [c[1] for c in fb.calls]
         assert names == ["status", "getPermission", "requestPermission", "memory", "load", "start", "stop",
-                         "transcribeFile", "cancel", "unload"]
-        args = {c[1]: c[2] for c in fb.calls}
+                         "transcribeFile", "transcribeFile", "transcribeFile", "cancel", "unload"]
+        files = [c[2][1] for c in fb.calls if c[1] == "transcribeFile"]
+        assert [f.get("audioCtx") for f in files] == [None, -1, 768]   # -1: sized to the clip natively
+        args = {c[1]: c[2] for c in fb.calls if c[1] != "transcribeFile"}
         assert args["load"] == ("/data/m/ggml-base.bin", {"checkMemory": True, "flashAttention": True})
         assert args["start"] == ({"maxSeconds": 10.0, "levels": True},)
         assert args["stop"] == ({"language": "hi", "translate": False, "prompt": "Hinglish", "threads": 4, "beamSize": 2},)
-        assert args["transcribeFile"] == ("/data/a.wav", {"language": "auto", "translate": True})
+        assert files[0] == {"language": "auto", "translate": True}
 
 
 @pytest.mark.parametrize("kwargs", [{"language": "Hindi"}, {"language": ""}, {"language": "EN"}, {"threads": 0},
-                                    {"threads": 64}, {"beam_size": 9}, {"threads": 2.5}])
+                                    {"threads": 64}, {"beam_size": 9}, {"threads": 2.5},
+                                    {"audio_ctx": 32}, {"audio_ctx": 1501}, {"audio_ctx": "auto"},
+                                    {"audio_ctx": True}])
 def test_bad_transcribe_options(kwargs):
     with FakeBridge("android", modules=("Speech",)) as fb:
         with pytest.raises(ValueError):
@@ -136,14 +142,21 @@ def test_whisper_source_is_pinned_and_hidden():
     sha = re.search(r"set\(WHISPER_SHA256 ([0-9a-f]+)\)", cm).group(1)
     assert len(sha) == 64 and "EXPECTED_HASH SHA256=${WHISPER_SHA256}" in cm and "TLS_VERIFY ON" in cm
     assert "PYXPO_WHISPER_DIR" in cm and "file(LOCK" in cm
-    # static ggml with hidden symbols: a llama.cpp module's ggml can share the process
-    assert "set(BUILD_SHARED_LIBS OFF" in cm and "-Wl,--exclude-libs,ALL" in cm and "CMAKE_CXX_VISIBILITY_PRESET hidden" in cm
+    # shared ggml with one CPU backend per instruction set level, picked on the phone (a generic armv8.0 build
+    # was 1.6x slower on a Galaxy S23); every library is renamed so a llama.cpp module's ggml can live alongside
+    assert "set(BUILD_SHARED_LIBS ON" in cm and "set(GGML_BACKEND_DL ON" in cm and "set(GGML_CPU_ALL_VARIANTS ON" in cm
+    assert "foreach(target ggml ggml-base whisper parakeet ${GGML_AVAILABLE_BACKENDS})" in cm
+    assert 'string(REPLACE "-" "_" name "pyxpo_speech_${target}")' in cm and "OUTPUT_NAME ${name}" in cm
+    assert "PYXPO_CPU_BACKENDS=" in cm and "CMAKE_CXX_VISIBILITY_PRESET hidden" in cm
     assert "-Wl,-z,max-page-size=16384" in cm  # 16 KB page devices
     assert "set(GGML_NATIVE OFF" in cm and "set(GGML_OPENMP OFF" in cm
     # debug app builds would run whisper about ten times slower unoptimized
     assert "set(CMAKE_BUILD_TYPE Release)" in cm
     jni = (MAIN / "cpp" / "speech_jni.cpp").read_text()
     assert "whisper_log_set(quiet, nullptr)" in jni  # no transcript or audio detail reaches logcat
+    # fastest CPU backend first; ggml refuses one whose instructions the CPU lacks, and no backend fails init
+    assert "ggml_backend_load(name.c_str())" in jni and "load_cpu_backend();" in jni
+    assert "speech cannot run on this phone's CPU" in jni and "BACKEND = " in jni
     for name in ("nativeInit", "nativeFree", "nativeAbort", "nativeIsMultilingual", "nativeKnowsLanguage",
                  "nativeSystemInfo", "nativeTranscribe"):
         assert "Java_dev_pyxpo_modules_speech_Whisper_" + name in jni

@@ -118,6 +118,11 @@ Native contract 4 (`pyxpo.module_api.NATIVE_CONTRACT`; a module declares `native
   CMake project with the app's NDK (`autolink.NDK_VERSION`) for the ABIs the app ships (pyxpo.properties `abis`).
   Link native libraries with `-Wl,-z,max-page-size=16384`: Android 15+ devices with 16 KB pages and Google Play
   need it, and NDK 27 links for 4 KB pages by default (pyxpo-speech does).
+  Give every shared library a module prefix (pyxpo-speech: `libpyxpo_speech_*.so`): all modules' libraries share
+  the APK's `lib/<abi>/`, so two modules that both build ggml (whisper.cpp, llama.cpp) would otherwise clash.
+  The Android Gradle plugin packs every shared library target the CMake project defines, used or not.
+  pyxpo-speech builds ggml with `GGML_BACKEND_DL` and `GGML_CPU_ALL_VARIANTS` (arm64, x86_64): one CPU backend per
+  instruction set level, and the JNI layer loads the fastest one the CPU runs (`ggml_backend_load`, by bare name).
 
 Monorepo development: `tools/dev_install.sh` installs core and every package in `packages/` editable into `.venv`.
 `python tools/build_packages.py` builds and checks every package's wheel and sdist (native files and entry point present);
