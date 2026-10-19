@@ -10,23 +10,19 @@
 ## Remote push + remount fix: committed, tag v0.1.0a3 pushed
 - notifications FCM/APNs token, plugin, tools/send_push.py. Android activity remount fix (process-wide runtime, `remount` event).
 - Released (Oct 19): core 0.1.0a3 + 0.1.0a4, pyxpo-notifications 0.1.0a2, pyxpo-dot-env 0.1.0a1 (renamed from pyxpo-env), pyxpo-google-mobile-ads 0.1.0a1.
-- Later: real FCM e2e (~/.pyxpo-secrets/), missing packages batch, wheels CI.
+- Later: real FCM e2e, missing packages batch, wheels CI.
 
-## VS Code extension (editors/vscode): committed + pushed, 0.1.0 live on Marketplace (publisher pyxpo, hand upload; bump version each upload).
-- data/pyxpo.json from tools/gen_vscode_data.py (test fails when stale).
+## VS Code extension (editors/vscode): pushed, 0.1.0 on Marketplace (hand upload; bump version). data/pyxpo.json from tools/gen_vscode_data.py.
 
 ## Desktop apps (Oct 17, committed + pushed)
 - Mac native = Catalyst, Windows native = WinUI 3 shell (windows/PyxpoShell), preview = `run desktop --preview`.
-- Windows CI green: app renders imagekit.
 - Windows open bugs (from CI home.png): Feather icons missing; card shadows draw grey rectangles, not rounded.
 
-## Web target, responsive (pyxpo/responsive.py), web devtools, StyleSheet themes (Oct 17, pushed).
-- Later: `[tool.pyxpo] breakpoints` config. Next: Windows icon/shadow bugs.
+## Web target, responsive, web devtools, StyleSheet themes (Oct 17, pushed). Later: `[tool.pyxpo] breakpoints`.
 
 ## armeabi-v7a (Oct 19, pushed fe55e66)
-- Client SM-M136B (M13 5G) runs 32-bit Android; APK had only arm64-v8a/x86_64, so "not compatible".
-- Added v7a: build_cpython.py (patches android.py HOSTS), platforms/libs/cli (v7a optional tag), android.py stage drops v7a with a warning when no wheel (unless `abis` set), PyxpoRuntime.kt picks first shipped ABI. tests/test_android_abis.py. 857 pass.
-- Done: v7a CPython built, imagekit APK has arm64-v8a+armeabi-v7a+x86_64, 64-bit OK on emulator, manifest entry added (tarball .cache/runtime-out). Released: runtime asset uploaded, core 0.1.0a5 on PyPI (fresh install fetches v7a OK). Open: client tests APK on M13.
+- v7a: build_cpython.py, android.py stage drops v7a without wheel (unless `abis`), PyxpoRuntime.kt picks first shipped ABI. tests/test_android_abis.py.
+- Released core 0.1.0a5 with v7a runtime. Open: client tests APK on M13.
 - Release dex fail ("located outside the root directory") = project moved, stale .gradle paths. Guard `_drop_moved_gradle_state` (marker .gradle/pyxpo-root) in prebuild/build; Gradle stage task only warns. imagekit assembleRelease OK after clean.
 - iOS App Store upload: ios.prune_site drops .a/.o/bin from site-packages; iPad always gets 4 orientations (unless require_full_screen).
 
@@ -34,4 +30,9 @@
 - packages/pose-detection (ML Kit / Vision; photos + videos) + README, tests, autolink. iOS sim: Vision Code=9, `available` probes a blank image so it reports False there. iPhone unchecked.
 - TextInput stale-echo fix (OpApplier.kt/.swift, web app.js), Android focus after pop, web restyle keeps --vars + spinner colour.
 - Web: Picker.choose dialog in the page (was a silent no-op); boot loads Pyodide builds (numpy) without micropip, start 14s -> ~6s. 883 pass, 14 skipped.
-- Gradle hang on dl.google.com: IPv4 broken here, `JAVA_TOOL_OPTIONS=-Djava.net.preferIPv6Addresses=true`.
+- Gradle hang: `JAVA_TOOL_OPTIONS=-Djava.net.preferIPv6Addresses=true` (IPv4 broken).
+
+## AI Keyboard (pyxpo-apps/ai-keyboard, Oct 19, uncommitted)
+- packages/keyboard (pyxpo-keyboard): Android InputMethodService, native Kotlin keys; phase 1 emulator-verified. App PROGRESS.md has detail.
+- Framework fixes: password mask/font, Switch thumb = track_on, PxScroll focus reveal, prop snake aliases.
+- README + docs/images (hero, layouts from emulator shots), web returns defaults, tests/test_android_runtime_src.py. 898 pass. Committed locally; push + raw image 200 check pending.

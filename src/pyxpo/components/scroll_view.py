@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from .._keys import alias_props
+from .._keys import alias_props, needs_alias
 from ..element import Element, flatten
 
 
@@ -12,7 +12,7 @@ def ScrollView(*children: Any, key: Any = None, **props: Any) -> Element:
     keyboardShouldPersistTaps, keyboardDismissMode, stickyHeaderIndices, refreshControl, contentOffset,
     onContentSizeChange, onScrollBeginDrag, onScrollEndDrag, onMomentumScrollEnd, nestedScrollEnabled.
     `ref.current` has scrollTo({x, y, animated}) and scrollToEnd({animated})."""
-    if props and not "".join(props).islower():
+    if needs_alias(props):
         props = alias_props(props)
     kids = flatten(children)
     ccs = props.pop("content_container_style", None)

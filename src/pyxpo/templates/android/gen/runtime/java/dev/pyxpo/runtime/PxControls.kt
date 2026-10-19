@@ -85,7 +85,10 @@ class PxControls(private val ctx: Context, private val emit: (String, Int, JSONO
         when (v) {
             is Switch -> {
                 v.trackTintList = states(color(c, "track_on"), color(c, "track_off"), 0xFFBDBDBD.toInt())
-                v.thumbTintList = states(color(c, "thumb_on"), color(c, "thumb_off"), 0xFFFAFAFA.toInt())
+                // The system's checked thumb is drawn in the theme colour, which vanishes on a tinted track. The track
+                // is drawn faded, so the track colour at full strength stands out on it in light and dark mode.
+                v.thumbTintList = states(color(c, "thumb_on") ?: color(c, "track_on"),
+                                         color(c, "thumb_off"), 0xFFFAFAFA.toInt())
             }
             is CheckBox, is RadioButton -> {
                 val on = color(c, "color"); val off = color(c, "unchecked_color")

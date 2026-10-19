@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typing import Any, Dict, List, Optional
 
-from ._keys import alias_props
+from ._keys import alias_props, needs_alias
 from .style import normalize_shared
 
 
@@ -63,7 +63,7 @@ def _join_text(children: Any) -> str:
 
 def _host(name: str, text_prop: Optional[str] = None):
     def factory(*children: Any, key: Any = None, **props: Any) -> Element:
-        if props and not "".join(props).islower():
+        if needs_alias(props):
             props = alias_props(props)
         if text_prop:
             text = _join_text(children)

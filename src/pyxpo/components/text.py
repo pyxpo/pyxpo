@@ -3,7 +3,7 @@ from __future__ import annotations
 
 from typing import Any, Dict, List
 
-from .._keys import alias_props
+from .._keys import alias_props, needs_alias
 from ..element import Element, _SCALARS, _join_text
 from ..style import normalize_shared
 
@@ -51,7 +51,7 @@ def _text_spans(children: Any, inherited: Dict[str, Any], spans: List[Dict[str, 
 
 
 def Text(*children: Any, key: Any = None, **props: Any) -> Element:
-    if props and not "".join(props).islower():
+    if needs_alias(props):
         props = alias_props(props)
     if "number_of_lines" in props or "allow_font_scaling" in props:  # native reads these from style
         extra = {k: props.pop(k) for k in ("number_of_lines", "allow_font_scaling") if k in props}

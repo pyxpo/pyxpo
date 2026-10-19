@@ -110,3 +110,11 @@ def test_memo_preserves_alias():
 
 def test_key_not_aliased():
     assert View(key="k").key == "k"
+
+
+def test_snake_spelling_of_renamed_rn_prop():
+    # `secure_text_entry` is what a Python author writes; native reads `secure` (a password field before this)
+    e = TextInput(secure_text_entry=True, placeholder_text_color="#888", return_key_type="go", keyboard_type="numeric")
+    assert e.props == {"secure": True, "placeholder_color": "#888", "return_key": "go", "keyboard_type": "numeric"}
+    with pytest.raises(TypeError):
+        TextInput(secure=True, secure_text_entry=True)

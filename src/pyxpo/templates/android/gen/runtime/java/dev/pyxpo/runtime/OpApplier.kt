@@ -513,8 +513,13 @@ class OpApplier(
                 t = t or android.text.InputType.TYPE_NUMBER_VARIATION_PASSWORD
             }
             val keepSel = e.selectionStart
-            e.inputType = t
+            val face = e.typeface          // a password input type switches the font to monospace
+            // single line first: after the input type it swaps the password mask for a plain single-line one
             e.setSingleLine(!multi)
+            e.inputType = t
+            e.typeface = face
+            if (cfg.optBoolean("secure") && e.transformationMethod !is android.text.method.PasswordTransformationMethod)
+                e.transformationMethod = android.text.method.PasswordTransformationMethod.getInstance()
             if (multi) e.gravity = e.gravity or Gravity.TOP
             e.imeOptions = when (cfg.optString("return_key", "done")) {
                 "go" -> android.view.inputmethod.EditorInfo.IME_ACTION_GO

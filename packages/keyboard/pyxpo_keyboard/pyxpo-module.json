@@ -1,0 +1,15 @@
+{
+  "schemaVersion": 1,
+  "nativeContract": 1,
+  "name": "keyboard",
+  "native": "Keyboard",
+  "ios": {
+    "classes": ["KeyboardModule"]
+  },
+  "android": {
+    "namespace": "dev.pyxpo.modules.keyboard",
+    "classes": ["dev.pyxpo.modules.keyboard.KeyboardModule"],
+    "dependencies": [],
+    "minSdk": 24
+  }
+}

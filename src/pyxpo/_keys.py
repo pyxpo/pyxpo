@@ -29,13 +29,21 @@ PROP_OVERRIDES: Dict[str, str] = {
     "viewBox": "viewbox", "testID": "test_id", "nativeID": "native_id",
 }
 
+# ... and their mechanical snake_case spellings (`secure_text_entry`), the ones a Python author writes first
+SNAKE_OVERRIDES: Dict[str, str] = {to_snake(k): v for k, v in PROP_OVERRIDES.items() if to_snake(k) != v}
+
 
 def prop_name(k: str) -> str:
-    return k if k.islower() else (PROP_OVERRIDES.get(k) or to_snake(k))
+    return SNAKE_OVERRIDES.get(k, k) if k.islower() else (PROP_OVERRIDES.get(k) or to_snake(k))
+
+
+def needs_alias(props: Dict[str, Any]) -> bool:
+    """Whether any prop name is not already the pyxpo one (the fast path skips `alias_props` otherwise)."""
+    return bool(props) and (not "".join(props).islower() or not SNAKE_OVERRIDES.keys().isdisjoint(props))
 
 
 def alias_props(props: Dict[str, Any]) -> Dict[str, Any]:
-    """Converts camelCase prop names to the snake_case ones. Giving both spellings raises like a duplicate kwarg."""
+    """Converts camelCase (and overridden snake_case) prop names to the pyxpo ones. Giving both spellings raises like a duplicate kwarg."""
     out: Dict[str, Any] = {}
     for k, v in props.items():
         n = prop_name(k)

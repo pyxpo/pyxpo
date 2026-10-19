@@ -63,6 +63,21 @@ interface PxScrollable { var userScroll: Boolean }
 
 class PxScroll(ctx: Context) : android.widget.ScrollView(ctx), PxScrollable {
     override var userScroll = true
+    private val box = android.graphics.Rect()
+
+    // The keyboard shrank the scroll view (a KeyboardAvoidingView around it): bring the focused field back on
+    // screen once the engine has placed the content. ScrollView's own check misses fields the keys now cover.
+    override fun onSizeChanged(w: Int, h: Int, oldw: Int, oldh: Int) {
+        super.onSizeChanged(w, h, oldw, oldh)
+        if (h < oldh) post {
+            val f = findFocus()
+            if (f != null && f !== this && f.isShown) {
+                f.getDrawingRect(box); offsetDescendantRectToMyCoords(f, box)
+                val d = computeScrollDeltaToGetChildRectOnScreen(box)
+                if (d != 0) smoothScrollBy(0, d)
+            }
+        }
+    }
     override fun onInterceptTouchEvent(e: android.view.MotionEvent) = userScroll && super.onInterceptTouchEvent(e)
     override fun onTouchEvent(e: android.view.MotionEvent) = userScroll && super.onTouchEvent(e)
     override fun dispatchDraw(canvas: android.graphics.Canvas) {
