@@ -73,6 +73,10 @@
   #alert button { display: block; width: 100%; padding: 11px; border: 0; border-top: 1px solid #ddd; background: none;
                   color: #007aff; font-size: 17px; cursor: pointer; }
   #alert button:hover { background: #eee; }
+  #alert.choice .box { width: 300px; }
+  #alert .list { max-height: min(60vh, 420px); overflow-y: auto; margin-top: 12px; }
+  #alert .list button { color: inherit; }
+  #alert .list button.on { color: #007aff; font-weight: 600; }
   #lost { position: fixed; inset: 0; z-index: 100001; display: none; align-items: center; justify-content: center;
           background: rgba(255,255,255,.85); font-size: 15px; color: #333; }
   #lost.show { display: flex; }
@@ -81,6 +85,7 @@
     #alert .box { background: rgba(44,44,46,.97); color: #fff; }
     #alert button { border-top-color: #444; color: #0a84ff; }
     #alert button:hover { background: #3a3a3c; }
+    #alert .list button.on { color: #0a84ff; }
     #lost { background: rgba(0,0,0,.85); color: #ddd; }
   }
 </style>

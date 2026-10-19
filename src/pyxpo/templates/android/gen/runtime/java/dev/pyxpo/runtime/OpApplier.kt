@@ -82,6 +82,9 @@ class OpApplier(
     private val defaultText = HashMap<Int, ColorStateList>()
     private val propIds = HashMap<String, Int>()
     private val suppress = HashSet<View>()
+    // Values a TextInput reported that Python has not echoed back yet. Python answers each change_text with a
+    // render, so while the user types faster than that, renders carry values the field has already moved past.
+    private val pendingText = HashMap<Int, ArrayDeque<String>>()
     private val d: Float get() = ctx.resources.displayMetrics.density
     private val layout = NativeLayout { id, w, wm, h, hm -> measure(id, w, wm, h, hm) }
     private var rootW = 0
@@ -98,6 +101,10 @@ class OpApplier(
         // Root id 1 is implicit in the ops protocol: it is never created by the reconciler.
         val root = PxRoot(ctx) { w, h -> onRootSize(w, h) }
         container.addView(root, ViewGroup.LayoutParams(-1, -1))
+        // The root takes the focus a removed or blurred text field gives up; otherwise Android hands it to the
+        // next text field on screen, which then shows a cursor and keeps the keyboard up.
+        root.isFocusableInTouchMode = true
+        if (android.os.Build.VERSION.SDK_INT >= 26) root.defaultFocusHighlightEnabled = false
         views[1] = root
         types[1] = "Root"
         splash.show(container)
@@ -203,6 +210,8 @@ class OpApplier(
         if (type == "TextInput") (v as EditText).addTextChangedListener(object : TextWatcher {
             override fun afterTextChanged(s: Editable?) {
                 if (v in suppress) return
+                val q = pendingText.getOrPut(id) { ArrayDeque() }
+                q.addLast(s.toString()); if (q.size > 256) q.removeFirst()
                 event("change_text", id, JSONObject().put("value", s.toString()))
             }
             override fun beforeTextChanged(s: CharSequence?, a: Int, b: Int, c: Int) {}
@@ -228,7 +237,13 @@ class OpApplier(
                 "spans" -> if (v is TextView && v !is EditText) { spans[id] = props.optJSONArray(k); textDirty = true }
                 "value" -> (v as? EditText)?.let {
                     val nv = props.optString(k)
-                    if (it.text.toString() != nv) {
+                    val q = pendingText[id]
+                    val echoed = q?.indexOf(nv) ?: -1
+                    if (echoed >= 0) repeat(echoed + 1) { q!!.removeFirst() }
+                    // An echo of a value typed earlier is stale (newer keystrokes are on their way); anything
+                    // else is the app setting the text itself.
+                    if (echoed < 0 && it.text.toString() != nv) {
+                        q?.clear()
                         suppress.add(it); it.setText(nv); it.setSelection(it.text.length)
                         suppress.remove(it)
                         layout.markDirty(id)
@@ -960,9 +975,14 @@ class OpApplier(
 
     private fun delete(id: Int) {
         val v = views.remove(id)
+        if (v != null && v.hasFocus()) {     // e.g. a screen popped while one of its fields was being edited
+            (ctx.getSystemService(Context.INPUT_METHOD_SERVICE) as android.view.inputmethod.InputMethodManager)
+                .hideSoftInputFromWindow(v.windowToken, 0)
+            views[1]?.requestFocus()
+        }
         binds.remove(id)
         touching.remove(id); pressy.remove(id); rawTouch.remove(id); touchKeys.remove(id); closeListeners.remove(id); a11y.remove(id); inputCfg.remove(id); wired.remove(id)
-        texts.remove(id); spans.remove(id)
+        texts.remove(id); spans.remove(id); pendingText.remove(id)
         val host = v?.parent as? ViewGroup
         if (!(host is PxNav && v in host.lingering)) host?.removeView(v)  // a popping screen leaves when its animation ends
         scrolls.remove(id)?.idle?.let { ui.removeCallbacks(it) }  // no stale scroll events for a deleted id

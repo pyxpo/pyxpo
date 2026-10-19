@@ -20,14 +20,8 @@
 - Windows CI green: app renders imagekit.
 - Windows open bugs (from CI home.png): Feather icons missing; card shadows draw grey rectangles, not rounded.
 
-## Web target (Oct 17, pushed): run/build web.
-## Responsive + layout + web dev tools (Oct 17, pushed)
-- pyxpo/responsive.py breakpoints (xs..xxl), maps in style values/blocks; reconciler.refresh_responsive restyles without re-render.
-- renderers/web/devtools.js: dev-server-only device frames/scheme/platform panel. CDP e2e OK.
-- Later: `[tool.pyxpo] breakpoints` config (devtools ruler reads PYXPO_CONFIG.breakpoints).
-- Next: fix Windows icon/shadow bugs. Release with themes/web/responsive (0.1.0a3) needs user OK; then drop the "ships after 0.1.0a2" callouts in pyxpo-web.
-
-## imagekit responsive + StyleSheet themes (Oct 17, pushed): src/pyxpo/themes.py, tests/test_themes.py.
+## Web target, responsive (pyxpo/responsive.py), web devtools, StyleSheet themes (Oct 17, pushed).
+- Later: `[tool.pyxpo] breakpoints` config. Next: Windows icon/shadow bugs.
 
 ## armeabi-v7a (Oct 19, pushed fe55e66)
 - Client SM-M136B (M13 5G) runs 32-bit Android; APK had only arm64-v8a/x86_64, so "not compatible".
@@ -35,3 +29,9 @@
 - Done: v7a CPython built, imagekit APK has arm64-v8a+armeabi-v7a+x86_64, 64-bit OK on emulator, manifest entry added (tarball .cache/runtime-out). Released: runtime asset uploaded, core 0.1.0a5 on PyPI (fresh install fetches v7a OK). Open: client tests APK on M13.
 - Release dex fail ("located outside the root directory") = project moved, stale .gradle paths. Guard `_drop_moved_gradle_state` (marker .gradle/pyxpo-root) in prebuild/build; Gradle stage task only warns. imagekit assembleRelease OK after clean.
 - iOS App Store upload: ios.prune_site drops .a/.o/bin from site-packages; iPad always gets 4 orientations (unless require_full_screen).
+
+## From pyxpo-apps doodle-puppet / birthday-sky (Oct 19, pushed)
+- packages/pose-detection (ML Kit / Vision; photos + videos) + README, tests, autolink. iOS sim: Vision Code=9, `available` probes a blank image so it reports False there. iPhone unchecked.
+- TextInput stale-echo fix (OpApplier.kt/.swift, web app.js), Android focus after pop, web restyle keeps --vars + spinner colour.
+- Web: Picker.choose dialog in the page (was a silent no-op); boot loads Pyodide builds (numpy) without micropip, start 14s -> ~6s. 883 pass, 14 skipped.
+- Gradle hang on dl.google.com: IPv4 broken here, `JAVA_TOOL_OPTIONS=-Djava.net.preferIPv6Addresses=true`.

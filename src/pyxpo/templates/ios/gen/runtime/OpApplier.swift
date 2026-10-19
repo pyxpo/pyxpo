@@ -19,6 +19,9 @@ final class OpApplier {
     private var texts: [Int: String] = [:]
     private var ctl: [Int: [String: Any]] = [:]   // merged props of native controls
     private var spans: [Int: [[String: Any]]] = [:]
+    // Values a TextInput reported that Python has not echoed back yet. Python answers each change_text with a
+    // render, so while the user types faster than that, renders carry values the field has already moved past.
+    private var pendingText: [Int: [String]] = [:]
     private static var fontCache: [String: String] = [:]
     private var propIds: [String: Int32] = [:]
     private var tree: OpaquePointer!
@@ -168,7 +171,11 @@ final class OpApplier {
             t.addAction(UIAction { [weak self, weak t] _ in
                 guard let t = t else { return }
                 if t.maxLength > 0, let s = t.text, s.count > t.maxLength { t.text = String(s.prefix(t.maxLength)) }
-                self?.event("change_text", id, ["value": t.text ?? ""])
+                guard let self = self else { return }
+                var q = self.pendingText[id] ?? []
+                q.append(t.text ?? ""); if q.count > 256 { q.removeFirst() }
+                self.pendingText[id] = q
+                self.event("change_text", id, ["value": t.text ?? ""])
             }, for: .editingChanged)
             t.addAction(UIAction { [weak self] _ in self?.event("focus", id) }, for: .editingDidBegin)
             t.addAction(UIAction { [weak self] _ in self?.event("blur", id) }, for: .editingDidEnd)
@@ -260,7 +267,14 @@ final class OpApplier {
             case "value":
                 if let t = v as? UITextField {
                     let s = val as? String ?? ""
-                    if t.text != s { t.text = s; px_node_mark_dirty(tree, Int32(id)) }
+                    let echoed = pendingText[id]?.firstIndex(of: s)
+                    if let i = echoed { pendingText[id]?.removeFirst(i + 1) }
+                    // An echo of a value typed earlier is stale (newer keystrokes are on their way); anything
+                    // else is the app setting the text itself.
+                    if echoed == nil && t.text != s {
+                        pendingText[id] = nil
+                        t.text = s; px_node_mark_dirty(tree, Int32(id))
+                    }
                 }
             case "placeholder": (v as? UITextField)?.placeholder = val as? String
             case "placeholder_color":
@@ -523,7 +537,7 @@ final class OpApplier {
         }
         binds.removeValue(forKey: id)
         modules.dropView(id)
-        layoutListeners.remove(id); imgReq.removeValue(forKey: id); touchKeys.removeValue(forKey: id)
+        layoutListeners.remove(id); imgReq.removeValue(forKey: id); touchKeys.removeValue(forKey: id); pendingText[id] = nil
         if types.removeValue(forKey: id) == "ScrollView" { px_node_delete(tree, Int32(id | Self.content)) }
         px_node_delete(tree, Int32(id))
         styles.removeValue(forKey: id)

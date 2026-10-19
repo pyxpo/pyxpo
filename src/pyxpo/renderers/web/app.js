@@ -208,7 +208,14 @@
   function applyStyle(n) {
     const el = n.el;
     const base = n.baseCss || "";
+    // Custom properties (--on, --ph, --tint...) come from props, not style: keep them across the reset.
+    const vars = [];
+    for (let i = 0; i < el.style.length; i++) {
+      const k = el.style[i];
+      if (k.startsWith("--")) vars.push([k, el.style.getPropertyValue(k)]);
+    }
     el.style.cssText = base;
+    for (const [k, v] of vars) el.style.setProperty(k, v);
     n.lines = n.props.number_of_lines;
     const o = css(n.props.style || {}, n.id, n, false);
     Object.assign(el.style, o);
@@ -218,6 +225,8 @@
       el.style.webkitLineClamp = lines > 0 ? String(lines) : "";
     }
     if (n.type === "Modal") el.style.zIndex = el.style.zIndex || "1000";
+    // A prop-driven inline style the reset above wipes.
+    if (n.type === "NativeSpinner") el.style.color = n.props.color != null ? color(n.props.color) : "#8e8e93";
   }
 
   // -- node creation ----------------------------------------------------------------------------
@@ -289,7 +298,14 @@
     inp.className = "in";
     inp._px = n;
     const id = n.id;
-    inp.addEventListener("input", () => emit("change_text", id, { value: inp.value }));
+    // Values typed but not yet echoed back by Python. Typing faster than Python renders makes renders carry
+    // values the field has already moved past; those must not overwrite it.
+    inp._pending = [];
+    inp.addEventListener("input", () => {
+      inp._pending.push(inp.value);
+      if (inp._pending.length > 256) inp._pending.shift();
+      emit("change_text", id, { value: inp.value });
+    });
     inp.addEventListener("focus", () => {
       emit("focus", id);
       if (n.props.select_on_focus) setTimeout(() => inp.select(), 0);
@@ -310,7 +326,7 @@
     for (const k of removed || []) delete n.props[k];
     Object.assign(n.props, props || {});
     const p = n.props;
-    const el = n.el;
+    let el = n.el;
     switch (n.type) {
       case "Text": {
         if (p.spans) {
@@ -346,9 +362,17 @@
         break;
       }
       case "TextInput": {
+        const had = n.input;
         makeInput(n);
+        el = n.el;   // makeInput swaps the placeholder div for the <input>
         const inp = n.input;
-        if (p.value != null && inp.value !== String(p.value)) inp.value = String(p.value);
+        // Only a value this update sent (p also holds the old one), unless the <input> is new.
+        const nv = had === inp ? (props || {}).value : p.value;
+        if (nv != null) {
+          const v = String(nv), echoed = inp._pending.indexOf(v);
+          if (echoed >= 0) inp._pending.splice(0, echoed + 1);
+          else if (inp.value !== v) { inp._pending = []; inp.value = v; }   // the app set the text itself
+        }
         inp.placeholder = p.placeholder || "";
         if (p.placeholder_color) inp.style.setProperty("--ph", p.placeholder_color);
         if (!n.multi) inp.type = p.secure ? "password" : (KEYBOARD[p.keyboard_type] === "email" ? "email" : "text");
@@ -381,7 +405,6 @@
         break;
       }
       case "NativeSpinner":
-        el.style.color = p.color != null ? color(p.color) : "#8e8e93";
         el.classList.toggle("large", p.size === "large");
         el.classList.toggle("stopped", p.animating === false);
         break;
@@ -649,6 +672,8 @@
         reply(op, null);
       } else if (op.module === "Alert") {
         showAlert(a[0], a[1], a[2], (i) => reply(op, i));
+      } else if (m === "Picker.choose") {  // single-choice dialog: the picked index, or -1 when canceled
+        showChoice(a[0] || [], typeof a[1] === "number" ? a[1] : -1, a[2], (i) => reply(op, i));
       } else if (m === "History.sync") {
         historySync(a[0], a[1]);
         reply(op, null);
@@ -677,10 +702,17 @@
     alertQueue.push({ title, message, labels, done });
     if (alertQueue.length === 1) nextAlert();
   }
+  function showChoice(labels, selected, title, done) {
+    alertQueue.push({ title, message: "", choices: labels, selected, done });
+    if (alertQueue.length === 1) nextAlert();
+  }
   function nextAlert() {
     const box = document.getElementById("alert");
     const cur = alertQueue[0];
+    box.onclick = null;
+    box.classList.remove("choice");
     if (!cur) { box.classList.remove("show"); return; }
+    if (cur.choices) { nextChoice(box, cur); return; }
     box.querySelector("h3").textContent = cur.title == null ? "" : String(cur.title);
     const p = box.querySelector("p");
     p.textContent = cur.message == null ? "" : String(cur.message);
@@ -695,6 +727,32 @@
       btns.appendChild(b);
     });
     box.classList.add("show");
+  }
+  function nextChoice(box, cur) {
+    const finish = (i) => { alertQueue.shift(); cur.done(i); nextAlert(); };
+    box.querySelector("h3").textContent = cur.title == null ? "" : String(cur.title);
+    box.querySelector("p").style.display = "none";
+    const btns = box.querySelector(".btns");
+    btns.textContent = "";
+    const list = document.createElement("div");
+    list.className = "list";
+    let picked = null;
+    cur.choices.forEach((l, i) => {
+      const b = document.createElement("button");
+      b.textContent = String(l);
+      b.setAttribute("role", "option");
+      if (i === cur.selected) { b.className = "on"; b.setAttribute("aria-selected", "true"); picked = b; }
+      b.addEventListener("click", () => finish(i));
+      list.appendChild(b);
+    });
+    btns.appendChild(list);
+    const cancel = document.createElement("button");
+    cancel.textContent = "Cancel";
+    cancel.addEventListener("click", () => finish(-1));
+    btns.appendChild(cancel);
+    box.onclick = (e) => { if (e.target === box) finish(-1); };  // a tap outside cancels, as on Android
+    box.classList.add("choice", "show");
+    if (picked) picked.scrollIntoView({ block: "center" });
   }
 
   // -- press and touch --------------------------------------------------------------------------

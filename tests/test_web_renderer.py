@@ -156,3 +156,35 @@ def test_android_slider_track_and_thumb_stay_visible():
           / "java" / "dev" / "pyxpo" / "runtime")
     assert "s.splitTrack = false" in (kt / "PxControls.kt").read_text()
     assert "p[0] += v.thumbOffset; p[2] += v.thumbOffset" in (kt / "OpApplier.kt").read_text()
+
+
+def test_web_text_input_props_land_on_the_input():
+    # makeInput swaps a TextInput's placeholder <div> for the <input>; test_id, aria-label and classes set later in
+    # applyProps must go on the new element, not the detached div (e2e drivers could not find the field).
+    from pathlib import Path
+    web = (Path(__file__).resolve().parents[1] / "src" / "pyxpo" / "renderers" / "web" / "app.js").read_text()
+    apply = web[web.index("function applyProps"):]
+    assert "let el = n.el;" in apply
+    case = apply[apply.index('case "TextInput"'):]
+    assert case.index("el = n.el;") < case.index("break;")
+
+
+def test_web_prop_driven_inline_styles_survive_restyle():
+    # applyStyle resets el.style.cssText after applyProps: a spinner's color and the --vars from props (switch track,
+    # placeholder color, image tint) must survive it.
+    from pathlib import Path
+    web = (Path(__file__).resolve().parents[1] / "src" / "pyxpo" / "renderers" / "web" / "app.js").read_text()
+    style = web[web.index("function applyStyle"):web.index("// -- node creation")]
+    assert 'n.type === "NativeSpinner") el.style.color' in style and 'k.startsWith("--")' in style
+
+
+def test_web_picker_opens_a_choice_dialog_in_the_page():
+    # Picker (and app selects built on its _choose) call Picker.choose: the page must answer it with a list dialog
+    # (index, or -1 on cancel), not send it to a native module that does not exist on web.
+    from pathlib import Path
+    from pyxpo.renderers.web.browser import WEB_JS_CALLS
+    assert "Picker" in WEB_JS_CALLS
+    web = (Path(__file__).resolve().parents[1] / "src" / "pyxpo" / "renderers" / "web" / "app.js").read_text()
+    assert 'm === "Picker.choose"' in web and "showChoice(" in web
+    choice = web[web.index("function nextChoice"):web.index("// -- press and touch")]
+    assert "finish(i)" in choice and "finish(-1)" in choice

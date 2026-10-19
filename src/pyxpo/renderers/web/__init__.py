@@ -24,7 +24,7 @@ from . import backends
 
 _HERE = Path(__file__).resolve().parent
 _ANIM_OPS = {"anode", "anode_del", "alisten", "animate", "astop", "aset"}
-_JS_CALLS = {"Scroll", "Keyboard", "Alert", "StatusBar", "SplashScreen", "Back", "Vibration"}
+_JS_CALLS = {"Scroll", "Keyboard", "Alert", "Picker", "StatusBar", "SplashScreen", "Back", "Vibration"}
 _FRAME = 1 / 60.0
 
 
