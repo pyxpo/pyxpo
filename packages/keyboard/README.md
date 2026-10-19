@@ -53,6 +53,7 @@ await Keyboard.set_options_async(number_row=True, haptics=False)
 | Walking people through setup | [Setup flow](#setup-flow) |
 | Wondering which keys show where | [The keys](#the-keys) · [Private fields](#private-fields) |
 | Changing how it types | [Options](#options) |
+| Adding your own buttons (voice, AI) to the keyboard | [Toolbar buttons from your app](#toolbar-buttons-from-your-app) |
 | Seeing it in a real app | [Recipe: a setup screen that keeps up with Settings](#recipe-a-setup-screen-that-keeps-up-with-settings) |
 | Shipping to the stores | [Production checklist](#production-checklist) |
 | Looking for exact signatures | [API reference](#api-reference) · [Errors](#errors) |
@@ -221,12 +222,73 @@ opts = await Keyboard.set_options_async(number_row=True)   # returns all options
   raises `ValueError`, and nothing is changed.
 - `OPTIONS` holds the defaults.
 
+## Toolbar buttons from your app
+
+Android only. Your app can put up to 6 buttons in the keyboard's top strip, show a status line there, and type
+text into the field. A tap starts your app's Python in the background when it is not running (no screen opens),
+then calls your toolbar listeners. Register them at import time, in a module your root layout imports:
+
+```python
+import asyncio
+
+import pyxpo_keyboard as Keyboard
+
+
+async def say_hello(field):
+    await Keyboard.set_status_async("Typing a greeting…")
+    await Keyboard.commit_text_async("Hello from the app! ")
+    await Keyboard.set_status_async("")
+
+
+def on_tap(event):   # {"id": "hello", "field": {"kind": "text", "action": "Send", ...}}
+    if event["id"] == "hello":
+        asyncio.get_event_loop().create_task(say_hello(event["field"]))
+
+
+Keyboard.add_toolbar_listener(on_tap)
+```
+
+Then set the buttons once, for example when the app opens (`use_async(set_buttons, [])`). The keyboard keeps
+them, so they show before your Python runs:
+
+```python
+async def set_buttons():
+    await Keyboard.set_toolbar_async([{"id": "hello", "label": "👋", "description": "Type a greeting"}])
+```
+
+| Button key | Type | Meaning |
+| --- | --- | --- |
+| `id` | `str` | Sent back in the tap event. Unique, not empty. |
+| `label` | `str` | What the button shows: a short text or an emoji. |
+| `description` | `str` | Read by screen readers. Optional. |
+| `active` | `bool` | Drawn highlighted, for example while recording. Optional, default `False`. |
+
+| Call | What it does |
+| --- | --- |
+| `set_status_async(text)` | Shows `text` in the strip; `""` clears it. It resets when the keyboard opens on the next field. |
+| `get_field_async()` | `{"kind", "action", "private", "multiline", "app"}` for the field the keyboard is in, or `None` while it is hidden. `kind` is `text`, `email`, `url`, `number`, `phone` or `datetime`; `app` is the other app's package name. Never the field's text. |
+| `commit_text_async(text)` | Types `text` at the cursor (replacing a selection). |
+| `get_text_async(before=1000, after=1000)` | `{"before", "selected", "after"}`: the text around the cursor, up to 10000 characters each side. |
+| `add_input_listener(fn)` | `fn({"state": "start", "field": {...}})` when the keyboard opens on a field and `fn({"state": "finish"})` when it closes. Only while your Python is running. Use it to stop work the user walked away from. |
+
+What stays private:
+
+- In a [private field](#private-fields) the buttons are hidden, a tap cannot happen, and `commit_text_async` /
+  `get_text_async` raise `RuntimeError`. The status line shows the private-field notice instead of yours.
+- A tap event carries the button `id` and the field's kind, never its text. Your app reads text only by calling
+  `get_text_async`, which the user's tap started.
+- `commit_text_async` and `get_text_async` raise `RuntimeError` while the keyboard is hidden.
+
+> **Tip:** without a screen, your app cannot ask for permissions. Ask in the app first (for example the
+> microphone), and have the tap handler show a status line that sends the user there when one is missing.
+
 ## Errors
 
 | Error | When | What to do |
 | --- | --- | --- |
-| `ValueError` | `set_options_async` got an unknown option or a value that is not `True`/`False`. | Use the names in `OPTIONS` and pass real booleans. |
-| `NotSupportedError` (from `pyxpo.module_api`) | `show_picker_async()` or `set_options_async()` on iOS. | Check `status["supported"]` before showing those buttons. |
+| `ValueError` | `set_options_async` got an unknown option or a value that is not `True`/`False`; `set_toolbar_async` got a button without `id`/`label`, an unknown key, a repeated id or more than 6 buttons; `get_text_async` got a count outside 0 to 10000. | Use the names in `OPTIONS` and pass real booleans; see [Toolbar buttons from your app](#toolbar-buttons-from-your-app). |
+| `RuntimeError` | `commit_text_async` / `get_text_async` while the keyboard is hidden or in a private field. | Call them from a toolbar tap; show the reason with `set_status_async` when they fail. |
+| `NotSupportedError` (from `pyxpo.module_api`) | `show_picker_async()`, `set_options_async()` or a toolbar call on iOS; `commit_text_async()` / `get_text_async()` on the web and the desktop. | Check `status["supported"]` before showing those buttons. |
 | `ModuleNotLinkedError` (from `pyxpo.module_api`) | An Android or iOS app built without the module. | Add `"keyboard"` to `[tool.pyxpo] modules` and rebuild. |
 
 ## Web and desktop
@@ -413,12 +475,19 @@ That needs a keyboard app extension in the iOS build, which is planned. Until th
 
 | Name | Description |
 | --- | --- |
-| `status_async() -> dict` | `{"supported", "enabled", "selected", "id"}`. See [Setup flow](#setup-flow). |
+| `status_async() -> dict` | `{"supported", "enabled", "selected", "id"}`, plus `showing` on Android (the keyboard is open on a field). See [Setup flow](#setup-flow). |
 | `open_settings_async() -> None` | Opens the system keyboard list (Android) or your app's Settings page (iOS). Does nothing on the web and the desktop. |
 | `show_picker_async() -> None` | Opens the system keyboard chooser (Android). Raises `NotSupportedError` on iOS. Does nothing on the web and the desktop. |
 | `get_options_async() -> dict` | All options. The defaults on iOS, the web and the desktop. |
 | `set_options_async(**options) -> dict` | Changes the named options and returns all of them. Raises `ValueError` for unknown names or non-bool values, and `NotSupportedError` on iOS. |
-| `statusAsync`, `openSettingsAsync`, `showPickerAsync`, `getOptionsAsync`, `setOptionsAsync` | Expo-style names for the functions above. |
+| `set_toolbar_async(buttons) -> None` | Sets your toolbar buttons (Android). Does nothing on the web and the desktop. See [Toolbar buttons from your app](#toolbar-buttons-from-your-app). |
+| `set_status_async(text) -> None` | The keyboard's status line (Android). |
+| `get_field_async() -> dict or None` | The field the keyboard is in, without its text. `None` while hidden and off Android. |
+| `commit_text_async(text) -> None` | Types text at the cursor. |
+| `get_text_async(before=1000, after=1000) -> dict` | `{"before", "selected", "after"}` around the cursor. |
+| `add_toolbar_listener(fn) -> remove` | `fn({"id", "field"})` on a button tap. |
+| `add_input_listener(fn) -> remove` | `fn({"state": "start" or "finish", ...})` as the keyboard opens and closes on fields. |
+| `statusAsync`, `openSettingsAsync`, `showPickerAsync`, `getOptionsAsync`, `setOptionsAsync`, `setToolbarAsync`, `setStatusAsync`, `getFieldAsync`, `commitTextAsync`, `getTextAsync`, `addToolbarListener`, `addInputListener` | Expo-style names for the functions above. |
 
 **Constants**
 

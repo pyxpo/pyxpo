@@ -108,3 +108,71 @@ def test_android_survives_a_theme_switch():
     assert "override fun onConfigurationChanged" in kt and "setInputView(onCreateInputView())" in kt
     # a rebuilt view starts above the navigation bar, as no insets reach it again
     assert "root.setPadding(0, 0, 0, navInset)" in kt
+
+
+def test_android_toolbar_status_and_field():
+    field = {"kind": "text", "action": "Send", "private": False, "multiline": False, "app": "com.example.chat"}
+    with FakeBridge("android", modules=("Keyboard",)) as fb:
+        fb.on("Keyboard", "setToolbar", lambda b: None)
+        fb.on("Keyboard", "setStatus", lambda t: None)
+        fb.on("Keyboard", "field", lambda: field)
+        fb.on("Keyboard", "commitText", lambda t: None)
+        fb.on("Keyboard", "getText", lambda o: {"before": "Hi ", "selected": "", "after": ""})
+        run(Keyboard.set_toolbar_async([{"id": "mic", "label": "🎤", "description": "Voice typing"}]))
+        run(Keyboard.setStatusAsync("Listening…"))
+        assert run(Keyboard.get_field_async()) == field
+        run(Keyboard.commit_text_async("hello "))
+        assert run(Keyboard.get_text_async(before=20, after=0))["before"] == "Hi "
+        args = {c[1]: c[2] for c in fb.calls}
+        assert args["setToolbar"] == ([{"id": "mic", "label": "🎤", "description": "Voice typing", "active": False}],)
+        assert args["setStatus"] == ("Listening…",)
+        assert args["commitText"] == ("hello ",)
+        assert args["getText"] == ({"before": 20, "after": 0},)
+
+
+@pytest.mark.parametrize("buttons", [[{"id": "", "label": "x"}], [{"id": "a"}], ["mic"], [{"id": "a", "label": "x", "color": 1}],
+                                     [{"id": "a", "label": "x"}, {"id": "a", "label": "y"}],
+                                     [{"id": str(i), "label": "x"} for i in range(7)]])
+def test_bad_toolbar(buttons):
+    with FakeBridge("android", modules=("Keyboard",)) as fb:
+        with pytest.raises(ValueError):
+            run(Keyboard.set_toolbar_async(buttons))
+        assert fb.calls == []
+
+
+def test_toolbar_elsewhere():
+    # the desktop has no keyboard: the toolbar and status calls do nothing, typing into a field cannot happen
+    run(Keyboard.set_toolbar_async([{"id": "mic", "label": "🎤"}]))
+    run(Keyboard.set_status_async("hi"))
+    assert run(Keyboard.get_field_async()) is None
+    with pytest.raises(NotSupportedError):
+        run(Keyboard.commit_text_async("x"))
+    with pytest.raises(NotSupportedError):
+        run(Keyboard.get_text_async())
+    with pytest.raises(ValueError):
+        run(Keyboard.get_text_async(before=-1))
+    with FakeBridge("ios") as fb:
+        with pytest.raises(NotSupportedError):
+            run(Keyboard.set_toolbar_async([]))
+        assert fb.calls == []
+
+
+def test_toolbar_and_input_listeners():
+    from pyxpo import modules
+    seen = []
+    offs = [Keyboard.add_toolbar_listener(seen.append), Keyboard.addInputListener(seen.append)]
+    modules.dispatch({"name": "Keyboard.toolbar", "data": {"id": "mic", "field": {"kind": "text"}}})
+    modules.dispatch({"name": "Keyboard.input", "data": {"state": "finish"}})
+    for off in offs:
+        off()
+    modules.dispatch({"name": "Keyboard.toolbar", "data": {"id": "mic"}})
+    assert seen == [{"id": "mic", "field": {"kind": "text"}}, {"state": "finish"}]
+
+
+def test_android_toolbar_never_sends_field_text():
+    # a tap tells Python which button and what kind of field, never what is typed; private fields refuse
+    kt = (PKG / "android" / "src" / "main" / "java" / "dev" / "pyxpo" / "modules" / "keyboard" / "KeyboardService.kt").read_text()
+    assert 'PxProcess.emit(TOOLBAR, mapOf("id" to id, "field" to fieldKind(f)))' in kt
+    assert kt.count("if (f.sensitive) return") >= 3
+    meta = json.loads((PKG / "pyxpo-module.json").read_text())
+    assert meta["nativeContract"] == 4   # PxProcess / ctx.context (headless calls)

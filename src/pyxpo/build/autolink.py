@@ -35,7 +35,7 @@ IOS_INCLUDE = "pyxpo-gen/modules.project.yml"
 SETTINGS_LINE = 'apply(from = "pyxpo-gen/modules.settings.gradle.kts")'
 APP_LINE = 'apply(from = "../pyxpo-gen/modules.app.gradle.kts")'
 # First-party modules, published separately; known here only to tell the user which package to install.
-OFFICIAL = ("application", "audio", "camera", "device", "dot-env", "drawing-canvas", "fetch", "file-system", "google-mobile-ads", "haptics", "image-manipulator", "image-picker", "keyboard", "localization", "location", "media-library", "mesh-view", "network", "notifications", "pose-detection", "secure-store", "sharing", "sqlite", "storage", "web-browser", "whiteboard")
+OFFICIAL = ("application", "audio", "camera", "device", "dot-env", "drawing-canvas", "fetch", "file-system", "google-mobile-ads", "haptics", "image-manipulator", "image-picker", "keyboard", "localization", "location", "media-library", "mesh-view", "network", "notifications", "pose-detection", "secure-store", "sharing", "speech", "sqlite", "storage", "web-browser", "whiteboard")
 
 
 def dist_name(name: str) -> str:
@@ -93,6 +93,14 @@ def validate(meta: Any, where: str) -> Dict[str, Any]:
         raise bad("android.dependencies must be a list of strings")
     if not isinstance(android.get("minSdk", 24), int) or isinstance(android.get("minSdk"), bool):
         raise bad("android.minSdk must be an integer")
+    cmake = android.get("cmake")
+    if cmake is not None:
+        path, args = (cmake.get("path"), cmake.get("arguments", [])) if isinstance(cmake, dict) else (None, None)
+        if (not isinstance(path, str) or not path.endswith("CMakeLists.txt") or path.startswith("/")
+                or ".." in path.split("/") or "\\" in path
+                or not isinstance(args, list) or not all(isinstance(x, str) for x in args)):
+            raise bad('android.cmake must be {"path": "src/main/cpp/CMakeLists.txt", "arguments": ["-DNAME=value"]}'
+                      " with a path inside the module's android folder")
     web = meta.get("web", {})
     if not isinstance(web, dict):
         raise bad("'web' must be a JSON object")
@@ -405,14 +413,34 @@ def gradle_properties(mods: List[Module]) -> Dict[str, str]:
 ANDROIDX_GROUPS = ("androidx.", "com.google.firebase:", "com.google.android.gms:", "com.google.mlkit:")
 
 
+# The NDK the app template builds with (templates/android/user/app/build.gradle.kts); modules with C/C++ use it too.
+NDK_VERSION = "27.3.13750724"
+
+
+def _native_gradle(m: Module) -> str:
+    """`android.cmake`: the module builds C/C++ with CMake, for the ABIs the app ships (pyxpo.properties `abis`)."""
+    cmake = m.android.get("cmake")
+    if not cmake:
+        return ""
+    args = ", ".join('"%s"' % _gradle_str(a) for a in cmake.get("arguments", []))
+    return ('    ndkVersion = "%s"\n'
+            '    defaultConfig {\n'
+            '        ndk { abiFilters += rootProject.file("pyxpo-gen/pyxpo.properties").readLines()'
+            '.first { it.startsWith("abis=") }.substringAfter("=").split(",").map { it.trim() } }\n'
+            '        externalNativeBuild { cmake { arguments(%s) } }\n'
+            '    }\n'
+            '    externalNativeBuild { cmake { path = file("%s") } }\n'
+            % (NDK_VERSION, args, _gradle_str(cmake["path"])))
+
+
 def module_gradle(m: Module) -> str:
     deps = "".join('    implementation("%s")\n' % _gradle_str(d) for d in m.android.get("dependencies", []))
     return ('plugins {\n    id("com.android.library")\n    id("org.jetbrains.kotlin.android")\n}\n\n'
-            'android {\n    namespace = "%s"\n    compileSdk = 35\n    defaultConfig { minSdk = %d }\n'
+            'android {\n    namespace = "%s"\n    compileSdk = 35\n    defaultConfig { minSdk = %d }\n%s'
             '    compileOptions {\n        sourceCompatibility = JavaVersion.VERSION_17\n'
             '        targetCompatibility = JavaVersion.VERSION_17\n    }\n    kotlinOptions { jvmTarget = "17" }\n}\n\n'
             'dependencies {\n    implementation(project(":px-module-api"))\n%s}\n'
-            % (m.android["namespace"], int(m.android.get("minSdk", 24)), deps))
+            % (m.android["namespace"], int(m.android.get("minSdk", 24)), _native_gradle(m), deps))
 
 
 def render_android(gen: Path, mods: List[Module]) -> None:

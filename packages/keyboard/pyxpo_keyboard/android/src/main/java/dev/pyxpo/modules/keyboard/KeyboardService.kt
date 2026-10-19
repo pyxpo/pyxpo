@@ -22,6 +22,7 @@ import android.widget.FrameLayout
 import android.widget.GridView
 import android.widget.LinearLayout
 import android.widget.TextView
+import dev.pyxpo.moduleapi.PxProcess
 
 /** Keyboard options the app sets (`pyxpo_keyboard.set_options`) and the service reads on every field. */
 object Options {
@@ -70,14 +71,23 @@ class FieldInfo(info: EditorInfo) {
         else -> Field.TEXT
     }.takeIf { cls == InputType.TYPE_CLASS_TEXT } ?: Field.TEXT
 
+    val multiline = cls == InputType.TYPE_CLASS_TEXT && (info.inputType and InputType.TYPE_TEXT_FLAG_MULTI_LINE) != 0
+
+    /** For the app (`get_field_async`): text, email, url, number, phone or datetime. */
+    val kind = when (cls) {
+        InputType.TYPE_CLASS_NUMBER -> "number"
+        InputType.TYPE_CLASS_PHONE -> "phone"
+        InputType.TYPE_CLASS_DATETIME -> "datetime"
+        else -> field.name.lowercase()
+    }
+
     /** The editor action enter performs, or null when enter types a new line. */
     val action: Int? = run {
         val a = info.imeOptions and EditorInfo.IME_MASK_ACTION
-        val multiLine = cls == InputType.TYPE_CLASS_TEXT && (info.inputType and InputType.TYPE_TEXT_FLAG_MULTI_LINE) != 0
         when {
             (info.imeOptions and EditorInfo.IME_FLAG_NO_ENTER_ACTION) != 0 -> null
             a == EditorInfo.IME_ACTION_NONE || a == EditorInfo.IME_ACTION_UNSPECIFIED -> null
-            multiLine && a == EditorInfo.IME_ACTION_DONE -> null
+            multiline && a == EditorInfo.IME_ACTION_DONE -> null
             else -> a
         }
     }
@@ -103,13 +113,24 @@ class FieldInfo(info: EditorInfo) {
 
 /**
  * The system keyboard: a toolbar strip over the key grid (or the emoji panel). Everything a key does runs here,
- * on the main thread, without Python.
+ * on the main thread, without Python. The app's toolbar buttons (`set_toolbar_async`) start Python headless and
+ * send it `Keyboard.toolbar`; Python answers through [KeyboardModule] (status line, text to commit).
  */
 class KeyboardService : InputMethodService(), KeyboardView.Listener {
+    companion object {
+        /** The keyboard while it exists, for [KeyboardModule]. Main thread. */
+        var current: KeyboardService? = null
+            private set
+        const val TOOLBAR = "Keyboard.toolbar"
+        const val INPUT = "Keyboard.input"
+    }
+
     private lateinit var keys: KeyboardView
     private lateinit var emoji: View
     private lateinit var status: TextView
     private lateinit var bar: LinearLayout
+    private lateinit var tools: LinearLayout
+    private var appStatus = ""
     private var palette = Palette(false)
     private var navInset = 0
     private var night = false
@@ -122,6 +143,16 @@ class KeyboardService : InputMethodService(), KeyboardView.Listener {
     private var options = Options.DEFAULTS
 
     private val dp get() = resources.displayMetrics.density
+
+    override fun onCreate() {
+        super.onCreate()
+        current = this
+    }
+
+    override fun onDestroy() {
+        if (current === this) current = null
+        super.onDestroy()
+    }
 
     override fun onCreateInputView(): View {
         night = isNight(resources.configuration)
@@ -183,7 +214,12 @@ class KeyboardService : InputMethodService(), KeyboardView.Listener {
         field = f
         if (!restarting) page = f.page
         showEmoji(false)
-        status.text = if (f.sensitive) "🔒  Private field: AI and voice are off" else ""
+        appStatus = ""
+        showStatus("")
+        refreshToolbar()
+        // Python answers the toolbar: warm it up while the user looks at the field (not in private fields)
+        if (!f.sensitive && Toolbar.read(this).isNotEmpty()) PxProcess.start(this)
+        PxProcess.emit(INPUT, mapOf("state" to "start", "field" to fieldKind(f)))
         keys.enterLabel = f.actionLabel
         keys.spaceLabel = "English"
         relayout()
@@ -194,6 +230,7 @@ class KeyboardService : InputMethodService(), KeyboardView.Listener {
     override fun onFinishInputView(finishingInput: Boolean) {
         super.onFinishInputView(finishingInput)
         shift = Shift.OFF
+        PxProcess.emit(INPUT, mapOf("state" to "finish"))
     }
 
     override fun onUpdateSelection(oldSelStart: Int, oldSelEnd: Int, newSelStart: Int, newSelEnd: Int,
@@ -311,6 +348,74 @@ class KeyboardService : InputMethodService(), KeyboardView.Listener {
         if (action != null) ic.performEditorAction(action) else sendKeyChar('\n')
     }
 
+    // -- the app's side (KeyboardModule calls these on the main thread)
+
+    private fun fieldKind(f: FieldInfo) = mapOf("kind" to f.kind, "action" to f.actionLabel,
+                                               "private" to f.sensitive, "multiline" to f.multiline)
+
+    /** The field the keys type in, or null while the keyboard is hidden. Never its text. */
+    fun fieldState(): Map<String, Any?>? {
+        val f = field ?: return null
+        if (!isInputViewShown) return null
+        return fieldKind(f) + mapOf("app" to currentInputEditorInfo?.packageName)
+    }
+
+    /** Null when `text` went in, else why not. */
+    fun commit(text: String): String? {
+        val f = field ?: return "no field is focused"
+        if (f.sensitive) return "this is a private field: the keyboard does not type app text into it"
+        val ic = currentInputConnection ?: return "no field is focused"
+        if (text.isNotEmpty()) ic.commitText(text, 1)
+        if (shift == Shift.ONCE) setShift(Shift.OFF)
+        autoShift()
+        return null
+    }
+
+    /** The field's text around the cursor, or why it cannot be read (private fields never are). */
+    fun text(before: Int, after: Int): Pair<Map<String, Any?>?, String?> {
+        val f = field ?: return null to "no field is focused"
+        if (f.sensitive) return null to "this is a private field: its text stays in the keyboard"
+        val ic = currentInputConnection ?: return null to "no field is focused"
+        val b = before.coerceIn(0, 10000)
+        val a = after.coerceIn(0, 10000)
+        return mapOf("before" to (ic.getTextBeforeCursor(b, 0)?.toString() ?: ""),
+                     "selected" to (ic.getSelectedText(0)?.toString() ?: ""),
+                     "after" to (ic.getTextAfterCursor(a, 0)?.toString() ?: "")) to null
+    }
+
+    /** The app's status line text; the private-field notice wins. */
+    fun showStatus(text: String) {
+        appStatus = text
+        if (!::status.isInitialized) return
+        status.text = if (field?.sensitive == true) "🔒  Private field: AI and voice are off" else appStatus
+    }
+
+    fun refreshToolbar() {
+        if (!::tools.isInitialized) return
+        tools.removeAllViews()
+        if (field?.sensitive == true) return
+        for (b in Toolbar.read(this)) {
+            tools.addView(TextView(this).apply {
+                text = b.label
+                setTextColor(if (b.active) palette.onAccent else palette.text)
+                setTextSize(TypedValue.COMPLEX_UNIT_SP, 18f)
+                gravity = Gravity.CENTER
+                contentDescription = b.description.ifEmpty { b.label }
+                if (b.active) background = GradientDrawable().apply { cornerRadius = 16 * dp; setColor(palette.accent) }
+                setOnClickListener { feedback(); tapped(b.id) }
+            }, LinearLayout.LayoutParams((44 * dp).toInt(), (34 * dp).toInt()).apply {
+                gravity = Gravity.CENTER_VERTICAL; marginEnd = (4 * dp).toInt()
+            })
+        }
+    }
+
+    private fun tapped(id: String) {
+        val f = field ?: return
+        if (f.sensitive) return
+        PxProcess.start(this)
+        PxProcess.emit(TOOLBAR, mapOf("id" to id, "field" to fieldKind(f)))
+    }
+
     // -- toolbar and emoji panel
 
     private fun toolbar(): LinearLayout {
@@ -329,10 +434,12 @@ class KeyboardService : InputMethodService(), KeyboardView.Listener {
             contentDescription = "Open the keyboard app"
             setOnClickListener { openApp() }
         }
+        tools = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL }
         return LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
             setBackgroundColor(palette.background)
             addView(status, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.MATCH_PARENT, 1f))
+            addView(tools, LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.MATCH_PARENT))
             addView(app, LinearLayout.LayoutParams((48 * dp).toInt(), ViewGroup.LayoutParams.MATCH_PARENT))
         }
     }

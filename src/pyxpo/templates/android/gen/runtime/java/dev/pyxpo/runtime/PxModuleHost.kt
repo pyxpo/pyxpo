@@ -1,6 +1,7 @@
 package dev.pyxpo.runtime
 
 import android.app.Activity
+import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.os.Handler
@@ -13,8 +14,17 @@ import dev.pyxpo.moduleapi.PxReply
 import org.json.JSONArray
 import org.json.JSONObject
 
-/** Routes `Module.method` calls to the native modules linked into this app (`PxModuleRegistry`). Main thread only. */
-class PxModuleHost(override val activity: Activity, private val emitEvent: (String, JSONObject) -> Unit) : PxModuleContext {
+/**
+ * Routes `Module.method` calls to the native modules linked into this app (`PxModuleRegistry`). Main thread only.
+ * `act` is null for the headless host [PyxpoRuntime] uses while no activity is on screen.
+ */
+class PxModuleHost(override val context: Context, private val act: Activity?,
+                   private val emitEvent: (String, JSONObject) -> Unit) : PxModuleContext {
+    override val activity: Activity
+        get() = act ?: throw IllegalStateException("no activity: the app runs headless (a service started Python); open the app for this call")
+
+    override val hasActivity: Boolean get() = act != null
+
     private val main = Handler(Looper.getMainLooper())
     private val modules: Map<String, PxModule> = pxModules.associateBy { it.name }
     private val results = SparseArray<(Int, Intent?) -> Unit>()
@@ -55,7 +65,7 @@ class PxModuleHost(override val activity: Activity, private val emitEvent: (Stri
     }
 
     override fun requestPermissions(permissions: Array<String>, onResult: (Map<String, Boolean>) -> Unit) {
-        val missing = permissions.filter { activity.checkSelfPermission(it) != PackageManager.PERMISSION_GRANTED }
+        val missing = permissions.filter { context.checkSelfPermission(it) != PackageManager.PERMISSION_GRANTED }
         if (missing.isEmpty()) { onResult(permissions.associateWith { true }); return }
         val code = allocate { permissionCallbacks.indexOfKey(it) >= 0 }
         // Report every requested permission, not just the ones the dialog asked about.

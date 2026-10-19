@@ -12,7 +12,15 @@ typealias PxReply = (value: Any?, error: String?) -> Unit
 
 /** What the app gives a native module. */
 interface PxModuleContext {
+    /** The activity on screen. Throws while the app runs headless (see [PxProcess]): check [hasActivity] first. */
     val activity: Activity
+
+    /** The app context. Always there, also while the app runs headless. */
+    val context: Context get() = activity
+
+    /** False while Python runs with no activity (a Service started it with [PxProcess.start]). [activity],
+     *  [startForResult] and [requestPermissions] throw then. */
+    val hasActivity: Boolean get() = true
 
     /** Starts `intent` and calls `onResult` once. If the activity is recreated meanwhile, `onResult` gets `Activity.RESULT_CANCELED`. */
     fun startForResult(intent: Intent, onResult: (resultCode: Int, data: Intent?) -> Unit)
@@ -25,6 +33,31 @@ interface PxModuleContext {
 
     /** The mounted native view with this tag (the Python handle's node id), if a module made it. */
     fun view(tag: Int): PxNativeView?
+}
+
+/**
+ * Python for code that runs without the app's activity, like a Service (an input method, a background job).
+ * [start] boots Python headless when it does not run yet: the app module runs as usual, native module calls
+ * work with no activity ([PxModuleContext.hasActivity] is false), and the first activity that opens mounts the
+ * app's screens. Main thread.
+ */
+object PxProcess {
+    /** Set by the app runtime when it is made. Posts to the main thread itself. */
+    @Volatile var sink: ((name: String, payload: Map<String, Any?>) -> Unit)? = null
+
+    /** Starts Python if it does not run yet. */
+    fun start(context: Context) {
+        Class.forName("dev.pyxpo.runtime.PyxpoRuntime").getMethod("startHeadless", Context::class.java)
+            .invoke(null, context.applicationContext)
+    }
+
+    /** Sends a `module` event to Python, like [PxModuleContext.emit]. Events sent before Python is ready wait for it.
+     *  False when the runtime was not made yet: call [start] first. Safe from any thread. */
+    fun emit(name: String, payload: Map<String, Any?>): Boolean {
+        val s = sink ?: return false
+        s(name, payload)
+        return true
+    }
 }
 
 /**

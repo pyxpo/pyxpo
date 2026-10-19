@@ -68,7 +68,7 @@ class OpApplier(
     }
 
     /** Native modules linked into this app (see `PxModuleRegistry`). */
-    val modules = PxModuleHost(ctx as android.app.Activity) { name, data ->
+    val modules = PxModuleHost(ctx, ctx as android.app.Activity) { name, data ->
         event("module", 0, JSONObject().put("name", name).put("data", data))
     }
 

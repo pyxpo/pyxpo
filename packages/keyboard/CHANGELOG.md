@@ -11,3 +11,6 @@
   the navigation bar on edge-to-edge Android 15+.
 - The web and the desktop return the defaults for every call.
 - README with emulator screenshots.
+- App toolbar buttons (Android): `set_toolbar_async`, `set_status_async`, `get_field_async`, `commit_text_async`,
+  `get_text_async`, `add_toolbar_listener`, `add_input_listener`. A tap starts the app's Python headless; private
+  fields hide the buttons and refuse text calls. `status` adds `showing`. Needs native contract 4.

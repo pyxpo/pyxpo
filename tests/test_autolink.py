@@ -318,3 +318,25 @@ def test_xcodegen_merges_module_packages(tmp_path):
     assert "swift-package-manager-google-mobile-ads" in pbx and "minimumVersion = 12.0.0" in pbx
     assert "productName = GoogleMobileAds" in pbx and "platformFilter = ios" in pbx
     assert "Python.xcframework" in pbx  # the user's own dependencies are kept (arrays append)
+
+
+def test_android_cmake_builds_native_code_for_the_shipped_abis(tmp_path):
+    android = {"namespace": "dev.pyxpo.modules.demo", "classes": ["dev.pyxpo.modules.demo.DemoModule"],
+               "cmake": {"path": "src/main/cpp/CMakeLists.txt", "arguments": ["-DGGML_NATIVE=OFF", 'x"y']}}
+    m = make_module(tmp_path / "mods", android=android)
+    g = autolink.module_gradle(m)
+    assert 'path = file("src/main/cpp/CMakeLists.txt")' in g and 'ndkVersion = "%s"' % autolink.NDK_VERSION in g
+    assert 'arguments("-DGGML_NATIVE=OFF", "x\\"y")' in g and 'startsWith("abis=")' in g
+    # inside android {} Kotlin DSL resolves `java` to the java extension: java.util.X does not compile there
+    assert "java.util" not in g
+    assert "ndkVersion" not in autolink.module_gradle(make_module(tmp_path / "plain"))
+    tpl = (autolink.Path(autolink.__file__).parent.parent / "templates/android/user/app/build.gradle.kts").read_text()
+    assert 'ndkVersion = "%s"' % autolink.NDK_VERSION in tpl  # modules build with the app's NDK
+
+
+@pytest.mark.parametrize("cmake", ["CMakeLists.txt", {"path": "/abs/CMakeLists.txt"}, {"path": "../x/CMakeLists.txt"},
+                                   {"path": "src/build.gradle"}, {"path": "CMakeLists.txt", "arguments": [1]}])
+def test_android_cmake_rejects_bad_specs(cmake):
+    meta = {"name": "ok", "native": "X", "android": {"namespace": "a.b", "classes": ["a.b.C"], "cmake": cmake}}
+    with pytest.raises(BuildError):
+        autolink.validate(meta, "f")

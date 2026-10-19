@@ -109,6 +109,16 @@ the build with `pip install pyxpo-<name>`; importing `pyxpo_<name>` without list
 whose native side is not linked raises `ModuleNotLinkedError` naming the pip package and the `modules` entry. Core keeps only the
 module host helpers (`pyxpo.modules`: `require_linked`, `ModuleNotLinkedError`, `on_event`).
 
+Native contract 4 (`pyxpo.module_api.NATIVE_CONTRACT`; a module declares `nativeContract` and older pyxpo refuses it):
+- Headless Python on Android. `PxProcess.start(context)` boots Python from a Service (an input method, a background job)
+  with no activity; module calls then see `PxModuleContext.hasActivity == false` and use `ctx.context` (the app
+  context) instead of `ctx.activity`. `PxProcess.emit` sends a module event to Python from native code that has no
+  module context. The first activity that opens mounts the app's screens on the running Python.
+- C/C++ in modules. `"android": {"cmake": {"path": "src/main/cpp/CMakeLists.txt", "arguments": [...]}}` builds a
+  CMake project with the app's NDK (`autolink.NDK_VERSION`) for the ABIs the app ships (pyxpo.properties `abis`).
+  Link native libraries with `-Wl,-z,max-page-size=16384`: Android 15+ devices with 16 KB pages and Google Play
+  need it, and NDK 27 links for 4 KB pages by default (pyxpo-speech does).
+
 Monorepo development: `tools/dev_install.sh` installs core and every package in `packages/` editable into `.venv`.
 `python tools/build_packages.py` builds and checks every package's wheel and sdist (native files and entry point present);
 `python tools/module_size_report.py` prints each first-party module's source footprint.

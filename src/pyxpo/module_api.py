@@ -18,7 +18,9 @@ from .modules import ModuleNotLinkedError, build_data, dispatch, on_event, requi
 # 2: adds module constants (`constants(native)`), read synchronously at startup, the iOS
 #    `PxAppLaunchObserver` hook (modules that start with the app), and module views (`native_view`).
 # 3: adds the Android `PxModule.onNewIntent` hook (intents the running activity gets, like notification taps).
-NATIVE_CONTRACT = 3
+# 4: adds Android `PxModuleContext.context` / `hasActivity`, `PxProcess` (a Service starts Python headless and
+#    sends it events) and `android.cmake` (modules that build C/C++).
+NATIVE_CONTRACT = 4
 
 __all__ = [
     "NATIVE_CONTRACT", "NotSupportedError", "ModuleNotLinkedError", "call", "on_event", "dispatch",

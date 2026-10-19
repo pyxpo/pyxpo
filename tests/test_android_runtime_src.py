@@ -24,3 +24,19 @@ def test_scroll_view_reveals_the_focused_field_when_the_keyboard_shrinks_it():
     scroll = kt[kt.index("class PxScroll("):]
     assert "override fun onSizeChanged" in scroll and "if (h < oldh)" in scroll
     assert "computeScrollDeltaToGetChildRectOnScreen" in scroll
+
+
+def test_a_service_can_run_python_without_an_activity():
+    api = (droid.TEMPLATE / "gen/module-api/src/main/java/dev/pyxpo/moduleapi/PxModule.kt").read_text()
+    assert "object PxProcess" in api and '"dev.pyxpo.runtime.PyxpoRuntime"' in api and '"startHeadless"' in api
+    assert "val context: Context get() = activity" in api and "val hasActivity: Boolean get() = true" in api
+    rt = (RUNTIME / "PyxpoRuntime.kt").read_text()
+    assert "@JvmStatic\n        fun startHeadless(context: Context)" in rt  # the name PxProcess looks up
+    assert "PxProcess.sink = " in rt and "PxModuleHost(ctx, null)" in rt
+    # no activity: call ops go to the headless host, and the first activity after a headless start remounts
+    assert "if (a != null) a.apply(json) else applyHeadless(json)" in rt
+    attach = rt[rt.index("fun attach("):rt.index("fun detach(")]
+    assert "if (!started) return" in attach and "old == null" not in attach
+    assert "runtime?.detach(it)" in (RUNTIME / "MainActivity.kt").read_text()
+    host = (RUNTIME / "PxModuleHost.kt").read_text()
+    assert "private val act: Activity?" in host and "context.checkSelfPermission" in host

@@ -140,6 +140,7 @@ class MainActivity : Activity() {
     }
 
     override fun onDestroy() {
+        applier?.let { runtime?.detach(it) }
         applier?.modules?.cancelPending()
         super.onDestroy()
     }
