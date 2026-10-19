@@ -35,7 +35,7 @@ IOS_INCLUDE = "pyxpo-gen/modules.project.yml"
 SETTINGS_LINE = 'apply(from = "pyxpo-gen/modules.settings.gradle.kts")'
 APP_LINE = 'apply(from = "../pyxpo-gen/modules.app.gradle.kts")'
 # First-party modules, published separately; known here only to tell the user which package to install.
-OFFICIAL = ("application", "audio", "camera", "device", "dot-env", "drawing-canvas", "fetch", "file-system", "google-mobile-ads", "haptics", "image-manipulator", "image-picker", "localization", "location", "media-library", "mesh-view", "network", "notifications", "secure-store", "sharing", "sqlite", "storage", "web-browser", "whiteboard")
+OFFICIAL = ("application", "audio", "camera", "device", "dot-env", "drawing-canvas", "fetch", "file-system", "google-mobile-ads", "haptics", "image-manipulator", "image-picker", "localization", "location", "media-library", "mesh-view", "network", "notifications", "pose-detection", "secure-store", "sharing", "sqlite", "storage", "web-browser", "whiteboard")
 
 
 def dist_name(name: str) -> str:
