@@ -50,17 +50,37 @@
     return save;
   }
 
+  // {known: names in Pyodide's lock file, other: the rest (version specs, PyPI-only packages) for micropip}.
+  function splitPackages(wanted, lock) {
+    const norm = (n) => n.toLowerCase().replace(/[-_.]+/g, "-");
+    const names = {};
+    for (const k of Object.keys((lock && lock.packages) || {})) names[norm(k)] = k;
+    const known = [], other = [];
+    for (const p of wanted) {
+      const hit = /^[A-Za-z0-9][A-Za-z0-9._-]*$/.test(p) ? names[norm(p)] : undefined;
+      (hit ? known : other).push(hit || p);
+    }
+    return { known, other };
+  }
+
   const MIME = { png: "image/png", jpg: "image/jpeg", jpeg: "image/jpeg", gif: "image/gif", webp: "image/webp",
                  svg: "image/svg+xml", bmp: "image/bmp", ico: "image/x-icon", heic: "image/heic" };
 
   try {
     show("Loading…");
     const bundle = fetchBytes(BASE + "/" + cfg.bundle);  // in parallel with the runtime download
+    const wanted = cfg.packages || [];
+    const lock = wanted.length ? fetch(cfg.pyodide + "pyodide-lock.json").then((r) => r.json()).catch(() => null)
+                               : Promise.resolve(null);
     await script(cfg.pyodide + "pyodide.js");
-    const py = await loadPyodide({ indexURL: cfg.pyodide });
-    if (cfg.packages && cfg.packages.length) {
+    // Packages Pyodide builds itself (numpy, ...) load straight from its CDN while the runtime starts. micropip is
+    // only for the rest: loading it costs seconds, and numpy installed through it imported ~7x slower.
+    const builtin = await splitPackages(wanted, await lock);
+    const py = await loadPyodide({ indexURL: cfg.pyodide, packages: builtin.known });
+    if (builtin.known.length) await py.loadPackage(builtin.known);  // a no-op unless `packages` was ignored
+    if (builtin.other.length) {
       await py.loadPackage("micropip");
-      await py.pyimport("micropip").install(cfg.packages);
+      await py.pyimport("micropip").install(builtin.other);
     }
     py.unpackArchive(await bundle, "zip", { extractDir: "/app" });
     const persist = await keepData(py, ["/app/.pyxpo-data/documents", "/app/.pyxpo-data/storage"]);

@@ -49,10 +49,10 @@ site to `build/web/`.
 [tool.pyxpo.web]
 base = "/myapp"           # the site lives under this path (default: the site root)
 title = "My App"          # page title (default: the app name)
-packages = ["numpy"]      # extra packages the browser installs with micropip
+packages = ["numpy"]      # extra packages the browser loads
 ```
 
-`[tool.pyxpo] requires` are installed with micropip as well, so they must be pure Python or built for Pyodide.
+`[tool.pyxpo] requires` load the same way, so they must be pure Python or built for Pyodide. Packages Pyodide builds (numpy, pillow, ...) load straight from its CDN while the runtime starts; the rest, and version specs like `"attrs>=23"`, go through micropip.
 
 Python in the browser differs from Python on a phone in a few places:
 

@@ -965,7 +965,7 @@
       "type": "string"
      },
      "packages": {
-      "description": "Extra packages the browser installs with micropip (pure Python or Pyodide builds).",
+      "description": "Extra packages the browser loads (Pyodide builds from its CDN, others with micropip).",
       "items": {
        "type": "string"
       },

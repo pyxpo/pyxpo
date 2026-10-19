@@ -246,3 +246,13 @@ def test_watch_stamp_sees_linked_module_packages(tmp_path):
     assert _watch_stamp(tmp_path, [pkg]) == before
     (pkg / "__init__.py").write_text("X = 22\n")
     assert _watch_stamp(tmp_path, [pkg]) != before
+
+
+def test_boot_loads_pyodide_builds_without_micropip():
+    # micropip costs seconds to load, and numpy installed through it imported ~7x slower: Pyodide's own builds load
+    # with loadPyodide/loadPackage, and only names missing from its lock file (or version specs) go to micropip.
+    from pathlib import Path
+    boot = (Path(__file__).resolve().parents[1] / "src" / "pyxpo" / "renderers" / "web" / "boot.js").read_text()
+    assert 'fetch(cfg.pyodide + "pyodide-lock.json")' in boot
+    assert "loadPyodide({ indexURL: cfg.pyodide, packages: builtin.known })" in boot
+    assert 'micropip").install(builtin.other)' in boot and 'install(cfg.packages)' not in boot

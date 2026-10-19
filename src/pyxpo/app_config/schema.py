@@ -87,7 +87,7 @@ SCHEMA = table({
     "web": table({
         "title": T("str", "Page title; default the app name."),
         "base": T("str", "Path the site is served under, such as /myapp; default the site root."),
-        "packages": T("list", "Extra packages the browser installs with micropip (pure Python or Pyodide builds).",
+        "packages": T("list", "Extra packages the browser loads (Pyodide builds from its CDN, others with micropip).",
                       item=T("str")),
         "pyodide_url": T("str", "Where Pyodide loads from (a folder URL ending in /); default the jsDelivr CDN."),
     }, "Web app (`pyxpo build web`): a static single page app on Pyodide."),

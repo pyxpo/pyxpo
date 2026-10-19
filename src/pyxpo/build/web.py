@@ -58,8 +58,9 @@ def web_config(cfg: Dict[str, Any]) -> Dict[str, Any]:
 
 
 def packages(cfg: Dict[str, Any], modules: List[autolink.Module]) -> List[str]:
-    """What boot.js installs with micropip: [tool.pyxpo] requires, [tool.pyxpo.web] packages and what linked
-    modules list under `web.packages` in their manifest (such as pillow for image-manipulator)."""
+    """What boot.js loads (Pyodide builds directly, the rest with micropip): [tool.pyxpo] requires,
+    [tool.pyxpo.web] packages and what linked modules list under `web.packages` in their manifest (such as pillow for
+    image-manipulator)."""
     out: List[str] = []
     for p in list(cfg.get("requires", [])) + list(web_config(cfg).get("packages", [])):
         out.append(str(p))
