@@ -1,0 +1,12 @@
+{
+  "schemaVersion": 1,
+  "nativeContract": 4,
+  "name": "translate",
+  "native": "Translate",
+  "android": {
+    "namespace": "dev.pyxpo.modules.translate",
+    "classes": ["dev.pyxpo.modules.translate.TranslateModule"],
+    "dependencies": ["com.google.mlkit:translate:17.0.3"],
+    "minSdk": 24
+  }
+}

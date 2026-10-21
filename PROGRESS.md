@@ -13,28 +13,25 @@
 
 ## VS Code extension (editors/vscode): pushed, 0.1.0 on Marketplace (hand upload; bump version). data/pyxpo.json from tools/gen_vscode_data.py.
 
-## Desktop apps (Oct 17, committed + pushed)
-- Mac native = Catalyst, Windows native = WinUI 3 shell (windows/PyxpoShell), preview = `run desktop --preview`.
-- Windows bugs: Feather icons, grey card shadows.
-
-## Web target, responsive, web devtools, StyleSheet themes (Oct 17, pushed). Later: `[tool.pyxpo] breakpoints`.
+## Desktop (Catalyst, WinUI 3, `--preview`), web target + devtools + themes: pushed Oct 17. Later: breakpoints.
 
 ## armeabi-v7a (Oct 19, pushed fe55e66)
 - v7a runtime; dropped when a wheel is missing (unless `abis`). tests/test_android_abis.py.
 - Released core 0.1.0a5 with v7a runtime. Open: client tests APK on M13.
 - Release dex fail ("located outside the root directory") = project moved, stale .gradle paths. Guard `_drop_moved_gradle_state` (marker .gradle/pyxpo-root) in prebuild/build; Gradle stage task only warns. imagekit assembleRelease OK after clean.
-- iOS App Store upload: ios.prune_site drops .a/.o/bin from site-packages; iPad always gets 4 orientations (unless require_full_screen).
+- iOS App Store upload: prune_site; iPad 4 orientations.
 
 ## From pyxpo-apps doodle-puppet / birthday-sky (Oct 19, pushed)
 - packages/pose-detection (ML Kit / Vision; photos + videos) + README, tests, autolink. iOS sim: Vision Code=9, `available` probes a blank image so it reports False there. iPhone unchecked.
 - TextInput stale-echo fix (OpApplier.kt/.swift, web app.js), Android focus after pop, web restyle keeps --vars + spinner colour.
-- Web: Picker.choose dialog; Pyodide numpy boot ~6s.
 - Gradle hang: `JAVA_TOOL_OPTIONS=-Djava.net.preferIPv6Addresses=true` (IPv4 broken).
 
 ## AI Keyboard (pyxpo-apps/ai-keyboard, Oct 19, pushed)
 - packages/keyboard (pyxpo-keyboard): Android InputMethodService, native Kotlin keys; phase 1 emulator-verified. App PROGRESS.md has detail.
-- README + docs/images, pushed 5632121.
 - Phase 2 voice committed local 9628c0b (not pushed): contract 4, packages/speech (whisper 1.9.5), keyboard toolbar API.
-- UNCOMMITTED: speech shared ggml + runtime CPU variant pick (libpyxpo_speech_*.so, S23 1.6x faster), audio_ctx option (S23-measured: "fit" fast but unreliable, default stays 30 s), README/CHANGELOG/DESIGN 4b; OpApplier push dropFocus fix + test. Full suite 938 pass, 14 skip.
+- UNCOMMITTED: speech shared ggml + CPU variant pick (S23 1.6x), audio_ctx option, OpApplier dropFocus fix, docs.
 - Release: keyboard + speech deps -> `pyxpo>=0.1.0a6` (contract 4).
-- Next: commit, push on user go-ahead, check raw image URLs; Phase 3 pyxpo-llm.
+- UNCOMMITTED too: keyboard panel API (Panel.kt, show/hide_panel, levels, listener), speech kept audio, docs.
+- UNCOMMITTED (Oct 20): speech live recognition (Live.kt, on-device SpeechRecognizer) + docs; keyboard digit-only hints, panel min 360 dp. Suite 957 pass.
+- UNCOMMITTED (Oct 20 pm): packages/translate (ML Kit, README hero TODO, autolink OFFICIAL); keyboard iOS-style layout + Icons.kt + toolbar `icon`. Install translate with `pip --no-deps -e` (needs core a6).
+- Next: commit, push on user go-ahead, check raw image URLs; keyboard README screenshots redo; Phase 3 pyxpo-llm.
