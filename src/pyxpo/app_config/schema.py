@@ -42,6 +42,7 @@ SCHEMA = table({
     "background_color": HEX,
     "icon": PNG,
     "modules": STR_LIST, "targets": STR_LIST, "requires": STR_LIST, "abis": STR_LIST, "wheel_index": STR_LIST,
+    "include": T("list", "More top-level package folders shipped next to app/.", item=T("str")),
     "plugins": T("list", "Config plugins: './file.py', 'pkg.mod[:fn]' or ['entry', {options}].", item=T("any")),
     "allow_4kb_libs": T("bool"), "dev_port": T("int", min=1, max=65535),
     "splash": table({

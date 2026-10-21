@@ -10,10 +10,10 @@ import tempfile
 import threading
 import time
 from pathlib import Path
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, Sequence
 
 from .. import config_plugins, native_config, term
-from ..config import load_config, pip_index_args
+from ..config import app_dirs, load_config, pip_index_args
 from ..module_hooks import build_mode
 from . import prebuild as prebuild_mod
 from . import app_json, autolink, icons, ios_config, runtime, splash
@@ -172,7 +172,7 @@ def stage(native: Path, project: Path, cfg: Dict[str, object], release: bool, ki
     gen = render_gen(native, nc, linked, project)
     st = gen / "stage"
     _stage_stdlib(slice_dir, st / ("python-" + kind), host_python())
-    _stage_app(project, st / "app_root", release, linked.modules)
+    _stage_app(project, st / "app_root", release, linked.modules, app_dirs(cfg, project))
     app_json.write(st / "app_root" / "pyxpo", nc)
     install_requires(list(cfg.get("requires", [])), kind, st / ("site-" + kind), pip_index_args(cfg, project))
 
@@ -224,10 +224,11 @@ def _stage_stdlib(slice_dir: Path, dest: Path, compile_with: Optional[Path]) -> 
                        check=False, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
 
 
-def _stage_app(project: Path, dest: Path, release: bool, modules: Optional[List[autolink.Module]] = None) -> None:
+def _stage_app(project: Path, dest: Path, release: bool, modules: Optional[List[autolink.Module]] = None,
+               dirs: Sequence[str] = ("app", "assets")) -> None:
     if dest.exists():
         shutil.rmtree(str(dest))
-    for sub in ("app", "assets"):
+    for sub in dirs:
         d = project / sub
         if d.is_dir():
             shutil.copytree(str(d), str(dest / sub), ignore=shutil.ignore_patterns("__pycache__", ".*"))

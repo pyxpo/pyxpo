@@ -10,7 +10,7 @@ from pathlib import Path
 from typing import Dict, List, Optional
 
 from .. import config_plugins, native_config, term
-from ..config import load_config, pip_index_args
+from ..config import app_dirs, load_config, pip_index_args
 from ..module_hooks import build_mode
 from . import prebuild as prebuild_mod
 from . import android_config, app_json, autolink, elfcheck, runtime
@@ -311,7 +311,7 @@ def stage(native: Path, project: Path, cfg: Dict[str, object], release: bool, ab
     variant.mkdir(parents=True, exist_ok=True)
     app_zip = variant / "app.zip"
     with zipfile.ZipFile(str(app_zip), "w", zipfile.ZIP_DEFLATED) as z:
-        for sub in ("app", "assets"):
+        for sub in app_dirs(cfg, project):
             d = project / sub
             for p in sorted(d.rglob("*")) if d.is_dir() else []:
                 rel = p.relative_to(project)

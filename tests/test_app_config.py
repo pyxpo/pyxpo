@@ -64,6 +64,10 @@ def test_dynamic_config(tmp_path):
     p = project(tmp_path, 'name = "A"\nbundle_id = "com.a.b"')
     (p / "app_config.py").write_text('def config(cfg):\n    cfg["bundle_id"] += ".dev"\n    return cfg\n')
     assert load_config(p)["bundle_id"] == "com.a.b.dev"
+    # config(cfg, mode) gets the build mode, so a release build can pick its own id
+    (p / "app_config.py").write_text('def config(cfg, mode):\n    cfg["bundle_id"] += "." + mode\n    return cfg\n')
+    assert load_config(p, "production")["bundle_id"] == "com.a.b.production"
+    assert load_config(p, "staging")["bundle_id"] == "com.a.b.staging"
 
 
 def test_asset_checks(tmp_path):

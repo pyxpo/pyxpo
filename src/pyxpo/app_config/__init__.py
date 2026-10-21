@@ -2,15 +2,17 @@
 from __future__ import annotations
 
 import importlib.util
+import inspect
 from pathlib import Path
-from typing import Any, Dict
+from typing import Any, Dict, Optional
 
 from .resolve import check_assets, resolve, safe_name  # noqa: F401
 from .schema import ConfigError, json_schema, normalize, validate  # noqa: F401
 
 
-def apply_dynamic(cfg: Dict[str, Any], project: Path) -> Dict[str, Any]:
-    """Runs `app_config.py`'s `config(cfg) -> dict` on the host, like Expo's app.config.js."""
+def apply_dynamic(cfg: Dict[str, Any], project: Path, mode: Optional[str] = None) -> Dict[str, Any]:
+    """Runs `app_config.py`'s `config(cfg) -> dict` on the host, like Expo's app.config.js. A `config(cfg, mode)`
+    also gets the build mode (`development`, `production`, or the `--mode` / PYXPO_MODE value)."""
     f = Path(project) / "app_config.py"
     if not f.is_file():
         return cfg
@@ -20,14 +22,18 @@ def apply_dynamic(cfg: Dict[str, Any], project: Path) -> Dict[str, Any]:
     fn = getattr(mod, "config", None)
     if not callable(fn):
         raise ConfigError("%s must define config(cfg) -> dict" % f)
-    out = fn(dict(cfg))
+    try:
+        takes_mode = len(inspect.signature(fn).parameters) >= 2
+    except (TypeError, ValueError):
+        takes_mode = False
+    out = fn(dict(cfg), mode) if takes_mode else fn(dict(cfg))
     if not isinstance(out, dict):
         raise ConfigError("%s: config() must return a dict" % f)
     return out
 
 
-def prepare(cfg: Dict[str, Any], project: Path) -> Dict[str, Any]:
+def prepare(cfg: Dict[str, Any], project: Path, mode: Optional[str] = None) -> Dict[str, Any]:
     """Dynamic config, camelCase aliases, then validation. Returns the normalized table."""
-    cfg = normalize(apply_dynamic(cfg, project))
+    cfg = normalize(apply_dynamic(cfg, project, mode))
     validate(cfg)
     return cfg

@@ -24,10 +24,10 @@ import time
 import urllib.parse
 import zipfile
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Sequence
 
 from .. import native_config
-from ..config import load_config
+from ..config import app_dirs, load_config
 from ..module_hooks import build_mode
 from ..renderers.web import page_html
 from . import app_json, autolink
@@ -93,7 +93,7 @@ def build(project: Path, release: bool = False, base: Optional[str] = None, out:
 
     with tempfile.TemporaryDirectory() as tmp:
         stage = Path(tmp) / "app"
-        _stage_app(project, stage, True, linked.modules)  # no hot-reload client: the browser reloads the page
+        _stage_app(project, stage, True, linked.modules, app_dirs(cfg, project))  # no hot-reload client: the browser reloads the page
         app_json.write(stage / "pyxpo", nc)
         (stage / "pyxpo" / "web_modules.json").write_text(
             json.dumps({m.native: m.pkg for m in linked.modules}, indent=2, sort_keys=True))
@@ -144,12 +144,12 @@ _RELOAD = ('<script>(() => { const es = new EventSource("/__pyxpo/reload"); '
 _DEVTOOLS = '<script src="/__pyxpo/devtools.js"></script>\n'  # device preview panel, dev server only
 
 
-def _watch_stamp(project: Path, modules: Optional[List[Path]] = None) -> Any:
-    """Changes when the app, its assets, pyproject.toml, a `.env*` file (pyxpo-dot-env) or a linked module package
-    (local editable install) changes."""
+def _watch_stamp(project: Path, modules: Optional[List[Path]] = None, dirs: Sequence[str] = ("app", "assets")) -> Any:
+    """Changes when the app, its assets, an `include` folder, pyproject.toml, a `.env*` file (pyxpo-dot-env) or a
+    linked module package (local editable install) changes."""
     env_files = sorted(project.glob(".env*"))
     paths = [project / "pyproject.toml"] + env_files
-    for sub in ("app", "assets"):
+    for sub in dirs:
         d = project / sub
         if d.is_dir():
             paths += [p for p in d.rglob("*") if p.is_file() and "__pycache__" not in p.parts]
@@ -183,10 +183,11 @@ class DevServer:
 
     def watch(self, interval: float = 0.5) -> None:
         modules = autolink.linked_roots(self.project)
-        stamp = _watch_stamp(self.project, modules)
+        dirs = app_dirs(load_config(self.project), self.project)
+        stamp = _watch_stamp(self.project, modules, dirs)
         while True:
             time.sleep(interval)
-            now = _watch_stamp(self.project, modules)
+            now = _watch_stamp(self.project, modules, dirs)
             if now == stamp:
                 continue
             stamp = now

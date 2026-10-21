@@ -691,6 +691,13 @@
     "description": "PNG image path, relative to the project.",
     "type": "string"
    },
+   "include": {
+    "description": "More top-level package folders shipped next to app/.",
+    "items": {
+     "type": "string"
+    },
+    "type": "array"
+   },
    "ios": {
     "additionalProperties": false,
     "properties": {

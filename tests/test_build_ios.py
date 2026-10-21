@@ -119,6 +119,28 @@ def test_stage_keeps_user_files_and_leaves_no_placeholders(tmp_path, monkeypatch
                 assert str(tmp_path) not in text, p
 
 
+def test_include_ships_more_package_folders(tmp_path, monkeypatch):
+    from pyxpo.config import app_dirs
+    _fake_dist(tmp_path, monkeypatch)
+    monkeypatch.setattr(ios, "_run", lambda *a, **k: None)
+    proj = _project(tmp_path, 'include = ["corelib"]\n')
+    (proj / "corelib").mkdir()
+    (proj / "corelib" / "__init__.py").write_text("y = 2\n")
+    (proj / "corelib" / ".secret").write_text("no")
+    (proj / "tools").mkdir()
+    (proj / "tools" / "x.py").write_text("")
+    native = ios.prebuild(proj)
+    ios.stage(native, proj, ios.load_config(proj), False, "simulator")
+    root = native / "pyxpo-gen" / "stage" / "app_root"
+    assert (root / "corelib" / "__init__.py").is_file() and (root / "app" / "index.py").is_file()
+    assert not (root / "corelib" / ".secret").exists() and not (root / "tools").exists()
+    for bad in (["../x"], ["app"], ["a/b"]):
+        with pytest.raises(ValueError, match="not a top-level package"):
+            app_dirs({"include": bad}, proj)
+    with pytest.raises(FileNotFoundError, match="no folder 'gone'"):
+        app_dirs({"include": ["gone"]}, proj)
+
+
 def test_android_prebuild_and_stage(tmp_path, monkeypatch):
     droid = importlib.import_module("pyxpo.build.android")
     dist = tmp_path / "adist"

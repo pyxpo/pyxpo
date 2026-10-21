@@ -4,7 +4,7 @@ import ast
 import os
 import re
 from pathlib import Path
-from typing import Any, Dict, Optional
+from typing import Any, Dict, List, Optional
 
 try:
     import tomllib as _toml  # type: ignore
@@ -66,7 +66,7 @@ def load_config(project_dir: Path, mode: Optional[str] = None) -> Dict[str, Any]
     from .app_config.resolve import MODULE_DATA
     mode = module_hooks.check_mode(mode) if mode else module_hooks.build_mode()
     cfg, shipped = module_hooks.run(cfg, Path(project_dir), mode)
-    cfg = app_config.prepare(cfg, project_dir)
+    cfg = app_config.prepare(cfg, project_dir, mode)
     if shipped:
         cfg[MODULE_DATA] = shipped
     return cfg
@@ -81,6 +81,22 @@ def set_requires(project_dir: Path, requires: list) -> None:
     else:
         text = text.replace("[tool.pyxpo]", "[tool.pyxpo]\n" + line, 1)
     path.write_text(text)
+
+
+_PACKAGE_DIR = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
+
+
+def app_dirs(cfg: Dict[str, Any], project_dir: Path) -> List[str]:
+    """The project folders an app ships: app/, assets/ and each `include` folder of [tool.pyxpo] (more top-level
+    Python packages, for example a library the app shares with a command-line tool)."""
+    extra = []
+    for name in cfg.get("include", []):
+        if not _PACKAGE_DIR.match(name) or name in ("app", "assets", "pyxpo"):
+            raise ValueError("[tool.pyxpo] include: %r is not a top-level package folder name" % name)
+        if not (Path(project_dir) / name).is_dir():
+            raise FileNotFoundError("[tool.pyxpo] include: no folder %r in %s" % (name, project_dir))
+        extra.append(name)
+    return ["app", "assets"] + extra
 
 
 def pip_index_args(cfg: Dict[str, Any], project_dir: Path) -> list:

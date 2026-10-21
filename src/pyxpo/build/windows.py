@@ -22,7 +22,7 @@ from pathlib import Path
 from typing import Dict, List, Optional
 
 from .. import native_config
-from ..config import load_config, pip_index_args
+from ..config import app_dirs, load_config, pip_index_args
 from ..module_hooks import build_mode
 from . import app_json, autolink, runtime
 from .android import BuildError, _run
@@ -88,7 +88,7 @@ def stage(project: Path, release: bool = False, shell: Optional[Path] = None) ->
 
     linked = autolink.link(cfg, project)
     root = out / "app"
-    _stage_app(project, root, release, linked.modules)
+    _stage_app(project, root, release, linked.modules, app_dirs(cfg, project))
     app_json.write(root / "pyxpo", nc)
     # Module calls run in Python on Windows (each package's desktop.py); the app has no metadata to discover them.
     (root / "pyxpo" / "desktop_modules.json").write_text(
