@@ -188,3 +188,42 @@ def test_web_picker_opens_a_choice_dialog_in_the_page():
     assert 'm === "Picker.choose"' in web and "showChoice(" in web
     choice = web[web.index("function nextChoice"):web.index("// -- press and touch")]
     assert "finish(i)" in choice and "finish(-1)" in choice
+
+
+def test_file_route_serves_byte_ranges(tmp_path):
+    # <video> asks for ranges: WebKit plays nothing without 206 answers and Chromium cannot seek.
+    f = tmp_path / "clip.mp4"
+    f.write_bytes(bytes(range(100)))
+
+    async def get(p, t, rng=None):
+        reader, writer = await asyncio.open_connection("127.0.0.1", p)
+        extra = "Range: %s\r\n" % rng if rng else ""
+        writer.write(("GET /file?t=%s&p=%s HTTP/1.1\r\nHost: 127.0.0.1:%d\r\n%s\r\n" % (t, f, p, extra)).encode())
+        await writer.drain()
+        head = (await reader.readuntil(b"\r\n\r\n")).decode().lower()
+        n = int(head.split("content-length: ")[1].split("\r\n")[0])
+        body = await reader.readexactly(n)
+        writer.close()
+        cr = head.split("content-range: ")[1].split("\r\n")[0] if "content-range" in head else None
+        return int(head.split()[1]), cr, body
+
+    async def main():
+        r = WebRenderer(LocalChannel())
+        task = asyncio.ensure_future(r.serve(open_window=False))
+        while not r.port:
+            await asyncio.sleep(0.01)
+        out = [await get(r.port, r.token, rng) for rng in (None, "bytes=10-19", "bytes=90-", "bytes=-5",
+                                                            "bytes=95-200", "bytes=100-", "bytes=0-1,5-6")]
+        r.closed.set()
+        await task
+        return out
+
+    full, mid, tail, suffix, clipped, past, multi = asyncio.run(main())
+    data = bytes(range(100))
+    assert full == (200, None, data)
+    assert mid == (206, "bytes 10-19/100", data[10:20])
+    assert tail == (206, "bytes 90-99/100", data[90:])
+    assert suffix == (206, "bytes 95-99/100", data[95:])
+    assert clipped == (206, "bytes 95-99/100", data[95:])
+    assert past == (416, "bytes */100", b"")
+    assert multi == (200, None, data)

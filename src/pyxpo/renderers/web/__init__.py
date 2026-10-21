@@ -54,6 +54,27 @@ def _bindings(style: Any, out: Set[int]) -> None:
                 out.add(int(v["$a"]))
 
 
+def _byte_range(header: str, size: int) -> Any:
+    """(start, end) for a single "bytes=a-b" Range header, None to send the whole file, "bad" for a 416."""
+    unit, _, spec = header.partition("=")
+    if unit.strip().lower() != "bytes" or "," in spec:
+        return None
+    first, dash, last = spec.strip().partition("-")
+    if not dash or not (first + last).isdigit():
+        return None
+    if first:
+        start, end = int(first), min(int(last), size - 1) if last else size - 1
+    else:
+        start, end = max(size - int(last), 0), size - 1
+    return (start, end) if start <= end and start < size else "bad"
+
+
+def _read_span(path: Path, start: int, length: int) -> bytes:
+    with open(path, "rb") as f:
+        f.seek(start)
+        return f.read(length)
+
+
 class WebRenderer(MockRenderer):
     """Mirror tree + bridge to the page. `serve()` runs the HTTP server until the window closes."""
 
@@ -244,15 +265,25 @@ class WebRenderer(MockRenderer):
             if not p.is_file():
                 return self._send(writer, 404, b"not found")
             ctype = mimetypes.guess_type(str(p))[0] or "application/octet-stream"
-            data = await asyncio.get_running_loop().run_in_executor(None, p.read_bytes)
-            return self._send(writer, 200, data, ctype, "max-age=3600")
+            # <video> and <audio> ask for byte ranges; WebKit plays nothing without them, Chromium cannot seek.
+            size = p.stat().st_size
+            span = _byte_range(headers.get("range", ""), size)
+            if span == "bad":
+                return self._send(writer, 416, b"", extra="Content-Range: bytes */%d\r\n" % size)
+            start, end = span or (0, size - 1)
+            data = await asyncio.get_running_loop().run_in_executor(None, _read_span, p, start, end - start + 1)
+            if span:
+                return self._send(writer, 206, data, ctype, "max-age=3600",
+                                  "Accept-Ranges: bytes\r\nContent-Range: bytes %d-%d/%d\r\n" % (start, end, size))
+            return self._send(writer, 200, data, ctype, "max-age=3600", "Accept-Ranges: bytes\r\n")
         return self._send(writer, 404, b"not found")
 
     def _send(self, writer: asyncio.StreamWriter, status: int, body: bytes, ctype: str = "text/plain",
-              cache: str = "no-store") -> bool:
-        reason = {200: "OK", 204: "No Content", 403: "Forbidden", 404: "Not Found"}.get(status, "OK")
-        writer.write(("HTTP/1.1 %d %s\r\nContent-Type: %s\r\nContent-Length: %d\r\nCache-Control: %s\r\n\r\n"
-                      % (status, reason, ctype, len(body), cache)).encode() + body)
+              cache: str = "no-store", extra: str = "") -> bool:
+        reason = {200: "OK", 204: "No Content", 206: "Partial Content", 403: "Forbidden", 404: "Not Found",
+                  416: "Range Not Satisfiable"}.get(status, "OK")
+        writer.write(("HTTP/1.1 %d %s\r\nContent-Type: %s\r\nContent-Length: %d\r\nCache-Control: %s\r\n%s\r\n"
+                      % (status, reason, ctype, len(body), cache, extra)).encode() + body)
         return True
 
     async def _stream(self, writer: asyncio.StreamWriter) -> None:

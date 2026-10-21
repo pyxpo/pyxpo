@@ -1,0 +1,19 @@
+{
+  "schemaVersion": 1,
+  "nativeContract": 2,
+  "name": "video",
+  "native": "Video",
+  "ios": {
+    "classes": [
+      "VideoModule"
+    ]
+  },
+  "android": {
+    "namespace": "dev.pyxpo.modules.video",
+    "classes": [
+      "dev.pyxpo.modules.video.VideoModule"
+    ],
+    "minSdk": 24,
+    "dependencies": []
+  }
+}
