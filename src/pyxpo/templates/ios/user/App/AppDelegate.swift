@@ -33,6 +33,10 @@ class SceneDelegate: UIResponder, UIWindowSceneDelegate {
         window = w
         #if targetEnvironment(macCatalyst)
         ws.title = Bundle.main.object(forInfoDictionaryKey: "CFBundleDisplayName") as? String ?? ""
+        // The app draws edge to edge, under the title bar (its height is the top safe-area inset). The title text
+        // would sit over the app's own content, so only the window controls are shown; the title stays in the
+        // Window menu and Mission Control.
+        ws.titlebar?.titleVisibility = .hidden
         ws.sizeRestrictions?.minimumSize = CGSize(width: 360, height: 480)
         #endif
 
