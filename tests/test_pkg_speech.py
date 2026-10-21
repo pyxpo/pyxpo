@@ -32,11 +32,15 @@ TRANSCRIPT = {"text": "hello there", "language": "en", "segments": ["hello there
 def test_other_platforms_report_unsupported(os_name):
     def check():
         assert run(Speech.status_async())["supported"] is False
+        assert run(Speech.live_status_async("hi-IN")) == {"available": False}
         run(Speech.unload_model_async())
         run(Speech.cancel_async())
+        run(Speech.forget_audio_async())
         for coro in (Speech.get_permission_async(), Speech.request_permission_async(), Speech.memory_async(),
                      Speech.load_model_async("m.bin"), Speech.start_async(), Speech.stop_async(),
-                     Speech.transcribe_file_async("a.wav")):
+                     Speech.transcribe_file_async("a.wav"), Speech.transcribe_kept_async(),
+                     Speech.start_live_async("hi-IN"), Speech.stop_live_async(),
+                     Speech.download_live_language_async("hi-IN")):
             with pytest.raises(NotSupportedError):
                 run(coro)
 
@@ -60,6 +64,8 @@ def test_android_calls():
         fb.on("Speech", "stop", lambda o: RAW)
         fb.on("Speech", "cancel", lambda: None)
         fb.on("Speech", "transcribeFile", lambda p, o: RAW)
+        fb.on("Speech", "transcribeKept", lambda o: RAW)
+        fb.on("Speech", "forgetAudio", lambda: None)
         assert run(Speech.status_async())["supported"] is True
         assert run(Speech.get_permission_async())["status"] == "undetermined"
         assert run(Speech.request_permission_async())["granted"] is True
@@ -71,18 +77,52 @@ def test_android_calls():
         assert run(Speech.transcribe_file_async("/data/a.wav", translate=True)) == TRANSCRIPT
         run(Speech.transcribe_file_async("/data/a.wav", audio_ctx="fit"))
         run(Speech.transcribe_file_async("/data/a.wav", audio_ctx=768))
+        assert run(Speech.stop_async(language="hi", keep_audio=True)) == TRANSCRIPT
+        assert run(Speech.transcribe_kept_async(language="hi", translate=True)) == TRANSCRIPT
+        run(Speech.forget_audio_async())
         run(Speech.cancel_async())
         run(Speech.unload_model_async())
         names = [c[1] for c in fb.calls]
         assert names == ["status", "getPermission", "requestPermission", "memory", "load", "start", "stop",
-                         "transcribeFile", "transcribeFile", "transcribeFile", "cancel", "unload"]
+                         "transcribeFile", "transcribeFile", "transcribeFile", "stop", "transcribeKept",
+                         "forgetAudio", "cancel", "unload"]
         files = [c[2][1] for c in fb.calls if c[1] == "transcribeFile"]
         assert [f.get("audioCtx") for f in files] == [None, -1, 768]   # -1: sized to the clip natively
-        args = {c[1]: c[2] for c in fb.calls if c[1] != "transcribeFile"}
+        stops = [c[2] for c in fb.calls if c[1] == "stop"]
+        assert stops[1] == ({"language": "hi", "translate": False, "keepAudio": True},)
+        args = {c[1]: c[2] for c in fb.calls if c[1] not in ("transcribeFile", "stop")}
+        assert args["transcribeKept"] == ({"language": "hi", "translate": True},)
         assert args["load"] == ("/data/m/ggml-base.bin", {"checkMemory": True, "flashAttention": True})
         assert args["start"] == ({"maxSeconds": 10.0, "levels": True},)
-        assert args["stop"] == ({"language": "hi", "translate": False, "prompt": "Hinglish", "threads": 4, "beamSize": 2},)
+        assert stops[0] == ({"language": "hi", "translate": False, "prompt": "Hinglish", "threads": 4, "beamSize": 2},)
         assert files[0] == {"language": "auto", "translate": True}
+
+
+def test_android_live_calls():
+    with FakeBridge("android", modules=("Speech",)) as fb:
+        fb.on("Speech", "liveStatus", lambda lang: {"available": True, "ready": True, "installed": [lang]})
+        fb.on("Speech", "liveDownload", lambda lang: None)
+        fb.on("Speech", "liveStart", lambda o: None)
+        fb.on("Speech", "liveStop", lambda: {"text": "नमस्ते", "language": "hi-IN", "audioMs": 2100, "decodeMs": 80})
+        assert run(Speech.live_status_async("hi-IN"))["ready"] is True
+        run(Speech.download_live_language_async("hi-IN"))
+        run(Speech.start_live_async("hi-IN", max_seconds=20, levels=True))
+        assert run(Speech.stop_live_async()) == {"text": "नमस्ते", "language": "hi-IN", "audio_ms": 2100,
+                                                  "decode_ms": 80}
+        assert [c[1] for c in fb.calls] == ["liveStatus", "liveDownload", "liveStart", "liveStop"]
+        assert fb.calls[2][2] == ({"language": "hi-IN", "maxSeconds": 20.0, "levels": True},)
+
+
+@pytest.mark.parametrize("language", ["hindi", "HI-IN", "", "hi_IN", "auto x"])
+def test_bad_live_language(language):
+    with FakeBridge("android", modules=("Speech",)) as fb:
+        for coro in (Speech.live_status_async(language), Speech.start_live_async(language),
+                     Speech.download_live_language_async(language)):
+            with pytest.raises(ValueError):
+                run(coro)
+        with pytest.raises(ValueError, match="max_seconds"):
+            run(Speech.start_live_async("hi-IN", max_seconds=0))
+        assert fb.calls == []
 
 
 @pytest.mark.parametrize("kwargs", [{"language": "Hindi"}, {"language": ""}, {"language": "EN"}, {"threads": 0},
@@ -95,6 +135,8 @@ def test_bad_transcribe_options(kwargs):
             run(Speech.stop_async(**kwargs))
         with pytest.raises(ValueError):
             run(Speech.transcribe_file_async("a.wav", **kwargs))
+        with pytest.raises(ValueError):
+            run(Speech.transcribe_kept_async(**kwargs))
         assert fb.calls == []
 
 
@@ -118,12 +160,16 @@ def test_state_and_level_listeners():
     seen = []
     off_state = Speech.add_state_listener(seen.append)
     off_level = Speech.add_level_listener(seen.append)
+    off_partial = Speech.add_partial_listener(seen.append)
     modules.dispatch({"name": "Speech.state", "data": {"state": "recording"}})
     modules.dispatch({"name": "Speech.level", "data": {"level": 0.25}})
+    modules.dispatch({"name": "Speech.partial", "data": {"text": "मैं कल"}})
     off_state()
     off_level()
+    off_partial()
     modules.dispatch({"name": "Speech.state", "data": {"state": "idle"}})
-    assert seen == ["recording", 0.25]
+    modules.dispatch({"name": "Speech.partial", "data": {"text": "x"}})
+    assert seen == ["recording", 0.25, "मैं कल"]
     assert set(Speech.STATES) == {"recording", "transcribing", "idle", "limit"}
 
 
@@ -166,9 +212,18 @@ def test_whisper_source_is_pinned_and_hidden():
 def test_android_keeps_audio_private():
     rec = (KT / "Recorder.kt").read_text()
     mod = (KT / "SpeechModule.kt").read_text()
-    for src in (rec, mod, (KT / "Audio.kt").read_text(), (KT / "Whisper.kt").read_text()):
+    live = (KT / "Live.kt").read_text()
+    for src in (rec, mod, live, (KT / "Audio.kt").read_text(), (KT / "Whisper.kt").read_text()):
         assert "android.util.Log" not in src and "Log." not in src and "println" not in src
         assert "FileOutputStream" not in src and "writeBytes" not in src
     assert "pcm.fill(0)" in rec and "audio.fill(0f)" in mod
+    # a kept recording (stop_async(keep_audio=True)) is zeroed by every way out, and after two minutes at most
+    assert "kept?.fill(0f)" in mod and "KEEP_MS = 120_000L" in mod and "postDelayed(forgetKept, KEEP_MS)" in mod
+    for method in ("private fun start(", "private fun cancel(", "private fun unload(", '"forgetAudio" ->'):
+        body = mod[mod.index(method):][:900]
+        assert "clearKept()" in body, method
+    # live listening only ever uses the on-device recognizer (never the network one), and cancel drops it
+    assert "createOnDeviceSpeechRecognizer" in live and "createSpeechRecognizer(" not in live
+    assert "live?.let { l -> live = null; l.cancel() }" in mod and "said.setLength(0)" in live
     # an input method has no activity to show the permission dialog
     assert "if (!ctx.hasActivity)" in mod and "PxProcess.emit(STATE" in mod
