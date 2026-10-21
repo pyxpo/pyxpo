@@ -166,16 +166,23 @@ final class OpApplier {
             let b = UIButton(type: .system)
             b.addAction(UIAction { [weak self] _ in self?.event("press", id) }, for: .touchUpInside)
             v = b
+        case "TextInput" where props["multiline"] as? Bool == true:
+            let a = PxTextArea()
+            a.onChange = { [weak self] s in
+                guard let self = self else { return }
+                self.typed(id, s)
+                px_node_mark_dirty(self.tree, Int32(id))  // it grows with its text
+                self.flush()
+            }
+            a.onFocus = { [weak self] in self?.event("focus", id) }
+            a.onBlur = { [weak self] in self?.event("blur", id) }
+            v = a
         case "TextInput":
             let t = PxTextField()
             t.addAction(UIAction { [weak self, weak t] _ in
                 guard let t = t else { return }
                 if t.maxLength > 0, let s = t.text, s.count > t.maxLength { t.text = String(s.prefix(t.maxLength)) }
-                guard let self = self else { return }
-                var q = self.pendingText[id] ?? []
-                q.append(t.text ?? ""); if q.count > 256 { q.removeFirst() }
-                self.pendingText[id] = q
-                self.event("change_text", id, ["value": t.text ?? ""])
+                self?.typed(id, t.text ?? "")
             }, for: .editingChanged)
             t.addAction(UIAction { [weak self] _ in self?.event("focus", id) }, for: .editingDidBegin)
             t.addAction(UIAction { [weak self] _ in self?.event("blur", id) }, for: .editingDidEnd)
@@ -265,25 +272,32 @@ final class OpApplier {
                 if let l = v as? UILabel { renderLabel(id, l, styles[id] ?? [:]) }
                 px_node_mark_dirty(tree, Int32(id))
             case "value":
-                if let t = v as? UITextField {
+                let area = v as? PxTextArea
+                if let cur = (v as? UITextField)?.text ?? area?.text {
                     let s = val as? String ?? ""
                     let echoed = pendingText[id]?.firstIndex(of: s)
                     if let i = echoed { pendingText[id]?.removeFirst(i + 1) }
                     // An echo of a value typed earlier is stale (newer keystrokes are on their way); anything
                     // else is the app setting the text itself.
-                    if echoed == nil && t.text != s {
+                    if echoed == nil && cur != s {
                         pendingText[id] = nil
-                        t.text = s; px_node_mark_dirty(tree, Int32(id))
+                        (v as? UITextField)?.text = s; area?.text = s
+                        px_node_mark_dirty(tree, Int32(id))
                     }
                 }
-            case "placeholder": (v as? UITextField)?.placeholder = val as? String
+            case "placeholder":
+                (v as? UITextField)?.placeholder = val as? String
+                (v as? PxTextArea)?.placeholder = val as? String
             case "placeholder_color":
-                if let t = v as? UITextField, let c = Self.hexColor(val as? String) {
-                    t.attributedPlaceholder = NSAttributedString(string: t.placeholder ?? "", attributes: [.foregroundColor: c])
+                if let c = Self.hexColor(val as? String) {
+                    if let t = v as? UITextField {
+                        t.attributedPlaceholder = NSAttributedString(string: t.placeholder ?? "", attributes: [.foregroundColor: c])
+                    }
+                    (v as? PxTextArea)?.placeholderColor = c
                 }
             case "keyboard_type", "secure", "auto_capitalize", "auto_correct", "return_key", "max_length", "editable",
                  "auto_focus", "select_on_focus":
-                if let t = v as? PxTextField { applyInput(t, k, val) }
+                applyInput(v, k, val)
             case "style": applyStyle(id, v, val as? [String: Any] ?? [:])
             case "on_press", "on_press_in", "on_press_out", "on_long_press":
                 touchKeys[id, default: []].insert(k)
@@ -559,38 +573,60 @@ final class OpApplier {
                        blue: CGFloat(n & 255) / 255, alpha: 1)
     }
 
-    private func applyInput(_ t: PxTextField, _ k: String, _ val: Any) {
+    /// Records a value the user typed (see `pendingText`) and reports it.
+    private func typed(_ id: Int, _ s: String) {
+        var q = pendingText[id] ?? []
+        q.append(s); if q.count > 256 { q.removeFirst() }
+        pendingText[id] = q
+        event("change_text", id, ["value": s])
+    }
+
+    /// Input props for a single-line PxTextField or a multiline PxTextArea (its UITextView takes the traits).
+    private func applyInput(_ v: UIView, _ k: String, _ val: Any) {
+        let t = v as? PxTextField, a = v as? PxTextArea
+        let tv = a?.field
         switch k {
         case "keyboard_type":
+            let kt: UIKeyboardType
             switch val as? String ?? "default" {
-            case "number", "number-pad", "numeric": t.keyboardType = .numberPad
-            case "decimal", "decimal-pad": t.keyboardType = .decimalPad
-            case "phone", "phone-pad": t.keyboardType = .phonePad
-            case "email", "email-address": t.keyboardType = .emailAddress
-            case "url": t.keyboardType = .URL
-            default: t.keyboardType = .default
+            case "number", "number-pad", "numeric": kt = .numberPad
+            case "decimal", "decimal-pad": kt = .decimalPad
+            case "phone", "phone-pad": kt = .phonePad
+            case "email", "email-address": kt = .emailAddress
+            case "url": kt = .URL
+            default: kt = .default
             }
-        case "secure": t.isSecureTextEntry = val as? Bool ?? false
+            t?.keyboardType = kt; tv?.keyboardType = kt
+        case "secure": t?.isSecureTextEntry = val as? Bool ?? false
         case "auto_capitalize":
+            let ac: UITextAutocapitalizationType
             switch val as? String ?? "none" {
-            case "sentences": t.autocapitalizationType = .sentences
-            case "words": t.autocapitalizationType = .words
-            case "characters": t.autocapitalizationType = .allCharacters
-            default: t.autocapitalizationType = .none
+            case "sentences": ac = .sentences
+            case "words": ac = .words
+            case "characters": ac = .allCharacters
+            default: ac = .none
             }
-        case "auto_correct": t.autocorrectionType = (val as? Bool ?? true) ? .yes : .no
+            t?.autocapitalizationType = ac; tv?.autocapitalizationType = ac
+        case "auto_correct":
+            let ac: UITextAutocorrectionType = (val as? Bool ?? true) ? .yes : .no
+            t?.autocorrectionType = ac; tv?.autocorrectionType = ac
         case "return_key":
+            let rk: UIReturnKeyType
             switch val as? String ?? "done" {
-            case "go": t.returnKeyType = .go
-            case "next": t.returnKeyType = .next
-            case "search": t.returnKeyType = .search
-            case "send": t.returnKeyType = .send
-            default: t.returnKeyType = .done
+            case "go": rk = .go
+            case "next": rk = .next
+            case "search": rk = .search
+            case "send": rk = .send
+            default: rk = .done
             }
-        case "max_length": t.maxLength = val as? Int ?? 0
-        case "editable": t.isEnabled = val as? Bool ?? true
-        case "select_on_focus": t.selectOnFocus = val as? Bool ?? false
-        case "auto_focus": if val as? Bool == true { DispatchQueue.main.async { t.becomeFirstResponder() } }
+            t?.returnKeyType = rk  // a multiline field's return key adds a line
+        case "max_length": t?.maxLength = val as? Int ?? 0; a?.maxLength = val as? Int ?? 0
+        case "editable": t?.isEnabled = val as? Bool ?? true; tv?.isEditable = val as? Bool ?? true
+        case "select_on_focus": t?.selectOnFocus = val as? Bool ?? false; a?.selectOnFocus = val as? Bool ?? false
+        case "auto_focus":
+            if val as? Bool == true {
+                DispatchQueue.main.async { _ = t?.becomeFirstResponder(); _ = tv?.becomeFirstResponder() }
+            }
         default: break
         }
     }
@@ -748,6 +784,7 @@ final class OpApplier {
             pads[id] = p
             (v as? PxLabel)?.insets = p
             (v as? PxTextField)?.insets = p
+            (v as? PxTextArea)?.insets = p
             (v as? UIButton)?.contentEdgeInsets = p
         }
         paintBox(id, v, s)
@@ -924,7 +961,7 @@ final class OpApplier {
     }
 
     private func paintText(_ id: Int, _ v: UIView, _ s: [String: Any]) {
-        guard v is UILabel || v is UIButton || v is UITextField else { return }
+        guard v is UILabel || v is UIButton || v is UITextField || v is PxTextArea else { return }
         let font = Self.uiFont(s)
         let c = col(s, "color")
         let align: NSTextAlignment
@@ -942,6 +979,10 @@ final class OpApplier {
             t.font = font
             t.textColor = c ?? .label
             t.textAlignment = align
+        } else if let a = v as? PxTextArea {
+            a.font = font
+            a.field.textColor = c ?? .label
+            a.field.textAlignment = align
         }
     }
 
@@ -956,6 +997,7 @@ final class OpApplier {
         if let l = v as? UILabel { s = l.sizeThatFits(CGSize(width: lw, height: lh)) }
         else if let b = v as? UIButton { s = b.titleLabel?.sizeThatFits(CGSize(width: lw, height: lh)) ?? .zero }
         else if let t = v as? UITextField { s = CGSize(width: 0, height: t.font?.lineHeight ?? 17) }
+        else if let a = v as? PxTextArea { s = CGSize(width: 0, height: a.contentHeight(lw == inf ? 10000 : lw)) }
         else if let i = v as? UIImageView { s = i.image?.size ?? .zero }
         else if v is UISwitch { s = v.sizeThatFits(.zero) }
         else if v is UISlider { s = CGSize(width: 0, height: 31) }

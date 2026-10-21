@@ -270,6 +270,72 @@ final class PxTextField: UITextField {
     override func placeholderRect(forBounds bounds: CGRect) -> CGRect { bounds.inset(by: insets) }
 }
 
+/// A multiline TextInput: a UITextView inside a plain box, so the painted background and border stay put while
+/// the text scrolls. It grows with its text unless the style fixes its height.
+final class PxTextArea: UIView, UITextViewDelegate {
+    let field = UITextView()
+    private let hint = UILabel()
+    var insets = UIEdgeInsets.zero { didSet { setNeedsLayout() } }
+    var maxLength = 0
+    var selectOnFocus = false
+    var onChange: ((String) -> Void)?
+    var onFocus: (() -> Void)?
+    var onBlur: (() -> Void)?
+
+    var text: String {
+        get { field.text ?? "" }
+        set { field.text = newValue; hint.isHidden = !newValue.isEmpty }
+    }
+    var placeholder: String? { get { hint.text } set { hint.text = newValue; setNeedsLayout() } }
+    var placeholderColor: UIColor { get { hint.textColor } set { hint.textColor = newValue } }
+    var font: UIFont? {
+        get { field.font }
+        set { field.font = newValue; hint.font = newValue; setNeedsLayout() }
+    }
+
+    override init(frame: CGRect) {
+        super.init(frame: frame)
+        field.backgroundColor = .clear
+        field.textContainerInset = .zero
+        field.textContainer.lineFragmentPadding = 0
+        field.delegate = self
+        hint.numberOfLines = 0
+        hint.textColor = .placeholderText
+        hint.isUserInteractionEnabled = false
+        addSubview(field)
+        addSubview(hint)
+    }
+
+    required init?(coder: NSCoder) { fatalError("not used") }
+
+    override func layoutSubviews() {
+        super.layoutSubviews()
+        let r = bounds.inset(by: insets)
+        field.frame = r
+        let h = hint.sizeThatFits(CGSize(width: r.width, height: .greatestFiniteMagnitude)).height
+        hint.frame = CGRect(x: r.minX, y: r.minY, width: r.width, height: min(h, r.height))
+    }
+
+    /// Height of the text (at least one line) when it is `width` pt wide.
+    func contentHeight(_ width: CGFloat) -> CGFloat {
+        let line = field.font?.lineHeight ?? 17
+        return max(line, field.sizeThatFits(CGSize(width: width, height: .greatestFiniteMagnitude)).height)
+    }
+
+    func textViewDidChange(_ tv: UITextView) {
+        if maxLength > 0, let s = tv.text, s.count > maxLength { tv.text = String(s.prefix(maxLength)) }
+        hint.isHidden = !(tv.text ?? "").isEmpty
+        onChange?(tv.text ?? "")
+    }
+
+    func textViewDidBeginEditing(_ tv: UITextView) {
+        if selectOnFocus { DispatchQueue.main.async { tv.selectAll(nil) } }
+        onFocus?()
+    }
+
+    func textViewDidEndEditing(_ tv: UITextView) { onBlur?() }
+}
+
 /// What a box looks like. Sizes in pt. Radii order: top-left, top-right, bottom-right, bottom-left.
 struct BoxSpec {
     var bg: UIColor?
