@@ -18,13 +18,12 @@
 ## armeabi-v7a (Oct 19, pushed fe55e66)
 - v7a runtime; dropped when a wheel is missing (unless `abis`). tests/test_android_abis.py.
 - Released core 0.1.0a5 with v7a runtime. Open: client tests APK on M13.
-- Release dex fail ("located outside the root directory") = project moved, stale .gradle paths. Guard `_drop_moved_gradle_state` (marker .gradle/pyxpo-root) in prebuild/build; Gradle stage task only warns. imagekit assembleRelease OK after clean.
-- iOS App Store upload: prune_site; iPad 4 orientations.
+- Release dex fail after project move: guarded by `_drop_moved_gradle_state` (.gradle/pyxpo-root marker).
 
 ## From pyxpo-apps doodle-puppet / birthday-sky (Oct 19, pushed)
 - packages/pose-detection (ML Kit / Vision; photos + videos) + README, tests, autolink. iOS sim: Vision Code=9, `available` probes a blank image so it reports False there. iPhone unchecked.
 - TextInput stale-echo fix (OpApplier.kt/.swift, web app.js), Android focus after pop, web restyle keeps --vars + spinner colour.
-- Gradle hang: `JAVA_TOOL_OPTIONS=-Djava.net.preferIPv6Addresses=true` (IPv4 broken).
+- Gradle hang: IPv4 broken, use `JAVA_TOOL_OPTIONS=-Djava.net.preferIPv6Addresses=true`.
 
 ## AI Keyboard (pyxpo-apps/ai-keyboard, Oct 19, pushed)
 - packages/keyboard (pyxpo-keyboard): Android InputMethodService, native Kotlin keys; phase 1 emulator-verified. App PROGRESS.md has detail.
@@ -34,3 +33,4 @@
 
 ## Mac Catalyst fixes from insta-shorts native app (Oct 21, local commits, not pushed)
 - 9ecf4eb `include` + build mode to app_config. ecc6100: ad-hoc catalyst ENABLE_HARDENED_RUNTIME=NO, `_internal/apple.py` `_scproxy` stand-in, runtime UTF-8 mode (launchd gives no LANG). Suite 992 pass.
+- efff616 (local): Catalyst slice now has _ssl/_hashlib (OpenSSL 3.5.9 static, built by build_catalyst_python.sh from .cache/openssl-3.5.9); apple.py sets SSL_CERT_FILE=/etc/ssl/cert.pem. Published `ios` runtime asset lacks ssl until republished (needs go-ahead).
