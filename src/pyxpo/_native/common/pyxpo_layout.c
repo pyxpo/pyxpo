@@ -437,6 +437,15 @@ static void resolve_item_dims(PxNode *c, float iw, float ih, float *dim, float *
         if (DEF(dim[a])) dim[a] = clampf(dim[a], lo[a], hi[a]);
 }
 
+/* a child's max size caps the space it is measured in, so text wraps at its max width (as in Yoga) */
+static void cap_avail(float *a, int *m, float hi) {
+    if (!DEF(hi)) return;
+    if (*m == M_UNDEF || *a > hi) {
+        *a = hi;
+        if (*m == M_UNDEF) *m = M_ATMOST;
+    }
+}
+
 /* measure child with given (border-box) constraints, no positioning */
 static void measure_child(PxTree *t, PxNode *c, float aw, int wm, float ah, int hm, float ow, float *w, float *h) {
     layout(t, c, aw, wm, ah, hm, ow, 0, w, h);
@@ -586,6 +595,8 @@ static void layout_flex(PxTree *t, PxNode *n, float W, int wm, float H, int hm, 
                 /* aspect ratio with a stretched cross size: the main size follows from it (as in Yoga) */
                 b = (M == 0) ? ca * c->s.aspect : ca / c->s.aspect;
             } else {
+                cap_avail(&ma, &mm, it->hi[M]);
+                cap_avail(&ca, &cm, it->hi[C]);
                 if (M == 0) { caw = ma; cwm = mm; cah = ca; chm = cm; }
                 else { caw = ca; cwm = cm; cah = ma; chm = mm; }
                 measure_child(t, c, caw, cwm, cah, chm, innerw_ref, &cw, &ch);
@@ -701,6 +712,7 @@ static void layout_flex(PxTree *t, PxNode *n, float W, int wm, float H, int hm, 
             else {
                 ca = DEF(inner[C]) ? inner[C] - it->ms[C] - it->me[C] : UNDEF;
                 cmode = DEF(ca) ? M_ATMOST : M_UNDEF;
+                cap_avail(&ca, &cmode, it->hi[C]);
             }
             (void)cm_;
             if (!DEF(it->dim[C]) && DEF(it->c->s.aspect) && it->c->s.aspect > 0) {

@@ -292,6 +292,30 @@ def test_nested_auto_size_and_text_measure(lib):
     assert t.f(box)[2] == 60 and t.f(txt)[2:] == (50, 40)
 
 
+def test_text_wraps_at_max_width(lib):
+    """A centered text with max_width is measured at that width, so its height covers the wrapped lines."""
+    def m(ctx, nid, w, wm, h, hm, ow, oh):
+        # text 300x20 on one line; wraps into lines of 20 when the width is limited
+        if wm != 2 and w < 300:
+            lines = -(-300 // int(w))
+            ow[0], oh[0] = w, 20 * lines
+        else:
+            ow[0], oh[0] = 300, 20
+
+    t = Tree(lib, m)
+    col = t.add(align_items="center")
+    txt = t.add(parent=col, max_width=100)
+    lib.px_node_set_measured(t.t, txt, 1)
+    t.calc(500, 600)
+    assert t.f(txt)[2:] == (100, 60)
+    assert t.f(col)[3] == 60
+    row = t.add(flex_direction="row", align_items="flex-start")
+    txt2 = t.add(parent=row, max_width=150)
+    lib.px_node_set_measured(t.t, txt2, 1)
+    t.calc(500, 600)
+    assert t.f(txt2)[2:] == (150, 40)
+
+
 def test_changed_frames_only(lib):
     t = Tree(lib)
     a = t.add(height=50)
