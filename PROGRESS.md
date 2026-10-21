@@ -31,3 +31,6 @@
 - ON HOLD (Oct 21, user asked to pause). All committed local, NOT pushed: 9628c0b, 7331bc6, 4c122c1 (speech live + kept audio), 80c36f5 (keyboard panel, iOS layout, icons), 8faecf4 (pyxpo-translate). Suite 988 pass.
 - Release: keyboard + speech + translate deps -> `pyxpo>=0.1.0a6` (contract 4). Install translate with `pip --no-deps -e`.
 - Resume: push on user go-ahead; translate README hero.png missing (needs real demo screenshot); keyboard README screenshots redo for new layout; S23 check of iOS layout + ML Kit; Phase 3 pyxpo-llm.
+
+## Mac Catalyst fixes from insta-shorts native app (Oct 21, local commits, not pushed)
+- 9ecf4eb `include` + build mode to app_config. ecc6100: ad-hoc catalyst ENABLE_HARDENED_RUNTIME=NO, `_internal/apple.py` `_scproxy` stand-in, runtime UTF-8 mode (launchd gives no LANG). Suite 992 pass.
