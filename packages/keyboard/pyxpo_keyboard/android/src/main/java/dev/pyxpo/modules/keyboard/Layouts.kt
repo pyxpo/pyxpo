@@ -15,7 +15,9 @@ object Codes {
 }
 
 /** One key. `width` is in key units (a letter key is 1); `alt` is typed on a long press. */
-class Key(val label: String, val text: String = label, val code: Int = 0, val width: Float = 1f, val alt: String? = null) {
+class Key(val label: String, val text: String = label, val code: Int = 0, val width: Float = 1f, val alt: String? = null,
+          /** A text key drawn in the darker special-key color, like the punctuation beside the space bar. */
+          val side: Boolean = false) {
     val special get() = code != 0 && code != Codes.SPACE
     // set by the view's layout pass, in px
     var x = 0f
@@ -33,16 +35,23 @@ enum class Field { TEXT, EMAIL, URL }
 object Layouts {
     private fun chars(s: String, alts: String? = null) = s.mapIndexed { i, c -> Key(c.toString(), alt = alts?.getOrNull(i)?.toString()) }
 
-    /** The bottom row of the text pages. `globe` adds the switch-keyboard key the system asks for. */
-    private fun bottom(toggle: Key, globe: Boolean, field: Field) = listOfNotNull(
-        toggle,
-        when (field) { Field.EMAIL -> Key("@"); Field.URL -> Key("/"); Field.TEXT -> Key(",", alt = "'") },
-        if (globe) Key("", code = Codes.GLOBE) else null,
-        Key("", code = Codes.EMOJI),
-        Key("", " ", Codes.SPACE, if (globe) 3.5f else 4.5f),
-        Key(".", alt = "?"),
-        Key("", code = Codes.ENTER, width = 1.5f),
-    )
+    /**
+     * The bottom row of the text pages, iOS style: `123 ☺ 🌐 space return` (two spaces type ". "). `globe` adds the
+     * switch-keyboard key the system asks for; email and web address fields get "@" or "/" beside the space bar.
+     */
+    private fun bottom(toggle: Key, globe: Boolean, field: Field): List<Key> {
+        val side = when (field) { Field.EMAIL -> Key("@", side = true); Field.URL -> Key("/", side = true); Field.TEXT -> null }
+        val small = if (globe) 1.25f else 1.5f
+        val space = 10f - 2 * small - (if (globe) small else 0f) - 2f - (if (side != null) 1f else 0f)
+        return listOfNotNull(
+            Key(toggle.label, toggle.text, toggle.code, small),
+            Key("", code = Codes.EMOJI, width = small),
+            if (globe) Key("", code = Codes.GLOBE, width = small) else null,
+            Key("", " ", Codes.SPACE, space),
+            side,
+            Key("", code = Codes.ENTER, width = 2f),
+        )
+    }
 
     fun rows(page: Page, globe: Boolean, numberRow: Boolean, field: Field = Field.TEXT): List<List<Key>> = when (page) {
         Page.LETTERS -> listOfNotNull(
@@ -52,7 +61,7 @@ object Layouts {
                 Key("", code = Codes.SPACER, width = 0.5f),
             listOf(Key("", code = Codes.SHIFT, width = 1.5f)) + chars("zxcvbnm", "*\"':;!?") +
                 Key("", code = Codes.DELETE, width = 1.5f),
-            bottom(Key("?123", code = Codes.SYMBOLS, width = 1.5f), globe, field),
+            bottom(Key("123", code = Codes.SYMBOLS, width = 1.5f), globe, field),
         )
         Page.SYMBOLS -> listOf(
             chars("1234567890"),
@@ -77,7 +86,7 @@ object Layouts {
     }
 
     /** A pad row spread over the full width, like a phone dialer: four keys of 2.5 units each. */
-    private fun wide(row: List<Key>) = row.map { Key(it.label, it.text, it.code, 2.5f, it.alt) }
+    private fun wide(row: List<Key>) = row.map { Key(it.label, it.text, it.code, 2.5f, it.alt, it.side) }
 
     /** Common emoji for the emoji panel, one grapheme each (split with a BreakIterator). */
     const val EMOJI = "😀😃😄😁😆😅🤣😂🙂😉😊😇🥰😍🤩😘😋😛😜🤪🤗🤭🤫🤔🤐😐😑😶😏😒🙄😬😌😔😪😴😷🤒🤕🤢🥵🥶🥴😵🤯🥳😎🤓🧐😕😟🙁😮😯😲😳🥺😦😧😨😰😥😢😭😱😖😣😞😓😩😫🥱😤😡😠🤬" +

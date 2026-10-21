@@ -23,6 +23,7 @@ import android.widget.GridView
 import android.widget.LinearLayout
 import android.widget.TextView
 import dev.pyxpo.moduleapi.PxProcess
+import org.json.JSONObject
 
 /** Keyboard options the app sets (`pyxpo_keyboard.set_options`) and the service reads on every field. */
 object Options {
@@ -123,6 +124,8 @@ class KeyboardService : InputMethodService(), KeyboardView.Listener {
             private set
         const val TOOLBAR = "Keyboard.toolbar"
         const val INPUT = "Keyboard.input"
+        const val PANEL = "Keyboard.panel"
+        private const val PANEL_MIN_DP = 360   // the panel's least height: two cards, the chips and the buttons
     }
 
     private lateinit var keys: KeyboardView
@@ -130,6 +133,9 @@ class KeyboardService : InputMethodService(), KeyboardView.Listener {
     private lateinit var status: TextView
     private lateinit var bar: LinearLayout
     private lateinit var tools: LinearLayout
+    private lateinit var body: FrameLayout
+    private var panel: PanelView? = null
+    private var panelSpec: JSONObject? = null
     private var appStatus = ""
     private var palette = Palette(false)
     private var navInset = 0
@@ -143,6 +149,7 @@ class KeyboardService : InputMethodService(), KeyboardView.Listener {
     private var options = Options.DEFAULTS
 
     private val dp get() = resources.displayMetrics.density
+    private val barHeight get() = (44 * dp).toInt()
 
     override fun onCreate() {
         super.onCreate()
@@ -161,14 +168,15 @@ class KeyboardService : InputMethodService(), KeyboardView.Listener {
         emoji = emojiPanel()
         emoji.visibility = View.GONE
         bar = toolbar()
-        val body = FrameLayout(this).apply {
+        panel = null
+        body = FrameLayout(this).apply {
             addView(keys, FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT))
             addView(emoji, FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT))
         }
         val root = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             setBackgroundColor(palette.background)
-            addView(bar, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, (40 * dp).toInt()))
+            addView(bar, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, barHeight))
             addView(body, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT))
         }
         // edge-to-edge windows (Android 15+) draw under the navigation bar: keep the keys above it. A theme or
@@ -184,6 +192,7 @@ class KeyboardService : InputMethodService(), KeyboardView.Listener {
             insets
         }
         keys.palette = palette
+        panelSpec?.let { spec -> keys.post { if (panelSpec === spec) showPanel(spec) } }   // after a theme rebuild
         return root
     }
 
@@ -213,6 +222,7 @@ class KeyboardService : InputMethodService(), KeyboardView.Listener {
         val f = FieldInfo(info)
         field = f
         if (!restarting) page = f.page
+        if (!restarting || f.sensitive) hidePanel(true)
         showEmoji(false)
         appStatus = ""
         showStatus("")
@@ -221,7 +231,7 @@ class KeyboardService : InputMethodService(), KeyboardView.Listener {
         if (!f.sensitive && Toolbar.read(this).isNotEmpty()) PxProcess.start(this)
         PxProcess.emit(INPUT, mapOf("state" to "start", "field" to fieldKind(f)))
         keys.enterLabel = f.actionLabel
-        keys.spaceLabel = "English"
+        keys.spaceLabel = "space"
         relayout()
         shift = Shift.OFF
         autoShift()
@@ -230,6 +240,7 @@ class KeyboardService : InputMethodService(), KeyboardView.Listener {
     override fun onFinishInputView(finishingInput: Boolean) {
         super.onFinishInputView(finishingInput)
         shift = Shift.OFF
+        hidePanel(true)
         PxProcess.emit(INPUT, mapOf("state" to "finish"))
     }
 
@@ -395,16 +406,19 @@ class KeyboardService : InputMethodService(), KeyboardView.Listener {
         tools.removeAllViews()
         if (field?.sensitive == true) return
         for (b in Toolbar.read(this)) {
-            tools.addView(TextView(this).apply {
+            val ink = if (b.active) palette.onAccent else palette.text
+            val v = if (b.icon in Icons.NAMES) IconView(this, b.icon, ink, if (b.active) palette.accent else null)
+            else TextView(this).apply {
                 text = b.label
-                setTextColor(if (b.active) palette.onAccent else palette.text)
+                setTextColor(ink)
                 setTextSize(TypedValue.COMPLEX_UNIT_SP, 18f)
                 gravity = Gravity.CENTER
-                contentDescription = b.description.ifEmpty { b.label }
-                if (b.active) background = GradientDrawable().apply { cornerRadius = 16 * dp; setColor(palette.accent) }
-                setOnClickListener { feedback(); tapped(b.id) }
-            }, LinearLayout.LayoutParams((44 * dp).toInt(), (34 * dp).toInt()).apply {
-                gravity = Gravity.CENTER_VERTICAL; marginEnd = (4 * dp).toInt()
+                if (b.active) background = GradientDrawable().apply { cornerRadius = 19 * dp; setColor(palette.accent) }
+            }
+            v.contentDescription = b.description.ifEmpty { b.label }
+            v.setOnClickListener { feedback(); tapped(b.id) }
+            tools.addView(v, LinearLayout.LayoutParams((40 * dp).toInt(), (38 * dp).toInt()).apply {
+                gravity = Gravity.CENTER_VERTICAL; marginEnd = (2 * dp).toInt()
             })
         }
     }
@@ -416,6 +430,57 @@ class KeyboardService : InputMethodService(), KeyboardView.Listener {
         PxProcess.emit(TOOLBAR, mapOf("id" to id, "field" to fieldKind(f)))
     }
 
+    // -- the app's panel in place of the keys (voice, results)
+
+    /** Shows (or updates) the app's panel over the keys and the toolbar. Null when it shows, else why not. */
+    fun showPanel(spec: JSONObject): String? {
+        val f = field ?: return "no field is focused"
+        if (f.sensitive) return "this is a private field: the keyboard shows no app panel in it"
+        if (!::keys.isInitialized || !isInputViewShown) return "the keyboard is not showing"
+        val p = panel ?: PanelView(this, palette) { type, id -> panelEvent(type, id) }.also {
+            panel = it
+            body.addView(it, FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, 0))
+        }
+        panelSpec = spec
+        showEmoji(false)
+        p.render(spec)
+        // the panel takes the toolbar's and the keys' place, and a little more room so two text cards fit
+        val h = maxOf(keys.height + barHeight, (PANEL_MIN_DP * dp).toInt())
+        if (keys.height > 0) {
+            p.layoutParams = p.layoutParams.apply { height = h }
+            bar.visibility = View.GONE
+        } else {
+            keys.post { if (panel === p && panelSpec != null) showPanel(panelSpec!!) }   // not laid out yet
+        }
+        p.visibility = View.VISIBLE
+        keys.visibility = View.INVISIBLE
+        return null
+    }
+
+    /** Back to the keys; `notify` tells the app (`closed`) when the keyboard closed it. */
+    fun hidePanel(notify: Boolean = false) {
+        val p = panel ?: return
+        val was = panelSpec != null
+        panelSpec = null
+        p.visibility = View.GONE
+        bar.visibility = View.VISIBLE
+        keys.visibility = if (emoji.visibility == View.VISIBLE) View.INVISIBLE else View.VISIBLE
+        if (notify && was) PxProcess.emit(PANEL, mapOf("type" to "closed", "id" to ""))
+    }
+
+    fun setPanelLevel(level: Float) {
+        if (panelSpec != null) panel?.setLevel(level)
+    }
+
+    private fun panelEvent(type: String, id: String) {
+        feedback()
+        val f = field ?: return
+        if (type == "close") hidePanel()
+        if (f.sensitive) return
+        PxProcess.start(this)
+        PxProcess.emit(PANEL, mapOf("type" to type, "id" to id))
+    }
+
     // -- toolbar and emoji panel
 
     private fun toolbar(): LinearLayout {
@@ -423,14 +488,11 @@ class KeyboardService : InputMethodService(), KeyboardView.Listener {
             setTextColor(palette.muted)
             setTextSize(TypedValue.COMPLEX_UNIT_SP, 13f)
             gravity = Gravity.CENTER_VERTICAL
-            setPadding((12 * dp).toInt(), 0, (12 * dp).toInt(), 0)
+            setPadding((6 * dp).toInt(), 0, (8 * dp).toInt(), 0)
             maxLines = 1
+            ellipsize = android.text.TextUtils.TruncateAt.END
         }
-        val app = TextView(this).apply {
-            text = "⚙"
-            setTextColor(palette.text)
-            setTextSize(TypedValue.COMPLEX_UNIT_SP, 18f)
-            gravity = Gravity.CENTER
+        val app = IconView(this, "settings", palette.muted).apply {
             contentDescription = "Open the keyboard app"
             setOnClickListener { openApp() }
         }
@@ -438,9 +500,11 @@ class KeyboardService : InputMethodService(), KeyboardView.Listener {
         return LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
             setBackgroundColor(palette.background)
+            setPadding((4 * dp).toInt(), 0, (6 * dp).toInt(), 0)
+            // settings on the left, the app's buttons (voice, AI) on the right, under the thumb
+            addView(app, LinearLayout.LayoutParams((44 * dp).toInt(), ViewGroup.LayoutParams.MATCH_PARENT))
             addView(status, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.MATCH_PARENT, 1f))
             addView(tools, LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.MATCH_PARENT))
-            addView(app, LinearLayout.LayoutParams((48 * dp).toInt(), ViewGroup.LayoutParams.MATCH_PARENT))
         }
     }
 
@@ -456,7 +520,8 @@ class KeyboardService : InputMethodService(), KeyboardView.Listener {
         // The body wraps its content, so the scrolling panel takes exactly the keys' height (else the whole screen).
         if (on && keys.height > 0) emoji.layoutParams = emoji.layoutParams.apply { height = keys.height }
         emoji.visibility = if (on) View.VISIBLE else View.GONE
-        keys.visibility = if (on) View.INVISIBLE else View.VISIBLE   // keeps the keyboard's height
+        // invisible keeps the keyboard's height (under the app's panel too)
+        keys.visibility = if (on || panelSpec != null) View.INVISIBLE else View.VISIBLE
     }
 
     private fun emojiPanel(): View {
@@ -492,7 +557,7 @@ class KeyboardService : InputMethodService(), KeyboardView.Listener {
             setTextColor(palette.text)
             setTextSize(TypedValue.COMPLEX_UNIT_SP, 16f)
             gravity = Gravity.CENTER
-            background = GradientDrawable().apply { cornerRadius = 7 * dp; setColor(palette.special) }
+            background = GradientDrawable().apply { cornerRadius = 13 * dp; setColor(palette.special) }
             setOnClickListener { feedback(); onTap() }
         }
         val row = LinearLayout(this).apply {

@@ -15,14 +15,16 @@ import kotlin.math.abs
 
 enum class Shift { OFF, ONCE, LOCK }
 
-/** Key colors for one system theme. */
+/** Key colors for one system theme, iOS style: black with graphite keys at night, white keys on light grey by day. */
 class Palette(val dark: Boolean) {
-    val background = if (dark) 0xFF1B1B1F.toInt() else 0xFFE4E6EA.toInt()
-    val key = if (dark) 0xFF3B3B40.toInt() else 0xFFFFFFFF.toInt()
-    val special = if (dark) 0xFF2A2A2F.toInt() else 0xFFC9CDD3.toInt()
-    val pressed = if (dark) 0xFF5C5C63.toInt() else 0xFFAEB3BA.toInt()
-    val text = if (dark) 0xFFECECEF.toInt() else 0xFF1F2023.toInt()
-    val muted = if (dark) 0xFF9A9AA2.toInt() else 0xFF6B6F76.toInt()
+    val background = if (dark) 0xFF000000.toInt() else 0xFFD1D3D9.toInt()
+    val key = if (dark) 0xFF5C5C60.toInt() else 0xFFFFFFFF.toInt()
+    val special = if (dark) 0xFF333336.toInt() else 0xFFACB1BA.toInt()
+    val pressed = if (dark) 0xFF8E8E93.toInt() else 0xFFC4C8CF.toInt()
+    val text = if (dark) 0xFFFFFFFF.toInt() else 0xFF000000.toInt()
+    val muted = if (dark) 0xFFAEAEB2.toInt() else 0xFF5F636A.toInt()
+    /** Cards and chips on the app panel: darker than a key so white text stays easy on the eye. */
+    val card = if (dark) 0xFF1C1C1E.toInt() else 0xFFFFFFFF.toInt()
     val accent = if (dark) 0xFF8AB4F8.toInt() else 0xFF1A73E8.toInt()
     val onAccent = if (dark) 0xFF0F1A2E.toInt() else 0xFFFFFFFF.toInt()
 }
@@ -45,7 +47,7 @@ class KeyboardView(context: Context, private val listener: Listener) : View(cont
         set(value) { field = value; requestLayout(); placed = false; invalidate() }
     var shift = Shift.OFF
         set(value) { field = value; invalidate() }
-    /** What the enter key shows: an action word ("Go", "Send", ...) or null for the return arrow. */
+    /** What the enter key shows: an action word ("Go", "Send", ...) or null for "return". */
     var enterLabel: String? = null
         set(value) { field = value; invalidate() }
     var spaceLabel = ""
@@ -54,20 +56,24 @@ class KeyboardView(context: Context, private val listener: Listener) : View(cont
         set(value) { field = value; invalidate() }
 
     private val density = resources.displayMetrics.density
-    private val rowHeight = 54 * density
+    // iOS-like proportions: tall keys, narrow gaps between keys, wider ones between rows, round corners
+    private val rowHeight = 56 * density
     private val gap = 6 * density
-    private val pad = 4 * density
-    private val radius = 7 * density
+    private val rowGap = 11 * density
+    private val pad = 3 * density
+    private val radius = 13 * density
     private var placed = false
 
     private val fill = Paint(Paint.ANTI_ALIAS_FLAG)
     private val label = Paint(Paint.ANTI_ALIAS_FLAG).apply { textAlign = Paint.Align.CENTER }
-    private val hint = Paint(Paint.ANTI_ALIAS_FLAG).apply { textAlign = Paint.Align.RIGHT; textSize = 10 * density }
+    private val letterFace = Typeface.create("sans-serif", Typeface.NORMAL)
     private val rect = RectF()
     private val stroke = Paint(Paint.ANTI_ALIAS_FLAG).apply {
         style = Paint.Style.STROKE; strokeWidth = 2 * density; strokeCap = Paint.Cap.ROUND; strokeJoin = Paint.Join.ROUND
     }
     private val path = Path()
+    private val iconLine = Icons.line(density)
+    private val iconSolid = Icons.solid()
 
     private val handler = Handler(Looper.getMainLooper())
     /** pointer id -> the key it holds */
@@ -107,56 +113,76 @@ class KeyboardView(context: Context, private val listener: Listener) : View(cont
     }
 
     private fun drawKey(canvas: Canvas, k: Key) {
-        val enter = k.code == Codes.ENTER
         val pressed = down.values.any { it === k }
+        // shift on: a light key with a dark arrow, so the uppercase labels still tell what types
+        val lit = k.code == Codes.SHIFT && shift != Shift.OFF && !pressed
+        // an action word on the enter key (Send, Go, Search) is the one coloured key
+        val action = k.code == Codes.ENTER && enterLabel != null && !pressed
         fill.color = when {
             pressed -> palette.pressed
-            enter -> palette.accent
-            k.special -> palette.special
+            lit -> palette.text
+            action -> palette.accent
+            k.special || k.side -> palette.special
             else -> palette.key
         }
-        rect.set(k.x + gap / 2, k.y + gap / 2 + density, k.x + k.w - gap / 2, k.y + k.h - gap / 2)
+        rect.set(k.x + gap / 2, k.y + rowGap / 2, k.x + k.w - gap / 2, k.y + k.h - rowGap / 2)
         canvas.drawRoundRect(rect, radius, radius, fill)
 
+        val ink = if (lit) palette.background else if (action) palette.onAccent else palette.text
+        when {
+            k.code == Codes.SHIFT -> return drawShift(canvas, ink, shift == Shift.LOCK)
+            k.code == Codes.DELETE -> return drawDelete(canvas, ink)
+            k.code == Codes.EMOJI || k.code == Codes.GLOBE -> {
+                iconLine.color = ink; iconSolid.color = ink
+                return Icons.draw(canvas, if (k.code == Codes.EMOJI) "smile" else "globe",
+                                  rect.centerX(), rect.centerY(), 22 * density, iconLine, iconSolid)
+            }
+        }
         val text = face(k)
-        val big = k.code == 0 && text.length == 1
-        label.color = if (enter && !pressed) palette.onAccent else if (k.code == Codes.SPACE) palette.muted else palette.text
-        if (k.code == Codes.ENTER && enterLabel == null) return drawReturn(canvas, label.color)
-        label.textSize = (if (big) 22 else if (text.length > 3) 13 else 16) * density
-        label.typeface = if (k.code == Codes.SHIFT && shift == Shift.LOCK) Typeface.DEFAULT_BOLD else Typeface.DEFAULT
+        val letter = k.code == 0 && text.length == 1
+        label.color = ink
+        label.textSize = (if (letter) 24 else if (text.length > 3) 15 else 17) * density
+        label.typeface = if (letter) letterFace else Typeface.DEFAULT
         val cy = rect.centerY() - (label.descent() + label.ascent()) / 2
         canvas.drawText(text, rect.centerX(), cy, label)
-        if (k.code == Codes.SHIFT && shift == Shift.LOCK) {
-            fill.color = palette.text
-            canvas.drawRect(rect.centerX() - 7 * density, rect.bottom - 9 * density, rect.centerX() + 7 * density,
-                            rect.bottom - 7 * density, fill)
-        }
-        val alt = k.alt
-        if (alt != null && alt.isNotBlank()) {
-            hint.color = palette.muted
-            canvas.drawText(alt, rect.right - 4 * density, rect.top + 12 * density, hint)
+    }
+
+    /** The shift arrow, outlined; filled while caps lock is on. */
+    private fun drawShift(canvas: Canvas, color: Int, lock: Boolean) {
+        val u = 4.2f * density
+        val cx = rect.centerX(); val cy = rect.centerY()
+        path.reset()
+        path.moveTo(cx, cy - 2.4f * u); path.lineTo(cx + 2.2f * u, cy); path.lineTo(cx + u, cy)
+        path.lineTo(cx + u, cy + 1.8f * u); path.lineTo(cx - u, cy + 1.8f * u); path.lineTo(cx - u, cy)
+        path.lineTo(cx - 2.2f * u, cy); path.close()
+        stroke.color = color
+        canvas.drawPath(path, stroke)
+        if (lock) {
+            fill.color = color
+            canvas.drawPath(path, fill)
+            canvas.drawRect(cx - u, cy + 2.4f * u, cx + u, cy + 2.4f * u + 2 * density, fill)
         }
     }
 
-    /** The return arrow, drawn: the font's "↵" is tiny at any size. */
-    private fun drawReturn(canvas: Canvas, color: Int) {
-        val u = 4 * density
-        val cx = rect.centerX(); val cy = rect.centerY()
+    /** The delete key: a tag pointing left with a cross in it. */
+    private fun drawDelete(canvas: Canvas, color: Int) {
+        val u = 4.2f * density
+        val cx = rect.centerX() + 0.3f * u; val cy = rect.centerY()
         stroke.color = color
         path.reset()
-        path.moveTo(cx + 2 * u, cy - 2 * u); path.lineTo(cx + 2 * u, cy + u); path.lineTo(cx - 2.5f * u, cy + u)
-        path.moveTo(cx - 1.2f * u, cy - 0.3f * u); path.lineTo(cx - 2.5f * u, cy + u); path.lineTo(cx - 1.2f * u, cy + 2.3f * u)
+        path.moveTo(cx - 1.4f * u, cy - 1.6f * u); path.lineTo(cx + 2.4f * u, cy - 1.6f * u)
+        path.lineTo(cx + 2.4f * u, cy + 1.6f * u); path.lineTo(cx - 1.4f * u, cy + 1.6f * u)
+        path.lineTo(cx - 3f * u, cy); path.close()
+        path.moveTo(cx - 0.2f * u, cy - 0.7f * u); path.lineTo(cx + 1.2f * u, cy + 0.7f * u)
+        path.moveTo(cx + 1.2f * u, cy - 0.7f * u); path.lineTo(cx - 0.2f * u, cy + 0.7f * u)
         canvas.drawPath(path, stroke)
     }
 
     private fun face(k: Key): String = when (k.code) {
-        Codes.SHIFT -> if (shift == Shift.OFF) "⇧" else "⬆"
-        Codes.DELETE -> "⌫"
-        Codes.ENTER -> enterLabel ?: "↵"
-        Codes.EMOJI -> "☺"
-        Codes.GLOBE -> "🌐"
+        Codes.ENTER -> enterLabel ?: "return"
         Codes.SPACE -> spaceLabel
-        0 -> if (shift != Shift.OFF && k.label.length == 1) k.label.uppercase() else k.label
+        // lowercase until shift is on, like iOS: the keys show what they type
+        0 -> if (k.label.length == 1 && shift != Shift.OFF) k.label.uppercase() else k.label
         else -> k.label
     }
 

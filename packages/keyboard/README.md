@@ -54,6 +54,7 @@ await Keyboard.set_options_async(number_row=True, haptics=False)
 | Wondering which keys show where | [The keys](#the-keys) · [Private fields](#private-fields) |
 | Changing how it types | [Options](#options) |
 | Adding your own buttons (voice, AI) to the keyboard | [Toolbar buttons from your app](#toolbar-buttons-from-your-app) |
+| Replacing the keys with a voice or AI screen | [App panel (voice screens)](#app-panel-voice-screens) |
 | Seeing it in a real app | [Recipe: a setup screen that keeps up with Settings](#recipe-a-setup-screen-that-keeps-up-with-settings) |
 | Shipping to the stores | [Production checklist](#production-checklist) |
 | Looking for exact signatures | [API reference](#api-reference) · [Errors](#errors) |
@@ -172,15 +173,17 @@ other apps set it through their own input types.
 | Phone | `keyboard_type="phone-pad"` | A phone pad. |
 | Password | `secure_text_entry=True` | QWERTY, marked private (see below). |
 
-The bottom row has `?123` (symbols), the field key (`,`, `@` or `/`), 🌐 (when the system offers switching), 😊
-(emoji panel), space, `.` (hold for `?`) and enter. The strip above the keys has the private-field banner and a ⚙
-key that hides the keyboard and opens your app.
+The keys follow the iOS look: lowercase letters until shift is on, round flat keys, line icons. The bottom row
+has `123` (symbols), the emoji key, the globe (when the system offers switching), space, `@` or `/` in email and
+web address fields, and `return` (or the field's action, such as Send, in the accent colour). Two spaces type
+". ". The strip above the keys has a settings icon that hides the keyboard and opens your app, the status line
+(or the private-field banner) and your app's buttons.
 
 | Gesture | What it does |
 | --- | --- |
 | Tap shift | One capital letter. |
 | Double tap or hold shift | Caps lock until shift is tapped again. |
-| Hold a letter | Its alternate: the digit on the top row, a symbol on the others (shown in the key's corner). |
+| Hold a letter | Its alternate: the digit on the top row, a symbol on the others. |
 | Hold delete | Repeats. Removes a whole emoji at a time. |
 | Hold space | Opens the system keyboard chooser. |
 | Tap 🌐 | Switches to the next keyboard. |
@@ -260,6 +263,7 @@ async def set_buttons():
 | --- | --- | --- |
 | `id` | `str` | Sent back in the tap event. Unique, not empty. |
 | `label` | `str` | What the button shows: a short text or an emoji. |
+| `icon` | `str` | A line icon drawn in place of the label, in the theme's colour: one of `Keyboard.ICONS` (`mic`, `sparkles`, `globe`, `smile`, `settings`). Optional. |
 | `description` | `str` | Read by screen readers. Optional. |
 | `active` | `bool` | Drawn highlighted, for example while recording. Optional, default `False`. |
 
@@ -282,12 +286,68 @@ What stays private:
 > **Tip:** without a screen, your app cannot ask for permissions. Ask in the app first (for example the
 > microphone), and have the tap handler show a status line that sends the user there when one is missing.
 
+## App panel (voice screens)
+
+Android only. Your app can swap the keys and the toolbar for its own panel, at the same height: a round
+microphone orb that pulses with the voice, text cards, a row of chips and up to four buttons. Call
+`show_panel_async` again with the next spec to update it, and `hide_panel_async` to go back to the keys.
+
+```python
+import asyncio
+
+import pyxpo_keyboard as Keyboard
+
+
+def spec(said=""):
+    return {
+        "title": "Listening…" if not said else "Done",
+        "hint": "Tap the orb when you finish",
+        "orb": {"id": "mic", "state": "listening" if not said else "idle"},
+        "sections": [{"id": "said", "label": "You said", "text": said, "placeholder": "Speak now",
+                      "action": "Insert"}],
+        "chips": [{"id": "hindi", "label": "Hindi", "active": True}, {"id": "english", "label": "English"}],
+        "actions": [{"id": "cancel", "label": "Cancel"}, {"id": "done", "label": "Done", "primary": True}],
+    }
+
+
+def on_panel(event):   # {"type": "orb" | "section" | "chip" | "action" | "close" | "closed", "id": "..."}
+    loop = asyncio.get_event_loop()
+    if event["type"] == "action" and event["id"] == "cancel":
+        loop.create_task(Keyboard.hide_panel_async())
+    elif event["type"] == "section":
+        loop.create_task(Keyboard.commit_text_async("hello "))
+
+
+Keyboard.add_panel_listener(on_panel)
+```
+
+Open it from a toolbar tap (`await Keyboard.show_panel_async(spec())`) and feed the orb from
+[`pyxpo-speech`](../speech/README.md)'s level listener with `Keyboard.set_panel_level(level)`, which does not wait.
+
+| Spec key | Type | Meaning |
+| --- | --- | --- |
+| `title`, `hint` | `str` | The header lines. |
+| `orb` | `dict` | `{"id", "state"}`; `state` is one of `ORB_STATES`: `idle` (a microphone), `listening` (pulses with the level, shows a stop square), `working` (spins), `error` (red). Big in the middle while no card has text, then small in the header. Optional. |
+| `sections` | `list` | Up to 12 cards: `{"id", "label", "text", "placeholder", "busy", "action"}`. `busy` pulses the text; a card with an `action` label is tappable and sends `section`. |
+| `chips` | `list` | Up to 16 pills in a scrolling row: `{"id", "label", "active", "busy"}`. |
+| `actions` | `list` | Up to 4 buttons: `{"id", "label", "primary"}`. Primary ones are filled and wider. |
+
+Every item needs a unique, non-empty `id`; chips and actions need a `label`. Unknown keys raise `ValueError`
+before anything reaches the keyboard.
+
+The panel listener gets `{"type", "id"}`: `orb`, `section`, `chip` or `action` with the item's id, `close`
+when the user tapped **ABC** to go back to the keys, and `closed` when the keyboard closed it itself (the user
+moved to another field, or the keyboard hid). Stop recording and drop any audio on `close` and `closed`.
+
+What stays private: a panel never opens in a [private field](#private-fields) (`show_panel_async` raises
+`RuntimeError`), and moving into one closes an open panel. Events carry ids only, never field text.
+
 ## Errors
 
 | Error | When | What to do |
 | --- | --- | --- |
-| `ValueError` | `set_options_async` got an unknown option or a value that is not `True`/`False`; `set_toolbar_async` got a button without `id`/`label`, an unknown key, a repeated id or more than 6 buttons; `get_text_async` got a count outside 0 to 10000. | Use the names in `OPTIONS` and pass real booleans; see [Toolbar buttons from your app](#toolbar-buttons-from-your-app). |
-| `RuntimeError` | `commit_text_async` / `get_text_async` while the keyboard is hidden or in a private field. | Call them from a toolbar tap; show the reason with `set_status_async` when they fail. |
+| `ValueError` | `set_options_async` got an unknown option or a value that is not `True`/`False`; `set_toolbar_async` got a button without `id`/`label`, an unknown key or icon, a repeated id or more than 6 buttons; `get_text_async` got a count outside 0 to 10000. | Use the names in `OPTIONS` and pass real booleans; see [Toolbar buttons from your app](#toolbar-buttons-from-your-app). |
+| `RuntimeError` | `commit_text_async` / `get_text_async` / `show_panel_async` while the keyboard is hidden or in a private field. | Call them from a toolbar tap; show the reason with `set_status_async` when they fail. |
 | `NotSupportedError` (from `pyxpo.module_api`) | `show_picker_async()`, `set_options_async()` or a toolbar call on iOS; `commit_text_async()` / `get_text_async()` on the web and the desktop. | Check `status["supported"]` before showing those buttons. |
 | `ModuleNotLinkedError` (from `pyxpo.module_api`) | An Android or iOS app built without the module. | Add `"keyboard"` to `[tool.pyxpo] modules` and rebuild. |
 
@@ -487,13 +547,19 @@ That needs a keyboard app extension in the iOS build, which is planned. Until th
 | `get_text_async(before=1000, after=1000) -> dict` | `{"before", "selected", "after"}` around the cursor. |
 | `add_toolbar_listener(fn) -> remove` | `fn({"id", "field"})` on a button tap. |
 | `add_input_listener(fn) -> remove` | `fn({"state": "start" or "finish", ...})` as the keyboard opens and closes on fields. |
-| `statusAsync`, `openSettingsAsync`, `showPickerAsync`, `getOptionsAsync`, `setOptionsAsync`, `setToolbarAsync`, `setStatusAsync`, `getFieldAsync`, `commitTextAsync`, `getTextAsync`, `addToolbarListener`, `addInputListener` | Expo-style names for the functions above. |
+| `show_panel_async(spec) -> None` | Shows or updates your panel in place of the keys (Android). Raises `ValueError` for a bad spec, `RuntimeError` while hidden or in a private field, `NotSupportedError` elsewhere. See [App panel](#app-panel-voice-screens). |
+| `hide_panel_async() -> None` | Back to the keys. Does nothing off Android. |
+| `set_panel_level(level) -> None` | The orb's pulse, 0 to 1. Not async; does nothing off Android. |
+| `add_panel_listener(fn) -> remove` | `fn({"type", "id"})` on panel taps, `close` and `closed`. |
+| `statusAsync`, `openSettingsAsync`, `showPickerAsync`, `getOptionsAsync`, `setOptionsAsync`, `setToolbarAsync`, `setStatusAsync`, `getFieldAsync`, `commitTextAsync`, `getTextAsync`, `addToolbarListener`, `addInputListener`, `showPanelAsync`, `hidePanelAsync`, `setPanelLevel`, `addPanelListener` | Expo-style names for the functions above. |
 
 **Constants**
 
 | Name | Description |
 | --- | --- |
 | `OPTIONS` | The option names and their defaults: `number_row`, `haptics`, `sound`, `auto_capitalize`, `double_space_period`. |
+| `ICONS` | The line icons a toolbar button can use as `icon`: `mic`, `sparkles`, `globe`, `smile`, `settings`. |
+| `ORB_STATES` | The panel orb states: `idle`, `listening`, `working`, `error`. |
 
 ## License
 

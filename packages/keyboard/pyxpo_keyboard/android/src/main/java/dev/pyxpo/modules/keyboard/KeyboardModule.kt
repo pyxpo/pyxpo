@@ -52,6 +52,19 @@ class KeyboardModule : PxModule() {
                 KeyboardService.current?.showStatus(args.optString(0, ""))
                 reply(null, null)
             }
+            "showPanel" -> {
+                val s = KeyboardService.current ?: return reply(null, "the keyboard is not showing")
+                val spec = args.optJSONObject(0) ?: return reply(null, "show_panel needs a dict")
+                reply(null, s.showPanel(spec))
+            }
+            "hidePanel" -> {
+                KeyboardService.current?.hidePanel()
+                reply(null, null)
+            }
+            "setPanelLevel" -> {
+                KeyboardService.current?.setPanelLevel(args.optDouble(0, 0.0).toFloat())
+                reply(null, null)
+            }
             "field" -> reply(KeyboardService.current?.fieldState(), null)
             "commitText" -> {
                 val s = KeyboardService.current ?: return reply(null, "the keyboard is not showing")
@@ -83,14 +96,14 @@ object Toolbar {
     private const val FILE = "pyxpo_keyboard"
     private const val KEY = "toolbar"
 
-    class Button(val id: String, val label: String, val description: String, val active: Boolean)
+    class Button(val id: String, val label: String, val description: String, val active: Boolean, val icon: String = "")
 
     fun read(context: Context): List<Button> {
         val raw = context.getSharedPreferences(FILE, Context.MODE_PRIVATE).getString(KEY, null) ?: return emptyList()
         val list = try { JSONArray(raw) } catch (e: Exception) { return emptyList() }
         return (0 until list.length()).mapNotNull { i ->
             val o = list.optJSONObject(i) ?: return@mapNotNull null
-            Button(o.optString("id"), o.optString("label"), o.optString("description"), o.optBoolean("active"))
+            Button(o.optString("id"), o.optString("label"), o.optString("description"), o.optBoolean("active"), o.optString("icon"))
                 .takeIf { it.id.isNotEmpty() && it.label.isNotEmpty() }
         }
     }
