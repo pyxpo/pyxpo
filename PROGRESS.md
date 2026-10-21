@@ -28,10 +28,6 @@
 
 ## AI Keyboard (pyxpo-apps/ai-keyboard, Oct 19, pushed)
 - packages/keyboard (pyxpo-keyboard): Android InputMethodService, native Kotlin keys; phase 1 emulator-verified. App PROGRESS.md has detail.
-- Phase 2 voice committed local 9628c0b (not pushed): contract 4, packages/speech (whisper 1.9.5), keyboard toolbar API.
-- UNCOMMITTED: speech shared ggml + CPU variant pick (S23 1.6x), audio_ctx option, OpApplier dropFocus fix, docs.
-- Release: keyboard + speech deps -> `pyxpo>=0.1.0a6` (contract 4).
-- UNCOMMITTED too: keyboard panel API (Panel.kt, show/hide_panel, levels, listener), speech kept audio, docs.
-- UNCOMMITTED (Oct 20): speech live recognition (Live.kt, on-device SpeechRecognizer) + docs; keyboard digit-only hints, panel min 360 dp. Suite 957 pass.
-- UNCOMMITTED (Oct 20 pm): packages/translate (ML Kit, README hero TODO, autolink OFFICIAL); keyboard iOS-style layout + Icons.kt + toolbar `icon`. Install translate with `pip --no-deps -e` (needs core a6).
-- Next: commit, push on user go-ahead, check raw image URLs; keyboard README screenshots redo; Phase 3 pyxpo-llm.
+- ON HOLD (Oct 21, user asked to pause). All committed local, NOT pushed: 9628c0b, 7331bc6, 4c122c1 (speech live + kept audio), 80c36f5 (keyboard panel, iOS layout, icons), 8faecf4 (pyxpo-translate). Suite 988 pass.
+- Release: keyboard + speech + translate deps -> `pyxpo>=0.1.0a6` (contract 4). Install translate with `pip --no-deps -e`.
+- Resume: push on user go-ahead; translate README hero.png missing (needs real demo screenshot); keyboard README screenshots redo for new layout; S23 check of iOS layout + ML Kit; Phase 3 pyxpo-llm.
