@@ -119,6 +119,26 @@ def test_stage_keeps_user_files_and_leaves_no_placeholders(tmp_path, monkeypatch
                 assert str(tmp_path) not in text, p
 
 
+def test_adhoc_catalyst_build_runs_from_finder(tmp_path, monkeypatch):
+    # An ad-hoc signed app with hardened runtime is killed at launch: library validation rejects Python.framework.
+    _fake_dist(tmp_path, monkeypatch)
+    ran = []
+    monkeypatch.setattr(ios, "_run", lambda cmd, **k: ran.append([str(c) for c in cmd]))
+    monkeypatch.setattr(ios.shutil, "which", lambda name: "/usr/bin/" + name)
+    monkeypatch.setattr(ios, "stage", lambda *a, **k: None)
+    proj = _project(tmp_path)
+    with pytest.raises(ios.BuildError, match="app not produced"):
+        ios.build(proj, release=True, kind="catalyst")
+    xcb = [c for c in ran if c[0] == "xcodebuild"][0]
+    assert "Release" in xcb and "CODE_SIGN_IDENTITY=-" in xcb and "ENABLE_HARDENED_RUNTIME=NO" in xcb
+    ran.clear()
+    with pytest.raises(ios.BuildError):
+        ios.build(_project(tmp_path / "team", '[tool.pyxpo.ios]\nteam_id = "ABCDE12345"\n'), release=True,
+                  kind="catalyst")
+    xcb = [c for c in ran if c[0] == "xcodebuild"][0]
+    assert "ENABLE_HARDENED_RUNTIME=NO" not in xcb  # signed with a team: hardened runtime stays for notarizing
+
+
 def test_include_ships_more_package_folders(tmp_path, monkeypatch):
     from pyxpo.config import app_dirs
     _fake_dist(tmp_path, monkeypatch)
@@ -213,3 +233,11 @@ def test_prune_site_drops_what_the_app_store_refuses(tmp_path):
     left = sorted(str(p.relative_to(site)) for p in site.rglob("*") if p.is_file())
     assert left == ["numpy/__init__.py", "numpy/_core/_multiarray_umath.cpython-313-iphoneos.so",
                     "numpy/_core/lib/pkgconfig/npymath.pc"]
+
+
+def test_runtime_starts_python_in_utf8_mode():
+    # Apps started from Finder have no LANG; without UTF-8 mode subprocess text and open() fall back to ASCII.
+    src = (Path(__file__).parent.parent / "src/pyxpo/templates/ios/gen/runtime/PyxpoRuntime.m").read_text()
+    pre = src.index("preconfig.utf8_mode = 1;")
+    assert src.index("Py_PreInitialize(&preconfig)") > pre
+    assert src.index("Py_InitializeFromConfig(&config)") > pre

@@ -316,7 +316,10 @@ def build(project: Path, release: bool = False, kind: str = "simulator") -> Path
         products = "%s-maccatalyst" % cfgname
         cmd += ["-destination", "platform=macOS,variant=Mac Catalyst,arch=arm64", "build"]
         if not nc["team_id"]:  # xcodegen's target presets beat the xcconfig, so sign to run locally from here
-            cmd += ["CODE_SIGN_IDENTITY=-", "CODE_SIGN_STYLE=Manual", "DEVELOPMENT_TEAM="]
+            # Hardened runtime turns on library validation, which rejects the ad-hoc signed Python.framework when
+            # the app is started from Finder (no shared team). Notarizing needs a team, so ad-hoc builds skip it.
+            cmd += ["CODE_SIGN_IDENTITY=-", "CODE_SIGN_STYLE=Manual", "DEVELOPMENT_TEAM=",
+                    "ENABLE_HARDENED_RUNTIME=NO"]
     else:
         sdk = "iphonesimulator" if kind == "simulator" else "iphoneos"
         products = "%s-%s" % (cfgname, sdk)

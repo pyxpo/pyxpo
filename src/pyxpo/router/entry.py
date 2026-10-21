@@ -14,6 +14,9 @@ def main() -> None:
     if os.environ.get("PYXPO_TARGET") == "android":  # before the app imports numpy & co.
         from .. import native_libs
         native_libs.install()
+    elif os.environ.get("PYXPO_TARGET") == "ios":  # iOS and the Mac Catalyst desktop app
+        from .._internal import apple
+        apple.install()
     pkg = importlib.import_module("app")
     app_dir = list(pkg.__path__)[0]
     if not has_routes(app_dir) and os.path.exists(os.path.join(app_dir, "main.py")):

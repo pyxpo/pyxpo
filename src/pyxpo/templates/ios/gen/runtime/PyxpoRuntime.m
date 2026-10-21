@@ -122,6 +122,13 @@ static NSString *PyxpoAppHome(void) {
     PyStatus status;
     PyConfig config;
     NSMutableArray<NSString *> *all = nil;
+    /* UTF-8 mode: an app started by launchd has no LANG, so the locale is "C" and Python would read and write text
+       (open(), subprocess output, pipes) as ASCII. */
+    PyPreConfig preconfig;
+    PyPreConfig_InitIsolatedConfig(&preconfig);
+    preconfig.utf8_mode = 1;
+    status = Py_PreInitialize(&preconfig);
+    if (PyStatus_Exception(status)) goto fail_nocfg;
     PyConfig_InitIsolatedConfig(&config);
     config.install_signal_handlers = 0;
     config.buffered_stdio = 0;
