@@ -128,8 +128,12 @@ The `ios` asset also carries the Mac Catalyst slice that the native desktop app 
 to `dist/ios/Python.xcframework` before packaging, after the iOS slices exist:
 
 ```
-tools/build_catalyst_python.sh .cache/Python-3.13.7   # adds ios-arm64-maccatalyst (no ssl/lzma yet)
+tools/build_catalyst_python.sh .cache/Python-3.13.7 .cache/openssl-3.5.9   # adds ios-arm64-maccatalyst (no lzma yet)
 ```
+
+The script builds OpenSSL from source for Catalyst (the macOS SDK has none). Download the same OpenSSL version as
+the iOS slices from https://github.com/openssl/openssl/releases and check it against its `.sha256` first. The
+script stops if `_ssl` or `_hashlib` was not built.
 
 Without that slice, `pyxpo run desktop` falls back to the browser preview.
 
