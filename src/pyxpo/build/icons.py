@@ -11,6 +11,7 @@ from ..app_config import colors, images
 
 LEGACY_DPI = {"mdpi": 48, "hdpi": 72, "xhdpi": 96, "xxhdpi": 144, "xxxhdpi": 192}
 APPEARANCE = {"dark": "dark", "tinted": "tinted"}
+MAC_SIZES = (16, 32, 128, 256, 512)
 
 
 def _square(src: Path, dst: Path, px: int) -> None:
@@ -24,6 +25,9 @@ def _square(src: Path, dst: Path, px: int) -> None:
 
 def ios(project: Path, nc: Dict[str, Any], gen: Path) -> bool:
     """Writes pyxpo-gen/runtime/Resources/Assets.xcassets/AppIcon.appiconset (single 1024 size; Xcode derives the rest).
+
+    The light icon is also written in every mac size: a Mac Catalyst build reads CFBundleIconName from Assets.car, and with
+    only the iOS entry the catalog holds an iPad rendition alone, so Finder and the Dock show the generic app icon.
 
     Without an icon the set is written empty: XcodeGen sets ASSETCATALOG_COMPILER_APPICON_NAME=AppIcon on the target,
     and actool fails when the catalog (which splash always writes) has no set of that name."""
@@ -48,6 +52,12 @@ def ios(project: Path, nc: Dict[str, Any], gen: Path) -> bool:
         if key in APPEARANCE:
             e["appearances"] = [{"appearance": "luminosity", "value": APPEARANCE[key]}]
         entries.append(e)
+    for size in MAC_SIZES:
+        for scale in (1, 2):
+            fname = "icon-mac-%d.png" % (size * scale)
+            if not (d / fname).exists():
+                _square(Path(project) / icon["light"], d / fname, size * scale)
+            entries.append({"filename": fname, "idiom": "mac", "scale": "%dx" % scale, "size": "%dx%d" % (size, size)})
     (d / "Contents.json").write_text(json.dumps({"images": entries, "info": {"author": "pyxpo", "version": 1}}, indent=2))
     return True
 

@@ -166,8 +166,13 @@ def test_icons_ios(tmp_path):
     assert icons.ios(p, nc, gen) is True
     d = gen / "runtime/Resources/Assets.xcassets/AppIcon.appiconset"
     c = json.loads((d / "Contents.json").read_text())["images"]
-    assert [e.get("appearances", [{}])[0].get("value") for e in c] == [None, "dark", "tinted"]
-    assert all(images.info(d / e["filename"])["width"] == 1024 for e in c)  # 512 tinted was scaled up
+    ios_set, mac = [e for e in c if e["idiom"] != "mac"], [e for e in c if e["idiom"] == "mac"]
+    assert [e.get("appearances", [{}])[0].get("value") for e in ios_set] == [None, "dark", "tinted"]
+    assert all(images.info(d / e["filename"])["width"] == 1024 for e in ios_set)  # 512 tinted was scaled up
+    # Mac Catalyst: every mac size from the light icon, so Assets.car has a mac rendition.
+    assert [(e["size"], e["scale"]) for e in mac][:3] == [("16x16", "1x"), ("16x16", "2x"), ("32x32", "1x")]
+    assert len(mac) == 10
+    assert all(images.info(d / e["filename"])["width"] == int(e["size"].split("x")[0]) * int(e["scale"][0]) for e in mac)
     nc["ios"]["icon"] = {}
     # No icon: an empty AppIcon set, so the platform default icon stays and actool finds the set XcodeGen names.
     assert icons.ios(p, nc, tmp_path / "gen2") is False
