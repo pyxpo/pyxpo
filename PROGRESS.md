@@ -26,7 +26,7 @@
 - packages/ removed from monorepo. Clones live in ../pyxpo-packages/pyxpo-<pkg> (PYXPO_PACKAGES overrides). Each has tests/, ci.yml, release.yml (tag v<version>, env `pypi`), committed local.
 - tools/build_packages.py --path/--tag, dev_install.sh clones missing + `--no-deps -e`. Core suite 564 pass; all 29 package suites pass.
 - Oct 29 pushed: monorepo main, 29 package repos (+10 community/CI commits each: SECURITY, CONTRIBUTING, templates, badges, build job). `pypi` env + private vuln reporting on. ivishalchaubey collaborator on all.
-- PyPI trusted publishers moved to pyxpo-<pkg>/release.yml (28/29; pyxpo-video pending publisher not saved, retry later). main rulesets on 30 repos. Org: GitHub refuses conversion of pyxpo.
+- PyPI trusted publishers moved to pyxpo-<pkg>/release.yml. main rulesets on 30 repos. Org: GitHub refuses conversion of pyxpo.
 
 - Core 0.1.0a9 on PyPI (Oct 29): native module contract 4, use_async awaits lambda coroutine. Tags v0.1.0a6-a8 never published (a6/a7 no macOS runner, a8 no sips on ubuntu); release tests now ubuntu + Pillow. Suite 565 pass.
-- Open: pyxpo-video pending publisher (PyPI, owner pyxpo, repo pyxpo-video, release.yml, env pypi) not added: Chrome extension not connected. Then tag v0.1.0a1 in pyxpo-video.
+- pyxpo-video 0.1.0a1 on PyPI (Oct 29). All 29 packages have trusted publishers.
