@@ -1,30 +1,30 @@
 {
-  "runtime": "3.13.7-1",
+  "runtime": "3.13.7-2",
   "python": "3.13.7",
-  "base_url": "https://github.com/pyxpo/pyxpo/releases/download/runtime-3.13.7-1/",
+  "base_url": "https://github.com/pyxpo/pyxpo/releases/download/runtime-3.13.7-2/",
   "assets": {
     "android-arm64-v8a": {
-      "file": "pyxpo-runtime-3.13.7-1-android-arm64-v8a.tar.gz",
+      "file": "pyxpo-runtime-3.13.7-2-android-arm64-v8a.tar.gz",
       "sha256": "93302e4555ed81cfc783febf51e343dd52c707ce90cf9d0d587be3b7ff27420b",
       "size": 19854170,
       "dir": "android/arm64-v8a"
     },
     "android-armeabi-v7a": {
-      "file": "pyxpo-runtime-3.13.7-1-android-armeabi-v7a.tar.gz",
+      "file": "pyxpo-runtime-3.13.7-2-android-armeabi-v7a.tar.gz",
       "sha256": "c3d059cebc2f874bb6287fa75ce81d086b6a4598f9259bac08486527070699a1",
       "size": 18919355,
       "dir": "android/armeabi-v7a"
     },
     "android-x86_64": {
-      "file": "pyxpo-runtime-3.13.7-1-android-x86_64.tar.gz",
+      "file": "pyxpo-runtime-3.13.7-2-android-x86_64.tar.gz",
       "sha256": "a2713322500e7b962935809a3a86d44dea29670e95ec8f2d502ba45276325291",
       "size": 20156046,
       "dir": "android/x86_64"
     },
     "ios": {
-      "file": "pyxpo-runtime-3.13.7-1-ios.tar.gz",
-      "sha256": "b66d9fed647925527d449124d2d1841b87c18ff158c6ed0a9a7527ab4fb67b50",
-      "size": 111164798,
+      "file": "pyxpo-runtime-3.13.7-2-ios.tar.gz",
+      "sha256": "fe44e670621f5b1013f31d4df85561601bc302e6727759e4f4bf3db12bba509c",
+      "size": 139832022,
       "dir": "ios"
     }
   }
