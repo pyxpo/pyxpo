@@ -6,7 +6,7 @@ first day of the week. The names follow
 [expo-localization](https://docs.expo.dev/versions/latest/sdk/localization/), in Python style.
 
 <p align="center">
-  <img src="https://raw.githubusercontent.com/pyxpo/pyxpo/main/packages/localization/docs/images/hero.png" width="820" alt="The localization module on Android and iOS: language tag, region, currency, separators and the calendar">
+  <img src="https://raw.githubusercontent.com/pyxpo/pyxpo-localization/main/docs/images/hero.png" width="820" alt="The localization module on Android and iOS: language tag, region, currency, separators and the calendar">
 </p>
 
 ```python
@@ -115,7 +115,7 @@ language = next((l.language_code for l in locales if l.language_code in supporte
 | `language_region_code` | `"IN"` | The region inside the language tag. |
 
 <p align="center">
-  <img src="https://raw.githubusercontent.com/pyxpo/pyxpo/main/packages/localization/docs/images/locale.png" width="720" alt="The locale fields on Android and iOS">
+  <img src="https://raw.githubusercontent.com/pyxpo/pyxpo-localization/main/docs/images/locale.png" width="720" alt="The locale fields on Android and iOS">
 </p>
 
 The two screenshots come from two devices with different settings (an iPhone set to English, India and an Android

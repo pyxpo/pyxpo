@@ -6,7 +6,7 @@ Android with `android.graphics.Canvas`, and the web and the desktop window with 
 same stroke format and the same smoothing curve, so strokes saved on one platform look the same on another.
 
 <p align="center">
-  <img src="https://raw.githubusercontent.com/pyxpo/pyxpo/main/packages/drawing-canvas/docs/images/hero.png" width="820" alt="The drawing canvas on Android and iOS, each with ink on a white page">
+  <img src="https://raw.githubusercontent.com/pyxpo/pyxpo-drawing-canvas/main/docs/images/hero.png" width="820" alt="The drawing canvas on Android and iOS, each with ink on a white page">
 </p>
 
 ```python
@@ -108,7 +108,7 @@ def Sketch():
 > **Tip:** `use_async(fn, deps)` awaits only a real `async def`. Do not pass `lambda: some_coroutine()`: nothing awaits it.
 
 <p align="center">
-  <img src="https://raw.githubusercontent.com/pyxpo/pyxpo/main/packages/drawing-canvas/docs/images/canvas.png" width="560" alt="Ink drawn on the canvas on Android and iOS">
+  <img src="https://raw.githubusercontent.com/pyxpo/pyxpo-drawing-canvas/main/docs/images/canvas.png" width="560" alt="Ink drawn on the canvas on Android and iOS">
 </p>
 
 ## `DrawingCanvas` props

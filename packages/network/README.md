@@ -5,7 +5,7 @@ Python: is the phone online, over what, what is its IP address, and a live feed 
 [expo-network](https://docs.expo.dev/versions/latest/sdk/network/), in Python style.
 
 <p align="center">
-  <img src="https://raw.githubusercontent.com/pyxpo/pyxpo/main/packages/network/docs/images/hero.png" width="820" alt="The network module on Android and iOS: online badge, connection type, reachability and IP address">
+  <img src="https://raw.githubusercontent.com/pyxpo/pyxpo-network/main/docs/images/hero.png" width="820" alt="The network module on Android and iOS: online badge, connection type, reachability and IP address">
 </p>
 
 ```python
@@ -101,7 +101,7 @@ if state.type == Network.NetworkStateType.CELLULAR:
 gives `{"type": "WIFI", "isConnected": True, "isInternetReachable": True}`.
 
 <p align="center">
-  <img src="https://raw.githubusercontent.com/pyxpo/pyxpo/main/packages/network/docs/images/state.png" width="720" alt="The network state fields on Android and iOS">
+  <img src="https://raw.githubusercontent.com/pyxpo/pyxpo-network/main/docs/images/state.png" width="720" alt="The network state fields on Android and iOS">
 </p>
 
 The Android emulator reports Wi-Fi (`10.0.2.16`). The iOS Simulator shares the Mac's network and here reported `VPN`

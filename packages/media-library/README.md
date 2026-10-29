@@ -5,7 +5,7 @@ Python, with the permission handling that goes with it. The API follows
 [expo-media-library](https://docs.expo.dev/versions/latest/sdk/media-library/).
 
 <p align="center">
-  <img src="https://raw.githubusercontent.com/pyxpo/pyxpo/main/packages/media-library/docs/images/hero.png" width="820" alt="The media library module on Android and iOS: a sample photo, a Save to Photos button and the new asset details">
+  <img src="https://raw.githubusercontent.com/pyxpo/pyxpo-media-library/main/docs/images/hero.png" width="820" alt="The media library module on Android and iOS: a sample photo, a Save to Photos button and the new asset details">
 </p>
 
 ```python
@@ -109,7 +109,7 @@ def SavePhoto(path: str):
 > people accept than full access.
 
 <p align="center">
-  <img src="https://raw.githubusercontent.com/pyxpo/pyxpo/main/packages/media-library/docs/images/library.png" width="720" alt="Saving a photo on Android and iOS and reading the permission and asset details">
+  <img src="https://raw.githubusercontent.com/pyxpo/pyxpo-media-library/main/docs/images/library.png" width="720" alt="Saving a photo on Android and iOS and reading the permission and asset details">
 </p>
 
 ## Permissions

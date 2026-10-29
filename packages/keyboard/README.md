@@ -6,7 +6,7 @@ handled in native Kotlin, so typing never waits for Python. Your app gets a few 
 turning the keyboard on and to change its options.
 
 <p align="center">
-  <img src="https://raw.githubusercontent.com/pyxpo/pyxpo/main/packages/keyboard/docs/images/hero.png" width="820" alt="The AI Keyboard companion app on the Android emulator with the keyboard open: light theme, dark theme, and a password field marked private">
+  <img src="https://raw.githubusercontent.com/pyxpo/pyxpo-keyboard/main/docs/images/hero.png" width="820" alt="The AI Keyboard companion app on the Android emulator with the keyboard open: light theme, dark theme, and a password field marked private">
 </p>
 
 ```python
@@ -158,7 +158,7 @@ view.
 ## The keys
 
 <p align="center">
-  <img src="https://raw.githubusercontent.com/pyxpo/pyxpo/main/packages/keyboard/docs/images/layouts.png" width="560" alt="The keyboard with the number row turned on, and the wide number pad it shows for a number field">
+  <img src="https://raw.githubusercontent.com/pyxpo/pyxpo-keyboard/main/docs/images/layouts.png" width="560" alt="The keyboard with the number row turned on, and the wide number pad it shows for a number field">
 </p>
 
 The keyboard picks a layout from the field it types into. A pyxpo `TextInput` sets the field type through its props;

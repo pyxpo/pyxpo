@@ -5,7 +5,7 @@ bundle or package id, version, build number, install and update time, and the si
 names follow [expo-application](https://docs.expo.dev/versions/latest/sdk/application/), in Python style.
 
 <p align="center">
-  <img src="https://raw.githubusercontent.com/pyxpo/pyxpo/main/packages/application/docs/images/hero.png" width="820" alt="The application module on Android and iOS: name, id, version, build, install time and platform ids">
+  <img src="https://raw.githubusercontent.com/pyxpo/pyxpo-application/main/docs/images/hero.png" width="820" alt="The application module on Android and iOS: name, id, version, build, install time and platform ids">
 </p>
 
 ```python
@@ -111,7 +111,7 @@ Read once at app start from `Info.plist` (iOS) and `PackageInfo` (Android). `Non
 | `native_build_version` | `nativeBuildVersion` | `CFBundleVersion` | `versionCode`, as a string |
 
 <p align="center">
-  <img src="https://raw.githubusercontent.com/pyxpo/pyxpo/main/packages/application/docs/images/identity.png" width="720" alt="Constants and ids on Android and iOS">
+  <img src="https://raw.githubusercontent.com/pyxpo/pyxpo-application/main/docs/images/identity.png" width="720" alt="Constants and ids on Android and iOS">
 </p>
 
 ## Install and update time

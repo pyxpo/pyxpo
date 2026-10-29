@@ -5,7 +5,7 @@ file or an http(s) URL inside your layout, with the platform's own playback cont
 the Mac, `VideoView` on Android, and a `<video>` element on the web page and the desktop window.
 
 <p align="center">
-  <img src="https://raw.githubusercontent.com/pyxpo/pyxpo/main/packages/video/docs/images/hero.png" width="820" alt="The same pyxpo-video demo playing an 8 second clip on the iOS simulator and the Android emulator">
+  <img src="https://raw.githubusercontent.com/pyxpo/pyxpo-video/main/docs/images/hero.png" width="820" alt="The same pyxpo-video demo playing an 8 second clip on the iOS simulator and the Android emulator">
 </p>
 
 ```python
@@ -185,7 +185,7 @@ names `pyxpo-video` when the app was built without `modules = ["video"]`.
 ## Resize modes
 
 <p align="center">
-  <img src="https://raw.githubusercontent.com/pyxpo/pyxpo/main/packages/video/docs/images/fit.png" width="820" alt="A portrait clip in a 260 x 400 box on iOS: contain shows black bars at the sides, cover fills the box">
+  <img src="https://raw.githubusercontent.com/pyxpo/pyxpo-video/main/docs/images/fit.png" width="820" alt="A portrait clip in a 260 x 400 box on iOS: contain shows black bars at the sides, cover fills the box">
 </p>
 
 | `resize_mode` | Result | iOS / Mac | Android | Web / desktop |

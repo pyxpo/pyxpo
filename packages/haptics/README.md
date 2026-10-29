@@ -5,7 +5,7 @@ buzzes, selection ticks, and the Android system haptic constants. The names foll
 [expo-haptics](https://docs.expo.dev/versions/latest/sdk/haptics/), in Python style.
 
 <p align="center">
-  <img src="https://raw.githubusercontent.com/pyxpo/pyxpo/main/packages/haptics/docs/images/hero.png" width="820" alt="The haptics module on Android and iOS: impact, notification and selection buttons, and the Android system haptics">
+  <img src="https://raw.githubusercontent.com/pyxpo/pyxpo-haptics/main/docs/images/hero.png" width="820" alt="The haptics module on Android and iOS: impact, notification and selection buttons, and the Android system haptics">
 </p>
 
 ```python
@@ -142,7 +142,7 @@ falls back to a close older one:
 | `Clock_Tick`, `Context_Click`, `Keyboard_Tap`, `Long_Press`, `Virtual_Key` | any | |
 
 <p align="center">
-  <img src="https://raw.githubusercontent.com/pyxpo/pyxpo/main/packages/haptics/docs/images/android.png" width="420" alt="The Android system haptics section of the demo screen">
+  <img src="https://raw.githubusercontent.com/pyxpo/pyxpo-haptics/main/docs/images/android.png" width="420" alt="The Android system haptics section of the demo screen">
 </p>
 
 ## What the screenshots show

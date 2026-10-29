@@ -7,7 +7,7 @@ yourself. iOS draws with Core Graphics, Android with `android.graphics.Canvas`, 
 HTML canvas.
 
 <p align="center">
-  <img src="https://raw.githubusercontent.com/pyxpo/pyxpo/main/packages/whiteboard/docs/images/hero.png" width="820" alt="The whiteboard with its toolbar on Android and iOS: a blue curve and, on iOS, a red rectangle">
+  <img src="https://raw.githubusercontent.com/pyxpo/pyxpo-whiteboard/main/docs/images/hero.png" width="820" alt="The whiteboard with its toolbar on Android and iOS: a blue curve and, on iOS, a red rectangle">
 </p>
 
 ```python
@@ -111,7 +111,7 @@ def Sketch():
 (`element_count`, `can_undo`, `can_redo`, `drawing`). Give the same `board` to `Whiteboard` and to every toolbar piece, and they stay in step.
 
 <p align="center">
-  <img src="https://raw.githubusercontent.com/pyxpo/pyxpo/main/packages/whiteboard/docs/images/board.png" width="640" alt="The whiteboard page and toolbar on Android and iOS">
+  <img src="https://raw.githubusercontent.com/pyxpo/pyxpo-whiteboard/main/docs/images/board.png" width="640" alt="The whiteboard page and toolbar on Android and iOS">
 </p>
 
 ## Tools and settings

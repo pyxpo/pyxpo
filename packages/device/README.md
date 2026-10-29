@@ -5,7 +5,7 @@ and version, memory, CPU architectures, phone or tablet, uptime and Android syst
 [expo-device](https://docs.expo.dev/versions/latest/sdk/device/), in Python style.
 
 <p align="center">
-  <img src="https://raw.githubusercontent.com/pyxpo/pyxpo/main/packages/device/docs/images/hero.png" width="820" alt="The device module on Android and iOS: brand, model, OS version, memory and device type">
+  <img src="https://raw.githubusercontent.com/pyxpo/pyxpo-device/main/docs/images/hero.png" width="820" alt="The device module on Android and iOS: brand, model, OS version, memory and device type">
 </p>
 
 ```python
@@ -115,7 +115,7 @@ Read once at app start. `None` where a platform has no value.
 | `device_type` | `deviceType` | `DeviceType` from the interface idiom | `DeviceType` from TV mode and screen width (600dp and up is a tablet) |
 
 <p align="center">
-  <img src="https://raw.githubusercontent.com/pyxpo/pyxpo/main/packages/device/docs/images/constants.png" width="720" alt="Constants on Android and iOS">
+  <img src="https://raw.githubusercontent.com/pyxpo/pyxpo-device/main/docs/images/constants.png" width="720" alt="Constants on Android and iOS">
 </p>
 
 ### `is_device` and emulators

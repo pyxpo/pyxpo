@@ -31,11 +31,11 @@ requires-python = ">=3.9"
 dependencies = ["pyxpo>=0.1.0a2,<0.2"]
 
 [project.urls]
-Homepage = "https://github.com/pyxpo/pyxpo/tree/main/packages/device"
-Documentation = "https://github.com/pyxpo/pyxpo/blob/main/packages/device/README.md"
-Changelog = "https://github.com/pyxpo/pyxpo/blob/main/packages/device/CHANGELOG.md"
-Source = "https://github.com/pyxpo/pyxpo/tree/main/packages/device"
-Issues = "https://github.com/pyxpo/pyxpo/issues"
+Homepage = "https://github.com/pyxpo/pyxpo-device"
+Documentation = "https://github.com/pyxpo/pyxpo-device/blob/main/README.md"
+Changelog = "https://github.com/pyxpo/pyxpo-device/blob/main/CHANGELOG.md"
+Source = "https://github.com/pyxpo/pyxpo-device"
+Issues = "https://github.com/pyxpo/pyxpo-device/issues"
 
 # How `pyxpo build` finds this module: the entry point name is the module name apps list in
 # `[tool.pyxpo] modules`, its value the import package holding pyxpo-module.json.

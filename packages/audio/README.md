@@ -5,7 +5,7 @@ volume of a local file or a URL. It follows the player part of
 [expo-audio](https://docs.expo.dev/versions/latest/sdk/audio/), in Python style.
 
 <p align="center">
-  <img src="https://raw.githubusercontent.com/pyxpo/pyxpo/main/packages/audio/docs/images/hero.png" width="820" alt="The audio module on Android and iOS: a chime playing in a loop with play, restart and volume buttons">
+  <img src="https://raw.githubusercontent.com/pyxpo/pyxpo-audio/main/docs/images/hero.png" width="820" alt="The audio module on Android and iOS: a chime playing in a loop with play, restart and volume buttons">
 </p>
 
 ```python
@@ -99,7 +99,7 @@ def Chime():
 > when the label must change (the screenshots do this).
 
 <p align="center">
-  <img src="https://raw.githubusercontent.com/pyxpo/pyxpo/main/packages/audio/docs/images/controls.png" width="720" alt="The audio controls on Android and iOS">
+  <img src="https://raw.githubusercontent.com/pyxpo/pyxpo-audio/main/docs/images/controls.png" width="720" alt="The audio controls on Android and iOS">
 </p>
 
 ## Sources

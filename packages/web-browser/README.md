@@ -6,7 +6,7 @@ An in-app browser and OAuth sign-in sessions for [pyxpo](https://github.com/pyxp
 passwords and autofill, and your app never sees them.
 
 <p align="center">
-  <img src="https://raw.githubusercontent.com/pyxpo/pyxpo/main/packages/web-browser/docs/images/hero.png" width="820" alt="github.com open in the in-app browser, a Custom Tab on Android and Safari View Controller on iOS">
+  <img src="https://raw.githubusercontent.com/pyxpo/pyxpo-web-browser/main/docs/images/hero.png" width="820" alt="github.com open in the in-app browser, a Custom Tab on Android and Safari View Controller on iOS">
 </p>
 
 ```python
@@ -90,7 +90,7 @@ def Links():
 > immediately with `{"type": "opened"}`. Never use `lambda: WebBrowser.open_browser_async(...)` as a handler: the coroutine would not be awaited.
 
 <p align="center">
-  <img src="https://raw.githubusercontent.com/pyxpo/pyxpo/main/packages/web-browser/docs/images/opened.png" width="720" alt="The in-app browser open on github.com, on Android and iOS">
+  <img src="https://raw.githubusercontent.com/pyxpo/pyxpo-web-browser/main/docs/images/opened.png" width="720" alt="The in-app browser open on github.com, on Android and iOS">
 </p>
 
 ## Result types

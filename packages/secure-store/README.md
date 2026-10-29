@@ -6,7 +6,7 @@ fingerprint check. The names follow [expo-secure-store](https://docs.expo.dev/ve
 Python style.
 
 <p align="center">
-  <img src="https://raw.githubusercontent.com/pyxpo/pyxpo/main/packages/secure-store/docs/images/hero.png" width="820" alt="The secure store module on Android and iOS: a token saved, then read back">
+  <img src="https://raw.githubusercontent.com/pyxpo/pyxpo-secure-store/main/docs/images/hero.png" width="820" alt="The secure store module on Android and iOS: a token saved, then read back">
 </p>
 
 ```python
@@ -105,7 +105,7 @@ def Token():
 > dummy value.
 
 <p align="center">
-  <img src="https://raw.githubusercontent.com/pyxpo/pyxpo/main/packages/secure-store/docs/images/read.png" width="720" alt="Save and read on Android and iOS">
+  <img src="https://raw.githubusercontent.com/pyxpo/pyxpo-secure-store/main/docs/images/read.png" width="720" alt="Save and read on Android and iOS">
 </p>
 
 ## Reading, writing and deleting

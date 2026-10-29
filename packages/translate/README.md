@@ -6,7 +6,7 @@ agrees, and from then on every translation runs on the phone, with no network, a
 languages, including Hindi, Spanish, Chinese, Arabic and French.
 
 <p align="center">
-  <img src="https://raw.githubusercontent.com/pyxpo/pyxpo/main/packages/translate/docs/images/hero.png" width="820" alt="A pyxpo demo on Android downloading the Hindi model, then translating a Hindi sentence to English offline">
+  <img src="https://raw.githubusercontent.com/pyxpo/pyxpo-translate/main/docs/images/hero.png" width="820" alt="A pyxpo demo on Android downloading the Hindi model, then translating a Hindi sentence to English offline">
 </p>
 
 ```python
