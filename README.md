@@ -14,7 +14,7 @@ The first mobile build downloads the prebuilt CPython runtime (about 20-60 MB pe
 
 ## Develop pyxpo itself
 ```
-tools/dev_install.sh    # .venv with core + every module package in packages/, all editable
+tools/dev_install.sh    # .venv with core + every module package in ../pyxpo-packages, all editable
 .venv/bin/pyxpo create demo && cd demo && ../.venv/bin/pyxpo run desktop   # native Mac window, see below
 .venv/bin/pytest
 ```
@@ -123,7 +123,7 @@ pip install pyxpo-image-picker
 [tool.pyxpo]
 modules = ["image-picker"]
 ```
-Their sources live in `packages/`; see each package's README. Third-party modules are pip packages that register a
+Each one has its own repo, `pyxpo/pyxpo-<name>`; see its README. Third-party modules are pip packages that register a
 `pyxpo.modules` entry point the same way.
 
 ### Dev tools

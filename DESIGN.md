@@ -96,7 +96,7 @@ An app lists what it uses in `[tool.pyxpo] modules = [...]`; only those are comp
 library per module on Android). Unlisted modules add no code, no permissions and no Info.plist keys.
 
 Every module, first-party included, is its own pip package, released separately from core (like `expo-image-picker`). First-party
-ones live in `packages/<name>/` in this repo: distribution `pyxpo-<name>`, import package `pyxpo_<name_with_underscores>`, autolink
+ones each have their own repo `pyxpo/pyxpo-<name>`: distribution `pyxpo-<name>`, import package `pyxpo_<name_with_underscores>`, autolink
 name `<name>` (the string apps put in `modules`). The import package holds the Python API plus its native side as package data:
 `pyxpo-module.json` (bridge name, Swift and Kotlin classes, Android namespace and dependencies, usage-description keys), `ios/*.swift`
 and `android/src/main/**`. Each package registers itself under the `pyxpo.modules` entry point group (`image-picker = "pyxpo_image_picker"`),
@@ -124,7 +124,8 @@ Native contract 4 (`pyxpo.module_api.NATIVE_CONTRACT`; a module declares `native
   pyxpo-speech builds ggml with `GGML_BACKEND_DL` and `GGML_CPU_ALL_VARIANTS` (arm64, x86_64): one CPU backend per
   instruction set level, and the JNI layer loads the fastest one the CPU runs (`ggml_backend_load`, by bare name).
 
-Monorepo development: `tools/dev_install.sh` installs core and every package in `packages/` editable into `.venv`.
+Development: package repos are cloned side by side in `../pyxpo-packages/pyxpo-<name>` (`PYXPO_PACKAGES` overrides the
+folder). `tools/dev_install.sh` clones any that are missing and installs core and every package editable into `.venv`.
 `python tools/build_packages.py` builds and checks every package's wheel and sdist (native files and entry point present);
 `python tools/module_size_report.py` prints each first-party module's source footprint.
 

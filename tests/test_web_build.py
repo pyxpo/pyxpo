@@ -235,7 +235,7 @@ def test_cli_web_build_error_is_printed(tmp_path, capsys):
 
 
 def test_watch_stamp_sees_linked_module_packages(tmp_path):
-    # A local editable module package (e.g. packages/whiteboard) is bundled into the web build, so editing it rebuilds.
+    # A local editable module package (e.g. ../pyxpo-packages/pyxpo-whiteboard) is bundled into the web build, so editing it rebuilds.
     from pyxpo.build.web import _watch_stamp
 
     pkg = tmp_path / "pyxpo_demo"

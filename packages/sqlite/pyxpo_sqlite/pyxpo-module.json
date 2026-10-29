@@ -1,7 +1,0 @@
-{
-  "schemaVersion": 1,
-  "nativeContract": 1,
-  "name": "sqlite",
-  "native": "SQLite",
-  "web": { "packages": ["sqlite3"] }
-}

@@ -22,11 +22,21 @@ def test_require_supported(monkeypatch):
     api.require_supported("heic encode", android=False)
 
 
+def _packages_root():
+    """The folder holding the package repos pyxpo-<name> (see tools/dev_install.sh)."""
+    import os
+    import pathlib
+    root = pathlib.Path(os.environ.get("PYXPO_PACKAGES") or pathlib.Path(__file__).resolve().parents[2] / "pyxpo-packages")
+    if not root.is_dir():
+        pytest.skip("package repos not cloned (tools/dev_install.sh)")
+    return root
+
+
 def test_packages_use_only_public_api():
     import pathlib
     import re
     bad = re.compile(r"from pyxpo(\.apis|\._|\.modules)|import pyxpo\._")
-    for f in pathlib.Path(__file__).parents[1].glob("packages/*/pyxpo_*/**/*.py"):
+    for f in _packages_root().glob("pyxpo-*/pyxpo_*/**/*.py"):
         assert not bad.search(f.read_text()), f
 
 
@@ -46,10 +56,9 @@ def test_fake_bridge_roundtrip():
 def test_packages_follow_packaging_hygiene():
     import pathlib
     import re
-    root = pathlib.Path(__file__).resolve().parents[1] / "packages"
-    for pyproj in root.glob("*/pyproject.toml"):
+    for pyproj in _packages_root().glob("pyxpo-*/pyproject.toml"):
         pkg = pyproj.parent
-        imp = "pyxpo_" + pkg.name.replace("-", "_")
+        imp = pkg.name.replace("-", "_")
         text = pyproj.read_text()
         assert (pkg / imp / "py.typed").is_file(), pkg.name
         assert (pkg / "CHANGELOG.md").is_file(), pkg.name

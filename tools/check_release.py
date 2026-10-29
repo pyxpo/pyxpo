@@ -1,6 +1,6 @@
 """Release gate: tag matches __version__, wheel is small and complete, every runtime asset URL resolves.
 
-Core only: the native module packages in packages/ are released separately (tools/build_packages.py --tag).
+Core only: the native module packages have their own repos and are released separately (tools/build_packages.py --tag).
 """
 from __future__ import annotations
 

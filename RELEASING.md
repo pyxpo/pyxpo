@@ -7,15 +7,15 @@ This is the full release runbook. Follow the steps in order.
 | Piece | Where | Tag that triggers it | Workflow |
 |---|---|---|---|
 | Core `pyxpo` | PyPI project `pyxpo` | `vX.Y.Z` (for example `v0.1.0a2`) | `.github/workflows/release.yml` |
-| Each module package | PyPI project `pyxpo-<name>` | `pkg/<name>/vX.Y.Z` (for example `pkg/image-picker/v0.1.1`) | `.github/workflows/release-packages.yml` |
+| Each module package | PyPI project `pyxpo-<name>` | `vX.Y.Z` in repo `pyxpo/pyxpo-<name>` (for example `v0.1.1`) | `.github/workflows/release.yml` in that repo |
 | CPython runtime tarballs | GitHub Release `runtime-<python>-<n>` | none (manual `gh release create`) | none |
 
-Module packages live in `packages/`: `application`, `audio`, `camera`, `device`, `dot-env`, `drawing-canvas`, `fetch`, `file-system`, `google-mobile-ads`, `haptics`, `image-manipulator`, `image-picker`, `localization`, `location`, `media-library`, `mesh-view`, `network`, `notifications`, `secure-store`, `sharing`, `sqlite`, `storage`, `web-browser`, `whiteboard`. Each one has its own version and is released on its own.
+Each module package has its own repo `pyxpo/pyxpo-<name>` (the list is `OFFICIAL` in `src/pyxpo/build/autolink.py`). Locally they are cloned side by side in `../pyxpo-packages/pyxpo-<name>`; `tools/dev_install.sh` clones any that are missing. Each one has its own version and is released on its own.
 
 Where the versions live:
 
 - Core: `__version__` in `src/pyxpo/__init__.py`
-- Package: `__version__` in `packages/<name>/pyxpo_<name>/__init__.py`
+- Package: `__version__` in `pyxpo_<name>/__init__.py` of the package repo
 - Runtime: `runtime` in `src/pyxpo/build/runtime_manifest.json` (separate from the pyxpo version)
 
 The core wheel is small (about 250 KB). The CPython runtimes (about 150 MB) are not in the wheel. `pyxpo build`
@@ -59,20 +59,21 @@ downloads them on first use into `~/.cache/pyxpo/runtime/<runtime-version>/` and
 
 ## Release a module package
 
-1. Bump `__version__` in `packages/<name>/pyxpo_<name>/__init__.py`.
-   If the package needs a newer core, raise its `pyxpo>=` dependency in `packages/<name>/pyproject.toml` and release
-   the core first.
+Work in the package repo (`../pyxpo-packages/pyxpo-<name>`).
+
+1. Bump `__version__` in `pyxpo_<name>/__init__.py` and add a CHANGELOG entry.
+   If the package needs a newer core, raise its `pyxpo>=` dependency in `pyproject.toml` and release the core first.
 2. Commit and push to `main`.
-3. Check locally (must print `ok`):
+3. Check locally from the pyxpo repo (must print `ok`):
    ```
-   .venv/bin/python tools/build_packages.py --tag pkg/<name>/v<version>
+   .venv/bin/python tools/build_packages.py <name> --tag v<version>
    ```
-4. Tag and push:
+4. Tag and push, in the package repo:
    ```
-   git tag pkg/<name>/v<version>
-   git push origin pkg/<name>/v<version>
+   git tag v<version>
+   git push origin v<version>
    ```
-5. Watch the run: `gh run list --workflow release-packages.yml -L1`.
+5. Watch the run: `gh run list -R pyxpo/pyxpo-<name> --workflow release.yml -L1`.
 6. When `publish` shows **Waiting**, approve it (Review deployments > `pypi` > Approve and deploy).
 7. Check it is live: `https://pypi.org/project/pyxpo-<name>/`.
 
@@ -80,24 +81,23 @@ You can release several packages one after another this way. Each tag starts its
 
 ## Add a new package (first release of a new PyPI project)
 
-PyPI calls a publisher for a project that does not exist yet a **pending publisher**. PyPI has one limit here:
-two pending publishers cannot have the same settings (same owner, repo, workflow and environment). All our packages
-use the same settings, so **only one new package can be pending at a time**. If you try to add a second one, PyPI
-shows: "A pending trusted publisher matching this configuration has already been registered for a different project
-name".
-
-So release new packages one at a time:
-
-1. On pypi.org: Account > **Publishing** > "Add a new pending publisher" > GitHub, and fill in:
+1. Create the repo `pyxpo/pyxpo-<name>` and copy `.gitignore` and `.github/workflows/` from an existing package repo.
+   Add `<name>` to `OFFICIAL` in `src/pyxpo/build/autolink.py`.
+2. In the repo: Settings > **Environments** > New environment `pypi` (add yourself as required reviewer).
+3. PyPI calls a publisher for a project that does not exist yet a **pending publisher**. On pypi.org: Account >
+   **Publishing** > "Add a new pending publisher" > GitHub, and fill in:
    - PyPI Project Name: `pyxpo-<name>`
    - Owner: `pyxpo`
-   - Repository name: `pyxpo`
-   - Workflow name: `release-packages.yml`
+   - Repository name: `pyxpo-<name>`
+   - Workflow name: `release.yml`
    - Environment name: `pypi`
-2. Push the package tag and approve the run (steps 3 to 7 of "Release a module package").
-3. When the first upload succeeds, the pending publisher becomes active. Only now can you add the next new package.
+4. Push the package tag and approve the run (steps 3 to 7 of "Release a module package").
 
-The core `pyxpo` uses `release.yml`, so its pending publisher never clashes with the packages.
+Each package repo has its own publisher settings, so several new packages can be pending at the same time.
+
+An existing package whose publisher still points at `pyxpo/pyxpo` and `release-packages.yml` (packages released
+before the split): open https://pypi.org/manage/project/pyxpo-<name>/settings/publishing/, add the publisher above,
+and remove the old one.
 
 ## When something goes wrong
 
@@ -109,7 +109,7 @@ git push origin :refs/tags/v0.1.0a2
 git tag v0.1.0a2
 git push origin v0.1.0a2
 ```
-Use the same steps with `pkg/<name>/v<version>` for a package. Move a tag only if its publish job did not run.
+Use the same steps in the package repo for a package. Move a tag only if its publish job did not run.
 
 **The publish job fails or the upload was wrong.** That version is used up on PyPI. Bump the version and release
 again. To hide a broken version from installs, "yank" it on the PyPI project page (Manage > Releases).

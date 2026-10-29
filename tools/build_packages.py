@@ -1,9 +1,12 @@
-"""Builds and checks the separately published native module packages in packages/ (never publishes).
+"""Builds and checks the separately published native module packages (never publishes).
+
+Each package lives in its own repo pyxpo/pyxpo-<name>. Locally they are cloned side by side in
+../pyxpo-packages/pyxpo-<name> (PYXPO_PACKAGES overrides that folder).
 
 Usage:
     python tools/build_packages.py                      # every package -> wheelhouse-packages/<name>/
     python tools/build_packages.py image-picker sharing # only these
-    python tools/build_packages.py --tag pkg/image-picker/v0.1.0a1   # release gate: one package, tag must match its version
+    python tools/build_packages.py --path . --tag v0.1.0a1   # release gate in a package repo: tag must match its version
     options: --outdir DIR, --no-isolation (use the current environment's setuptools, offline)
 
 Each package must produce a wheel and an sdist that both carry pyxpo-module.json, the iOS and Android
@@ -13,20 +16,36 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import re
 import subprocess
 import sys
 import tarfile
 import zipfile
 from pathlib import Path
-from typing import List, Optional
+from typing import Dict, List, Optional
 
 ROOT = Path(__file__).resolve().parents[1]
-PACKAGES = ROOT / "packages"
+PACKAGES = Path(os.environ.get("PYXPO_PACKAGES") or ROOT.parent / "pyxpo-packages")
+# Packages given by --path, for a package repo checked out under any folder name.
+EXTRA: Dict[str, Path] = {}
 
 
 def packages() -> List[str]:
-    return sorted(p.parent.name for p in PACKAGES.glob("*/pyproject.toml"))
+    found = [p.parent.name[len("pyxpo-"):] for p in PACKAGES.glob("pyxpo-*/pyproject.toml")]
+    return sorted(set(found) | set(EXTRA))
+
+
+def package_dir(name: str) -> Path:
+    return EXTRA.get(name) or PACKAGES / ("pyxpo-" + name)
+
+
+def name_of(path: Path) -> str:
+    """The module name of the package at `path`, from its pyproject `name = "pyxpo-<name>"`."""
+    m = re.search(r'^name = "pyxpo-([a-z][a-z0-9-]*)"', (path / "pyproject.toml").read_text(), re.M)
+    if not m:
+        raise SystemExit("%s/pyproject.toml has no `name = \"pyxpo-<name>\"`" % path)
+    return m.group(1)
 
 
 def import_name(name: str) -> str:
@@ -34,13 +53,13 @@ def import_name(name: str) -> str:
 
 
 def version(name: str) -> str:
-    init = PACKAGES / name / import_name(name) / "__init__.py"
+    init = package_dir(name) / import_name(name) / "__init__.py"
     return re.search(r'^__version__\s*=\s*"([^"]+)"', init.read_text(), re.M).group(1)
 
 
 def expected_files(name: str) -> List[str]:
     """Paths (relative to the package root) every artifact must contain: Python, metadata, native sources."""
-    pkg = PACKAGES / name / import_name(name)
+    pkg = package_dir(name) / import_name(name)
     out = []
     for f in sorted(pkg.rglob("*")):
         rel = f.relative_to(pkg)
@@ -82,7 +101,7 @@ def build(name: str, outdir: Path, isolation: bool = True) -> List[str]:
     outdir.mkdir(parents=True, exist_ok=True)
     for old in list(outdir.glob("*.whl")) + list(outdir.glob("*.tar.gz")):
         old.unlink()
-    cmd = [sys.executable, "-m", "build", "--outdir", str(outdir), str(PACKAGES / name)]
+    cmd = [sys.executable, "-m", "build", "--outdir", str(outdir), str(package_dir(name))]
     if not isolation:
         cmd.insert(3, "--no-isolation")
     r = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
@@ -102,24 +121,26 @@ def build(name: str, outdir: Path, isolation: bool = True) -> List[str]:
 
 def main(argv: Optional[List[str]] = None) -> int:
     ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
-    ap.add_argument("names", nargs="*", help="package folders under packages/ (default: all)")
+    ap.add_argument("names", nargs="*", help="module names, for example image-picker (default: all in PYXPO_PACKAGES)")
+    ap.add_argument("--path", action="append", default=[], help="a package folder outside PYXPO_PACKAGES (repeatable)")
     ap.add_argument("--outdir", default=str(ROOT / "wheelhouse-packages"))
-    ap.add_argument("--tag", help="release tag pkg/<name>/v<version>; builds only that package and checks the version")
+    ap.add_argument("--tag", help="release tag v<version>; needs exactly one package and checks its version")
     ap.add_argument("--no-isolation", action="store_true")
     a = ap.parse_args(argv)
-    names = a.names or packages()
+    for p in a.path:
+        EXTRA[name_of(Path(p).resolve())] = Path(p).resolve()
+    names = a.names + sorted(EXTRA) or packages()
     errors: List[str] = []
     if a.tag:
-        m = re.match(r"^pkg/([a-z][a-z0-9-]*)/v(.+)$", a.tag)
-        if not m:
-            print("FAIL: tag %r is not pkg/<name>/v<version>" % a.tag)
+        m = re.match(r"^v(.+)$", a.tag)
+        if not m or len(names) != 1:
+            print("FAIL: --tag needs a tag v<version> and exactly one package (got %r, %s)" % (a.tag, names))
             return 1
-        names = [m.group(1)]
-        if m.group(1) in packages() and version(m.group(1)) != m.group(2):
-            errors.append("tag %s does not match %s __version__ %s" % (a.tag, m.group(1), version(m.group(1))))
+        if names[0] in packages() and version(names[0]) != m.group(1):
+            errors.append("tag %s does not match %s __version__ %s" % (a.tag, names[0], version(names[0])))
     for n in names:
         if n not in packages():
-            errors.append("no package %r in packages/ (have: %s)" % (n, ", ".join(packages())))
+            errors.append("no package %r in %s (have: %s)" % (n, PACKAGES, ", ".join(packages())))
             continue
         out = Path(a.outdir) if a.tag else Path(a.outdir) / n
         problems = build(n, out, isolation=not a.no_isolation)

@@ -1,4 +1,4 @@
-# Core pyxpo release. Native module packages (packages/*) have their own workflow, release-packages.yml.
+# Core pyxpo release. Native module packages have their own repos (pyxpo/pyxpo-<name>), each with its own release workflow.
 name: release
 on:
   push:

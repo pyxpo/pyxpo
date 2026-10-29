@@ -1,12 +1,13 @@
-"""Prints the source footprint of each first-party native module package in packages/ (what `modules = [...]` adds to an app).
+"""Prints the source footprint of each first-party native module package in ../pyxpo-packages (what `modules = [...]` adds to an app).
 
 Usage: python tools/module_size_report.py
 Unlisted modules add nothing to an app; this shows why linking them is cheap and skipping them is free.
 """
 import json
+import os
 from pathlib import Path
 
-ROOT = Path(__file__).resolve().parent.parent / "packages"
+ROOT = Path(os.environ.get("PYXPO_PACKAGES") or Path(__file__).resolve().parents[2] / "pyxpo-packages")
 
 
 def size(paths):

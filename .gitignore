@@ -7,7 +7,6 @@ __pycache__/
 
 # Build outputs and caches (CPython source, toolchains, emulator logs, screenshots)
 /build/
-packages/*/build/
 dist/
 .cache/
 
