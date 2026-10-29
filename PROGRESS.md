@@ -19,7 +19,7 @@
 
 ## AI Keyboard (pyxpo-apps/ai-keyboard): pushed. pyxpo-keyboard, pyxpo-speech, pyxpo-translate 0.1.0a1 on PyPI (Oct 29). README shots done (translate hero; keyboard hero + layouts). Open: S23 check of iOS layout + ML Kit; Phase 3 pyxpo-llm.
 
-## Mac Catalyst + pyxpo-video (Oct 21-22): pushed. Catalyst ssl slice; ios runtime asset needs republish for ssl.
+## Mac Catalyst + pyxpo-video (Oct 21-22): pushed. Catalyst ssl slice published in runtime 3.13.7-2 (_ssl, _hashlib checked).
 
 ## Package repos split (Oct 29)
 - 29 repos pyxpo/pyxpo-<pkg>. ivishalchaubey invited.
