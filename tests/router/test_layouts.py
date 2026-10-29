@@ -61,6 +61,39 @@ def test_tabs_switch_and_lazy(tmp_app):
     assert "feed-page" in r.texts()
 
 
+CUSTOM_BAR = """
+from pyxpo import Pressable, Text, View
+from pyxpo.router import Tabs
+def bar(p):
+    return View(*[Pressable(Text("[%s]" % it["label"] if i == p["index"] else it["label"]),
+                            on_press=lambda i=i: p["on_select"](i)) for i, it in enumerate(p["items"])],
+                Text("pos=" + p["position"]), test_id="bar")
+def L():
+    return Tabs(Tabs.Screen(name='index', options={'title': 'Feed'}), Tabs.Screen(name='me', options={'title': 'Me'}),
+                screen_options={'tabBarPosition': 'left', 'headerShown': False}, tab_bar=bar)
+default = L
+"""
+
+
+def test_tabs_custom_bar_on_the_start_side(tmp_app):
+    d = tmp_app({"_layout.py": CUSTOM_BAR,
+                 "index.py": "from pyxpo import Text\ndef P():\n    return Text('feed-page')\ndefault = P\n",
+                 "me.py": "from pyxpo import Text\ndef P():\n    return Text('me-page')\ndefault = P\n"})
+    app, r = mount(d)
+    assert "[Feed]" in r.texts() and "pos=left" in r.texts()
+    bar = next(n for n in r.root.walk() if n.props.get("test_id") == "bar")
+    assert bar.parent.props["style"]["flex_direction"] == "row" and bar.parent.children[0] is bar
+    r.press(r.find_text("Me"))
+    assert "[Me]" in r.texts() and "me-page" in r.texts()
+
+
+def test_tabs_rejects_unknown_position(tmp_app):
+    d = tmp_app({"_layout.py": CUSTOM_BAR.replace("'left'", "'top'"),
+                 "index.py": "from pyxpo import Text\ndef P():\n    return Text('x')\ndefault = P\n",
+                 "me.py": "from pyxpo import Text\ndef P():\n    return Text('y')\ndefault = P\n"})
+    app, r = mount(d)
+    assert "tabBarPosition must be" in " ".join(r.texts())
+
 def test_not_found_and_params_hooks(tmp_app):
     d = tmp_app({"_layout.py": LAYOUT, "index.py": INDEX, "details/[id].py": DETAILS})
     app, r = mount(d, "/nope/x")

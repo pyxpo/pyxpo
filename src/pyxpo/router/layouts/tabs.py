@@ -49,7 +49,10 @@ def TabBar(items: Any = (), index: int = 0, on_select: Any = None, style: Any = 
 
 
 @component
-def Tabs(*children, screen_options: Any = None, initial_route_name: Optional[str] = None):
+def Tabs(*children, screen_options: Any = None, initial_route_name: Optional[str] = None, tab_bar: Any = None):
+    """`tab_bar(props)` replaces the bar (React Navigation's `tabBar`): props are `items`, `index`, `on_select`,
+    `position` and `options` (the focused route's). Option `tabBarPosition` is "bottom" (default) or "left", the
+    start side (it flips with the layout direction), for a rail or sidebar on a wide window."""
     rt, nav, node, declared = use_navigator("tabs", children, initial_route_name)
     bg = useTheme()["colors"]["background"]
     seen = use_ref(set())
@@ -72,13 +75,23 @@ def Tabs(*children, screen_options: Any = None, initial_route_name: Optional[str
                           View(TopInset.Provider(route_element(nav, node, r), value=not show), style={"flex": 1}),
                           key=r["key"], style=[FILL, {"backgroundColor": bg}, None if i == cur else HIDDEN]))
     cur_item = next((n for n, it in enumerate(items) if it["key"] == routes[cur]["key"]), 0)
-    bar_style = route_options(rt, routes[cur], screen_options, declared).get("tabBarStyle")
+    cur_opts = route_options(rt, routes[cur], screen_options, declared)
+    position = cur_opts.get("tabBarPosition", "bottom")
+    if position not in ("bottom", "left"):
+        raise ValueError("tabBarPosition must be 'bottom' or 'left', got %r" % (position,))
     keys = [it["key"] for it in items]
-    return View(View(*pages, style={"flex": 1}),
-                TabBar(items=items, index=cur_item, style=bar_style,
-                       on_select=lambda n: rt.store.set_index(node["key"], next(
-                           i for i, r in enumerate(routes) if r["key"] == keys[n]))),
-                style={"flex": 1})
+
+    def select(n: int) -> None:
+        rt.store.set_index(node["key"], next(i for i, r in enumerate(routes) if r["key"] == keys[n]))
+
+    if tab_bar is not None:
+        bar = tab_bar({"items": items, "index": cur_item, "on_select": select, "position": position, "options": cur_opts})
+    else:
+        bar = TabBar(items=items, index=cur_item, style=cur_opts.get("tabBarStyle"), on_select=select)
+    scenes = View(*pages, style={"flex": 1})
+    if position == "left":
+        return View(bar, scenes, style={"flex": 1, "flexDirection": "row"})
+    return View(scenes, bar, style={"flex": 1})
 
 
 Tabs.Screen = Screen
