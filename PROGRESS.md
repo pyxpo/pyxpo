@@ -5,8 +5,6 @@
 - Done+committed: runtime, bridge, shells, CLI, hot reload, router, prebuild, distribution, app config + plugins + build_properties, native module system, packages image-manipulator, image-picker, media-library, sharing, storage, file-system, secure-store (e2e both OS). Release 0.1.0a1 on PyPI (8 dists).
 - 0.1.0a2 + 11 Tier 1 packages on PyPI Oct 16.
 
-## Tier 1 packages pushed Oct 16.
-
 ## Remote push + remount fix: committed, tag v0.1.0a3 pushed
 - notifications FCM/APNs, tools/send_push.py, Android remount fix.
 - Released (Oct 19): core 0.1.0a3 + 0.1.0a4, pyxpo-notifications 0.1.0a2, pyxpo-dot-env 0.1.0a1 (renamed from pyxpo-env), pyxpo-google-mobile-ads 0.1.0a1.
@@ -22,10 +20,10 @@
 ## Mac Catalyst + pyxpo-video (Oct 21-22): pushed. Catalyst ssl slice published in runtime 3.13.7-2 (_ssl, _hashlib checked).
 
 ## Package repos split (Oct 29)
-- 29 repos pyxpo/pyxpo-<pkg>. ivishalchaubey invited.
+- 29 repos pyxpo/pyxpo-<pkg>.
 - packages/ removed from monorepo. Clones live in ../pyxpo-packages/pyxpo-<pkg> (PYXPO_PACKAGES overrides). Each has tests/, ci.yml, release.yml (tag v<version>, env `pypi`), committed local.
 - tools/build_packages.py --path/--tag, dev_install.sh clones missing + `--no-deps -e`. Core suite 564 pass; all 29 package suites pass.
-- Oct 29 pushed: monorepo main, 29 package repos (+10 community/CI commits each: SECURITY, CONTRIBUTING, templates, badges, build job). `pypi` env + private vuln reporting on. ivishalchaubey collaborator on all.
+- Oct 29 pushed: monorepo + 29 package repos (community/CI files). `pypi` env + private vuln reporting on.
 - PyPI trusted publishers moved to pyxpo-<pkg>/release.yml. main rulesets on 30 repos. Org: GitHub refuses conversion of pyxpo.
 
 - Core 0.1.0a9 on PyPI (Oct 29): native module contract 4, use_async awaits lambda coroutine. Tags v0.1.0a6-a8 never published (a6/a7 no macOS runner, a8 no sips on ubuntu); release tests now ubuntu + Pillow. Suite 565 pass.
@@ -37,3 +35,4 @@
 - iOS: Xcode 27 has no Simulator.app; `show_simulator` falls back to DeviceHub (com.apple.dt.Devices). `simctl bootstatus` after boot.
 - Suite 575 pass + tests/test_android_devices.py. iOS e2e verified (port 8766 fallback). Android auto-boot e2e verified (Pixel_10).
 - Oct 30: iOS runtime extract bug (PyPI users only; dev checkout uses dist/): safe_members rejected Catalyst framework symlink chain (Headers -> Versions/Current/Headers). Fixed in runtime.py (symlinks may chain inside archive, hardlinks still strict) + tests; 578 pass; real 3.13.7-2 ios archive extracts. Uncommitted. Next: commit + 0.1.0a11 release on go-ahead.
+- Oct 30: vector_icons Feather got maximize-2, repeat, camera (ImageKit needs them). Uncommitted; ship in next core release with runtime extract fix.
