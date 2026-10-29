@@ -94,6 +94,14 @@ def test_tabs_rejects_unknown_position(tmp_app):
     app, r = mount(d)
     assert "tabBarPosition must be" in " ".join(r.texts())
 
+
+def test_tabs_button_test_id(tmp_app):
+    d = tmp_app({"_layout.py": "from pyxpo.router import Tabs\ndef L():\n    return Tabs(Tabs.Screen(name='index', options={'title': 'A', 'tabBarButtonTestID': 'tab-a'}))\ndefault = L\n",
+                 "index.py": "from pyxpo import Text\ndef P():\n    return Text('a')\ndefault = P\n"})
+    app, r = mount(d)
+    assert any(n.props.get("test_id") == "tab-a" for n in r.root.walk())
+
+
 def test_not_found_and_params_hooks(tmp_app):
     d = tmp_app({"_layout.py": LAYOUT, "index.py": INDEX, "details/[id].py": DETAILS})
     app, r = mount(d, "/nope/x")

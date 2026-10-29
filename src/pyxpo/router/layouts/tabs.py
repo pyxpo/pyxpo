@@ -16,7 +16,7 @@ from .stack import FILL, HIDDEN
 
 @component
 def TabBar(items: Any = (), index: int = 0, on_select: Any = None, style: Any = None):
-    """`items`: dicts `{key, label, icon (element or callable({color, size, focused})), badge}`."""
+    """`items`: dicts `{key, label, icon (element or callable({color, size, focused})), badge, testID}`."""
     c = useTheme()["colors"]
     inset = use_safe_area_insets()["bottom"]
     cells: List[Any] = []
@@ -42,7 +42,7 @@ def TabBar(items: Any = (), index: int = 0, on_select: Any = None, style: Any = 
         cells.append(Pressable(
             *body,
             on_press=(lambda i=i: on_select(i)), key=it["key"], accessibility_role="tab", accessibility_label=str(it["label"]),
-            accessibility_state={"selected": on},
+            accessibility_state={"selected": on}, test_id=it.get("testID"),
             style={"flex": 1, "alignItems": "center", "justifyContent": "center", "paddingVertical": 6}))
     return View(*cells, style=[{"flexDirection": "row", "height": 56 + inset, "paddingBottom": inset,
                                 "backgroundColor": c["card"], "borderTopWidth": 1, "borderColor": c["border"]}, style])
@@ -66,7 +66,8 @@ def Tabs(*children, screen_options: Any = None, initial_route_name: Optional[str
             continue
         items.append({"key": r["key"], "label": o.get("tabBarLabel", o.get("title", r["name"])),
                       "icon": o.get("tabBarIcon"), "badge": o.get("tabBarBadge"),
-                      "activeTintColor": o.get("tabBarActiveTintColor"), "inactiveTintColor": o.get("tabBarInactiveTintColor")})
+                      "activeTintColor": o.get("tabBarActiveTintColor"), "inactiveTintColor": o.get("tabBarInactiveTintColor"),
+                      "testID": o.get("tabBarButtonTestID")})
         items[-1] = {k: v for k, v in items[-1].items() if v is not None}
         if r["key"] not in seen.current and o.get("lazy", True):
             continue
