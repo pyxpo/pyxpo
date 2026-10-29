@@ -1307,7 +1307,7 @@
    "kind": "hook"
   },
   "useAsync": {
-   "doc": "Run fn (coroutine fn, or blocking fn in a worker thread) when deps change. Returns (loading, value, error).",
+   "doc": "Run fn (coroutine fn, a lambda returning a coroutine, or blocking fn in a worker thread) when deps change. Returns (loading, value, error).",
    "kind": "hook"
   },
   "useBreakpoint": {
@@ -1403,7 +1403,7 @@
    "kind": "hook"
   },
   "use_async": {
-   "doc": "Run fn (coroutine fn, or blocking fn in a worker thread) when deps change. Returns (loading, value, error).",
+   "doc": "Run fn (coroutine fn, a lambda returning a coroutine, or blocking fn in a worker thread) when deps change. Returns (loading, value, error).",
    "kind": "hook"
   },
   "use_breakpoint": {
@@ -1513,7 +1513,7 @@
   "white": "#ffffff",
   "yellow": "#ffff00"
  },
- "pyxpo": "0.1.0a7",
+ "pyxpo": "0.1.0a8",
  "style": {
   "keys": {
    "align_content": {

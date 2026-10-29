@@ -65,3 +65,23 @@ def test_async_event_handler_runs_as_task():
     r = asyncio.run(main())
     assert r.texts() == ["n=1"]
     assert [str(e) for e in errors] == ["bad press"]
+
+
+def test_use_async_awaits_lambda_returning_coroutine():
+    async def ready():
+        await asyncio.sleep(0)
+        return False
+
+    @component
+    def C():
+        res = use_async(lambda: ready(), [])
+        return View(Text("loading" if res.loading else "v=%r" % (res.value,)))
+
+    async def main():
+        ch = LocalChannel()
+        r = MockRenderer(ch)
+        App(C, ch, asyncio.get_running_loop()).start()
+        await asyncio.sleep(0.3)
+        return r
+
+    assert asyncio.run(main()).texts() == ["v=False"]

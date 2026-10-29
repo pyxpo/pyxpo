@@ -203,7 +203,7 @@ class AsyncResult(NamedTuple):
 
 
 def use_async(fn: Callable[[], Any], deps: Optional[Sequence[Any]] = None) -> AsyncResult:
-    """Run fn (coroutine fn, or blocking fn in a worker thread) when deps change. Returns (loading, value, error)."""
+    """Run fn (coroutine fn, a lambda returning a coroutine, or blocking fn in a worker thread) when deps change. Returns (loading, value, error)."""
     rec = _current("use_async").rec
     state, set_state = use_state(lambda: AsyncResult(True, None, None))
 
@@ -219,6 +219,9 @@ def use_async(fn: Callable[[], Any], deps: Optional[Sequence[Any]] = None) -> As
                     value = await fn()
                 else:
                     value = await asyncio.to_thread(fn)
+                    # use_async(lambda: something_async()) hands back a coroutine: await it here
+                    if inspect.isawaitable(value):
+                        value = await value
                 res = AsyncResult(False, value, None)
             except Exception as e:  # noqa: BLE001
                 res = AsyncResult(False, None, e)
