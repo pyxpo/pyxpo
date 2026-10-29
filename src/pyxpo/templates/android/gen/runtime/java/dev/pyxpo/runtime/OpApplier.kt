@@ -1131,7 +1131,8 @@ class OpApplier(
         }
         paintBox(id, v, s)
         val clip = s.optString("overflow") == "hidden"
-        v.clipToOutline = clip && id in painted
+        // an Image clips to its rounded corners on its own, as on iOS
+        v.clipToOutline = (clip || v is ImageView) && id in painted
         (v as? PxGroup)?.clipChildren = clip
         paintShadow(v, s)
         paintTransform(v, s)
