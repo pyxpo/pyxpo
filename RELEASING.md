@@ -138,7 +138,7 @@ script stops if `_ssl` or `_hashlib` was not built.
 Without that slice, `pyxpo run desktop` falls back to the browser preview.
 
 The Windows shell is not a runtime asset yet. Build it on Windows with `pwsh tools/build_windows_shell.ps1`, or run
-the `windows` workflow (Actions tab, Run workflow), which also checks that `test-apps/imagekit` starts and draws.
+the `windows` workflow (Actions tab, Run workflow), which also checks that `examples/imagekit` starts and draws.
 Users point `PYXPO_WINDOWS_DIST` at the shell folder. See windows/README.md.
 
 ```

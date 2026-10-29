@@ -39,7 +39,7 @@ pwsh tools/build_windows_shell.ps1 -Out C:\shell    # then set PYXPO_WINDOWS_DIS
 In a dev checkout, `pyxpo build desktop` finds `dist\windows`. Elsewhere, set `PYXPO_WINDOWS_DIST` to the shell folder.
 The pyxpo runtime release does not ship a Windows shell yet.
 
-The `windows` GitHub Actions workflow builds the shell on `windows-latest`, builds `test-apps/imagekit`, runs it, and
+The `windows` GitHub Actions workflow builds the shell on `windows-latest`, builds `examples/imagekit`, runs it, and
 uploads a screenshot (`windows-desktop` artifact).
 
 ## App config
