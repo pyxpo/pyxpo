@@ -3,6 +3,7 @@ import pytest
 import os
 import plistlib
 import re
+import subprocess
 import sys
 import zipfile
 from pathlib import Path
@@ -241,3 +242,27 @@ def test_runtime_starts_python_in_utf8_mode():
     pre = src.index("preconfig.utf8_mode = 1;")
     assert src.index("Py_PreInitialize(&preconfig)") > pre
     assert src.index("Py_InitializeFromConfig(&config)") > pre
+
+
+def test_pick_simulator_by_name_or_udid():
+    data = {"devices": {
+        "com.apple.CoreSimulator.SimRuntime.iOS-27-0": [
+            {"name": "iPhone 18", "udid": "B", "state": "Booted"},
+            {"name": "iPad Pro", "udid": "P", "state": "Shutdown"}],
+    }}
+    assert ios.pick_simulator(data, "iPad Pro")["udid"] == "P"
+    assert ios.pick_simulator(data, "P")["udid"] == "P"
+    assert ios.pick_simulator(data, "iPhone 99") is None
+
+
+def test_show_simulator_falls_back_to_devicehub(monkeypatch):
+    # Xcode 27 has no Simulator.app; DeviceHub shows simulators instead.
+    calls = []
+
+    def fake_run(cmd, **kw):
+        calls.append(cmd[2])
+        return subprocess.CompletedProcess(cmd, 0 if cmd[2] == "com.apple.dt.Devices" else 1)
+
+    monkeypatch.setattr(ios.subprocess, "run", fake_run)
+    assert ios.show_simulator("U") is True
+    assert calls == ["com.apple.iphonesimulator", "com.apple.dt.Devices"]

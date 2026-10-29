@@ -247,14 +247,21 @@ def _stage_app(project: Path, dest: Path, release: bool, modules: Optional[List[
 
 
 # -- simulator ------------------------------------------------------------
-def pick_simulator(devices_json: dict) -> Optional[Dict[str, str]]:
-    """Choose a simulator from `simctl list devices available -j`: booted iPhone, else newest iPhone."""
+def pick_simulator(devices_json: dict, want: Optional[str] = None) -> Optional[Dict[str, str]]:
+    """Choose a simulator from `simctl list devices available -j`: booted iPhone, else newest iPhone.
+
+    `want` (--device) is a UDID or a name (any iOS device, iPad too); several with that name: booted, else newest.
+    """
     cands = []
     for runtime, devs in devices_json.get("devices", {}).items():
         if "iOS" not in runtime:
             continue
         for d in devs:
-            if d.get("isAvailable", True) and d.get("name", "").startswith("iPhone"):
+            if not d.get("isAvailable", True):
+                continue
+            if want and want not in (d.get("udid"), d.get("name")):
+                continue
+            if want or d.get("name", "").startswith("iPhone"):
                 cands.append((d.get("state") == "Booted", runtime, d["name"], d))
     if not cands:
         return None
@@ -262,17 +269,34 @@ def pick_simulator(devices_json: dict) -> Optional[Dict[str, str]]:
     return cands[-1][3]
 
 
-def simulator() -> Dict[str, str]:
+# Apps that show simulator screens: Simulator.app, and DeviceHub, which replaces it from Xcode 27.
+SIMULATOR_VIEWERS = ("com.apple.iphonesimulator", "com.apple.dt.Devices")
+
+
+def show_simulator(udid: str) -> bool:
+    """Bring up the simulator window. Best effort: the app runs fine in a headless simulator too."""
+    for bundle in SIMULATOR_VIEWERS:
+        args = ["--args", "-CurrentDeviceUDID", udid] if bundle == "com.apple.iphonesimulator" else []
+        if subprocess.run(["open", "-b", bundle] + args, capture_output=True).returncode == 0:
+            return True
+    term.warn("no Simulator or DeviceHub app found, so the simulator runs without a window; "
+              "check `xcode-select -p` points at a full Xcode")
+    return False
+
+
+def simulator(want: Optional[str] = None) -> Dict[str, str]:
     out = subprocess.run(["xcrun", "simctl", "list", "devices", "available", "-j"],
                          check=True, capture_output=True, text=True).stdout
-    dev = pick_simulator(json.loads(out))
+    dev = pick_simulator(json.loads(out), want)
     if dev is None:
-        raise BuildError("no iPhone simulator found; install one in Xcode")
+        if want:
+            raise BuildError("no iOS simulator named %r; `xcrun simctl list devices available` lists them" % want)
+        raise BuildError("no iPhone simulator found; add one in Xcode (Settings > Components, then Devices)")
     if dev.get("state") != "Booted":
         _run(["xcrun", "simctl", "boot", dev["udid"]])
-    # Show the Simulator window when the app exists; a headless simulator is fine without it.
-    if subprocess.run(["open", "-Ra", "Simulator"], capture_output=True).returncode == 0:
-        subprocess.run(["open", "-a", "Simulator"], check=False)
+        _run(["xcrun", "simctl", "bootstatus", dev["udid"]], quiet=True)  # install fails on a half-booted device
+    show_simulator(dev["udid"])
+    print("simulator: %s (%s)" % (dev.get("name"), dev["udid"]), flush=True)
     return dev
 
 
@@ -378,7 +402,8 @@ def run_mac(app: Path, extras: Optional[Dict[str, str]] = None) -> MacApp:
     return MacApp(app, extras)
 
 
-def install_and_run(app: Path, app_id: str, extras: Optional[Dict[str, str]] = None) -> "subprocess.Popen":
-    dev = simulator()
+def install_and_run(app: Path, app_id: str, extras: Optional[Dict[str, str]] = None,
+                    device: Optional[str] = None) -> "subprocess.Popen":
+    dev = simulator(device)
     _run(["xcrun", "simctl", "install", dev["udid"], app])
     return launch(dev["udid"], app_id, extras)

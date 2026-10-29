@@ -12,6 +12,12 @@ pyxpo run android       # or: pyxpo run ios
 ```
 The first mobile build downloads the prebuilt CPython runtime (about 20-60 MB per target) into `~/.cache/pyxpo`.
 
+Devices: `pyxpo run android` uses the connected phone or emulator. With none connected, it starts your Android
+emulator (AVD) and waits for it to boot; extra emulator flags go in `PYXPO_EMULATOR_ARGS` (for example `-no-audio`).
+`pyxpo run ios` uses the booted iPhone simulator, else boots the newest one, and opens Simulator (DeviceHub on
+Xcode 27). Pick one with `--device`: an Android serial or AVD name, or an iOS simulator name or UDID.
+Android and iOS can run side by side: when the hot reload port (8765) is taken, the next run uses the next free one.
+
 ## Develop pyxpo itself
 ```
 tools/dev_install.sh    # .venv with core + every module package in ../pyxpo-packages, all editable

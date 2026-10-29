@@ -5,9 +5,11 @@ import os
 import shutil
 import subprocess
 import sys
+import tempfile
+import time
 import zipfile
 from pathlib import Path
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, Tuple
 
 from .. import config_plugins, native_config, term
 from ..config import app_dirs, load_config, pip_index_args
@@ -257,6 +259,100 @@ def adb_path() -> str:
     return str(find_sdk() / "platform-tools" / "adb")
 
 
+EMULATOR_BOOT_TIMEOUT = 300.0
+
+
+def parse_devices(out: str) -> List[Tuple[str, str]]:
+    """(serial, state) pairs from `adb devices` output; state is device, offline, unauthorized, ..."""
+    rows = []
+    for line in out.splitlines()[1:]:
+        parts = line.split()
+        if len(parts) >= 2:
+            rows.append((parts[0], parts[1]))
+    return rows
+
+
+def _devices(adb: str) -> List[Tuple[str, str]]:
+    r = subprocess.run([adb, "devices"], capture_output=True, text=True)
+    return parse_devices(r.stdout) if r.returncode == 0 else []
+
+
+def list_avds(sdk: Path) -> List[str]:
+    emu = sdk / "emulator" / "emulator"
+    if not emu.is_file():
+        return []
+    r = subprocess.run([str(emu), "-list-avds"], capture_output=True, text=True)
+    # newer emulators print INFO lines here too; AVD names never contain spaces
+    return [l.strip() for l in r.stdout.splitlines() if l.strip() and " " not in l.strip() and "|" not in l]
+
+
+def _start_emulator(sdk: Path, avd: str, adb: str) -> str:
+    """Boot `avd` in the background (it outlives this run) and wait until Android finished booting."""
+    log = Path(tempfile.gettempdir()) / ("pyxpo-emulator-%s.log" % avd)
+    extra = os.environ.get("PYXPO_EMULATOR_ARGS", "").split()
+    print("no Android device connected; starting emulator %s (log: %s)" % (avd, log), flush=True)
+    with open(str(log), "wb") as f:
+        proc = subprocess.Popen([str(sdk / "emulator" / "emulator"), "-avd", avd] + extra, stdout=f, stderr=subprocess.STDOUT,
+                                stdin=subprocess.DEVNULL, start_new_session=True)
+    deadline = time.time() + EMULATOR_BOOT_TIMEOUT
+    while time.time() < deadline:
+        if proc.poll() is not None:
+            raise BuildError("emulator %s exited (code %s); see %s. Extra flags go in PYXPO_EMULATOR_ARGS "
+                             "(e.g. -no-audio)" % (avd, proc.returncode, log))
+        for serial, state in _devices(adb):
+            if serial.startswith("emulator-") and state == "device":
+                r = subprocess.run([adb, "-s", serial, "shell", "getprop", "sys.boot_completed"],
+                                   capture_output=True, text=True)
+                if r.stdout.strip() == "1":
+                    print("emulator %s ready (%s)" % (avd, serial), flush=True)
+                    return serial
+        time.sleep(2)
+    raise BuildError("emulator %s did not finish booting in %ds; see %s" % (avd, EMULATOR_BOOT_TIMEOUT, log))
+
+
+def ensure_device(want: Optional[str] = None) -> str:
+    """Pick the device to install on and pin it in ANDROID_SERIAL so every later adb call targets it.
+
+    `want` (--device) is a serial or an AVD name. With nothing connected, boots an emulator: `want` when it names
+    an AVD, else the only AVD (or the first, listed). Several devices and no `want` is an error naming them.
+    """
+    want = want or os.environ.get("ANDROID_SERIAL") or None
+    sdk, adb = find_sdk(), adb_path()
+    devs = _devices(adb)
+    ready = [s for s, st in devs if st == "device"]
+    if want and want in ready:
+        serial = want
+    elif want and any(s == want for s, _ in devs):
+        state = dict(devs)[want]
+        raise BuildError("device %s is %s; %s" % (want, state, _STATE_HINT.get(state, "reconnect it")))
+    elif not want and len(ready) == 1:
+        serial = ready[0]
+    elif not want and len(ready) > 1:
+        raise BuildError("several Android devices connected (%s); pick one with --device SERIAL" % ", ".join(ready))
+    else:
+        bad = [(s, st) for s, st in devs if st != "device"]
+        if not want and bad:  # a phone is plugged in but not usable: say why instead of booting an emulator
+            s, st = bad[0]
+            raise BuildError("device %s is %s; %s" % (s, st, _STATE_HINT.get(st, "reconnect it")))
+        avds = list_avds(sdk)
+        if want and want not in avds:
+            raise BuildError("no connected device or AVD named %r (devices: %s; AVDs: %s)" % (
+                want, ", ".join(ready) or "none", ", ".join(avds) or "none"))
+        if not avds:
+            raise BuildError("no Android device connected and no emulator (AVD) to start; plug in a phone with "
+                             "USB debugging on, or create an AVD in Android Studio (Device Manager)")
+        serial = _start_emulator(sdk, want or avds[0], adb)
+    os.environ["ANDROID_SERIAL"] = serial
+    return serial
+
+
+_STATE_HINT = {
+    "unauthorized": "unlock the phone and accept the \"Allow USB debugging\" prompt",
+    "offline": "replug the cable, or run `adb kill-server` and try again",
+    "no": "check the USB cable and that USB debugging is on",
+}
+
+
 def launch(app_id: str, extras: Optional[Dict[str, str]] = None) -> None:
     # -S: a running instance would ignore the launch extras, so stop it first
     cmd = [adb_path(), "shell", "am", "start", "-S", "-n", "%s/dev.pyxpo.runtime.MainActivity" % app_id]
@@ -351,7 +447,8 @@ def stage_project(project: Path, release: bool = False) -> None:
     stage(native_dir(project), project, cfg, release, abis)
 
 
-def build(project: Path, release: bool = False, install: bool = False, run: bool = False) -> Path:
+def build(project: Path, release: bool = False, install: bool = False, run: bool = False,
+          device: Optional[str] = None) -> Path:
     project = Path(project).resolve()
     cfg = load_config(project, build_mode(release))
     nc = native_config.resolve(cfg, project)
@@ -361,6 +458,9 @@ def build(project: Path, release: bool = False, install: bool = False, run: bool
     sdk = find_sdk()
     if find_ndk(sdk) is None:
         raise BuildError("NDK 27.3.13750724 missing; sdkmanager 'ndk;27.3.13750724'")
+
+    if install or run:  # before the slow Gradle build: a missing or unusable device fails fast
+        ensure_device(device)
 
     native = native_dir(project)
     if not prebuild_mod.is_ejected(native):  # implicit prebuild: a disposable project nobody edits

@@ -30,3 +30,9 @@
 
 - Core 0.1.0a9 on PyPI (Oct 29): native module contract 4, use_async awaits lambda coroutine. Tags v0.1.0a6-a8 never published (a6/a7 no macOS runner, a8 no sips on ubuntu); release tests now ubuntu + Pillow. Suite 565 pass.
 - pyxpo-video 0.1.0a1 on PyPI (Oct 29). All 29 packages have trusted publishers.
+
+## Run UX hardening (Oct 30, core 0.1.0a10)
+- Dev port busy: `_dev_server` in cli.py tries next 20 ports unless --port given. `--device` flag (android serial/AVD, ios name/UDID).
+- Android `ensure_device`: pins ANDROID_SERIAL, boots AVD when none connected (PYXPO_EMULATOR_ARGS), clear errors for unauthorized/offline/several devices. Runs before Gradle.
+- iOS: Xcode 27 has no Simulator.app; `show_simulator` falls back to DeviceHub (com.apple.dt.Devices). `simctl bootstatus` after boot.
+- Suite 575 pass + tests/test_android_devices.py. iOS e2e verified (port 8766 fallback). Android auto-boot e2e verified (Pixel_10).

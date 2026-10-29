@@ -149,3 +149,31 @@ def test_add_lib_missing_32bit_wheel_is_only_a_note(tmp_path, monkeypatch, capsy
     assert cli.main(["add-lib", "numpy", "--dir", str(proj)]) == 0
     out = capsys.readouterr().out
     assert "android_24_armeabi_v7a" in out and "optional" in out and "32-bit" in out
+
+
+
+def test_dev_server_moves_to_next_free_port(tmp_path, monkeypatch, capsys):
+    # Android and iOS runs side by side: the second must not die on the taken port.
+    import argparse
+    import socket
+
+    import pytest
+
+    (tmp_path / "app").mkdir()
+    (tmp_path / "app" / "index.py").write_text("x = 1\n")
+    (tmp_path / "pyproject.toml").write_text('[tool.pyxpo]\nname = "demo"\n')
+    busy = socket.socket()
+    busy.bind(("127.0.0.1", 0))
+    busy.listen(1)
+    port = busy.getsockname()[1]
+    try:
+        monkeypatch.setattr(cli, "_dev_port", lambda args, project: port)
+        dev = cli._dev_server(argparse.Namespace(port=None), tmp_path, "t")
+        dev.httpd.server_close()
+        assert dev.port != port and "using %d" % dev.port in capsys.readouterr().out
+        # an explicit --port is respected: a clear error, no silent move
+        with pytest.raises(OSError) as e:
+            cli._dev_server(argparse.Namespace(port=port), tmp_path, "t")
+        assert "--port" in cli._port_error(e.value)
+    finally:
+        busy.close()

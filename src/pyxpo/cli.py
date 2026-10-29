@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import argparse
+import errno
 import json
 import os
 import re
@@ -68,11 +69,10 @@ def cmd_run(args: argparse.Namespace) -> int:
     sys.path.insert(0, str(project))
     if not getattr(args, "no_reload", False):
         from .component import enable_registry
-        from .dev.server import DevServer
 
         token = secrets.token_hex(16)
         try:
-            dev = DevServer(str(project), _dev_port(args, project), token)
+            dev = _dev_server(args, project, token)
         except OSError as e:
             print("hot reload off: %s" % e, file=sys.stderr)
         else:
@@ -89,6 +89,35 @@ def _dev_port(args: argparse.Namespace, project: Path) -> int:
     return int(load_config(project).get("dev_port", 8765))
 
 
+DEV_PORT_TRIES = 20
+
+
+def _dev_server(args: argparse.Namespace, project: Path, token: str):
+    """The hot reload server on the dev port. When that port is taken (often another `pyxpo run`, say Android and iOS
+    side by side) and --port was not given, the next free port: the app gets the URL, so any port works."""
+    from .dev.server import DevServer
+
+    port = _dev_port(args, project)
+    tries = 1 if getattr(args, "port", None) or port == 0 else DEV_PORT_TRIES
+    for p in range(port, port + tries):
+        try:
+            dev = DevServer(str(project), p, token)
+        except OSError as e:
+            if e.errno != errno.EADDRINUSE:
+                raise
+            continue
+        if p != port:
+            print("dev port %d is in use (another `pyxpo run`?); using %d" % (port, p), flush=True)
+        return dev
+    raise OSError(errno.EADDRINUSE, "dev port %d%s is in use" % (port, "" if tries == 1 else "-%d" % (port + tries - 1)))
+
+
+def _port_error(e: OSError) -> str:
+    if e.errno == errno.EADDRINUSE:
+        return "error: %s; stop the other `pyxpo run`, pass a free --port N, or use --no-reload" % e.strerror
+    return "error: %s" % e
+
+
 def _android(args: argparse.Namespace, run: bool) -> int:
     from .build import android as droid
 
@@ -96,14 +125,15 @@ def _android(args: argparse.Namespace, run: bool) -> int:
     project = Path(args.dir or ".").resolve()
     reload_on = run and not getattr(args, "no_reload", False)
     try:
-        build(project, release=getattr(args, "release", False), install=run, run=run and not reload_on)
+        build(project, release=getattr(args, "release", False), install=run, run=run and not reload_on,
+              device=getattr(args, "device", None))
         if reload_on:
             _android_dev(droid, project, args)
     except (BuildError, FileNotFoundError, ValueError) as e:
         print("error: %s" % e, file=sys.stderr)
         return 1
     except OSError as e:
-        print("error: %s (is another `pyxpo run` using the dev port? try --port N or --no-reload)" % e, file=sys.stderr)
+        print(_port_error(e), file=sys.stderr)
         return 1
     return 0
 
@@ -114,11 +144,9 @@ ANDROID_DEV_RELAUNCHES = 2
 
 def _android_dev(droid, project: Path, args: argparse.Namespace) -> None:
     """Start the dev server, reverse the port to the device, launch with dev extras, serve until Ctrl-C."""
-    from .dev.server import DevServer
-
     cfg = load_config(project)
     token = secrets.token_hex(16)
-    dev = DevServer(str(project), _dev_port(args, project), token)
+    dev = _dev_server(args, project, token)
     adb = droid.adb_path()
     port = str(dev.port)
     droid._run([adb, "reverse", "tcp:" + port, "tcp:" + port])
@@ -171,7 +199,7 @@ def _windows(args: argparse.Namespace, run: bool) -> int:
         print("error: %s" % e, file=sys.stderr)
         return 1
     except OSError as e:
-        print("error: %s (is another `pyxpo run` using the dev port? try --port N or --no-reload)" % e, file=sys.stderr)
+        print(_port_error(e), file=sys.stderr)
         return 1
 
 
@@ -180,10 +208,8 @@ def _serve_desktop_app(args: argparse.Namespace, project: Path, start) -> int:
     extras: Dict[str, str] = {}
     dev = None
     if not getattr(args, "no_reload", False):
-        from .dev.server import DevServer
-
         token = secrets.token_hex(16)
-        dev = DevServer(str(project), _dev_port(args, project), token)
+        dev = _dev_server(args, project, token)
         extras = {"PYXPO_DEV_URL": dev.url, "PYXPO_DEV_TOKEN": token}
     proc = start(extras)
     try:
@@ -212,12 +238,11 @@ def _ios(args: argparse.Namespace, run: bool, kind: str = "simulator") -> int:
         extras = {}
         dev = None
         if not getattr(args, "no_reload", False):
-            from .dev.server import DevServer
-
             token = secrets.token_hex(16)
-            dev = DevServer(str(project), _dev_port(args, project), token)
+            dev = _dev_server(args, project, token)
             extras = {"PYXPO_DEV_URL": dev.url, "PYXPO_DEV_TOKEN": token}
-        proc = ios.run_mac(app, extras) if kind == "catalyst" else ios.install_and_run(app, app_id, extras)
+        proc = (ios.run_mac(app, extras) if kind == "catalyst"
+                else ios.install_and_run(app, app_id, extras, getattr(args, "device", None)))
         try:
             if dev and kind == "catalyst":
                 # Closing the Mac window ends the process: stop serving then too, not only on Ctrl-C.
@@ -233,7 +258,7 @@ def _ios(args: argparse.Namespace, run: bool, kind: str = "simulator") -> int:
         print("error: %s" % e, file=sys.stderr)
         return 1
     except OSError as e:
-        print("error: %s (is another `pyxpo run` using the dev port? try --port N or --no-reload)" % e, file=sys.stderr)
+        print(_port_error(e), file=sys.stderr)
         return 1
     return 0
 
@@ -455,7 +480,9 @@ def build_parser() -> argparse.ArgumentParser:
     r.add_argument("target", nargs="?", default="desktop", choices=["desktop", "android", "ios", "web"])
     r.add_argument("--dir")
     r.add_argument("--no-reload", action="store_true", help="disable hot reload")
-    r.add_argument("--port", type=int, help="hot reload server port (default: dev_port or 8765)")
+    r.add_argument("--port", type=int,
+                   help="hot reload server port (default: dev_port or 8765, or the next free one when that is taken)")
+    r.add_argument("--device", help="android: device serial or emulator (AVD) name; ios: simulator name or UDID")
     r.add_argument("--preview", action="store_true",
                    help="desktop only: quick preview in a browser window instead of building the native Mac or Windows app")
     r.add_argument("--base", help="web only: path the site is served under, such as /myapp")
