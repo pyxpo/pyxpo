@@ -15,6 +15,12 @@ def ScrollView(*children: Any, key: Any = None, **props: Any) -> Element:
     if needs_alias(props):
         props = alias_props(props)
     kids = flatten(children)
+    # the shells take one shows_scroll_indicator flag: the axis this view scrolls on decides it
+    v = props.pop("shows_vertical_scroll_indicator", None)
+    h = props.pop("shows_horizontal_scroll_indicator", None)
+    on = h if props.get("horizontal") else v
+    if on is not None and "shows_scroll_indicator" not in props:
+        props["shows_scroll_indicator"] = bool(on)
     ccs = props.pop("content_container_style", None)
     if ccs is not None:
         kids = [Element("View", {"style": [{"flex_direction": "row"}, ccs] if props.get("horizontal") else ccs}, kids)]

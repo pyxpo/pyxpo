@@ -52,7 +52,7 @@ def test_both_spellings_raise():
 
 def test_scrollview_and_image_alias():
     el = ScrollView(contentContainerStyle={"padding": 1}, showsVerticalScrollIndicator=False)
-    assert el.props["shows_vertical_scroll_indicator"] is False and "contentContainerStyle" not in el.props
+    assert el.props["shows_scroll_indicator"] is False and "contentContainerStyle" not in el.props
     assert Image(source="asset:x", testID="i").props["test_id"] == "i"
 
 
@@ -118,3 +118,11 @@ def test_snake_spelling_of_renamed_rn_prop():
     assert e.props == {"secure": True, "placeholder_color": "#888", "return_key": "go", "keyboard_type": "numeric"}
     with pytest.raises(TypeError):
         TextInput(secure=True, secure_text_entry=True)
+
+
+def test_scroll_indicator_props_map_to_the_view_axis():
+    from pyxpo import ScrollView
+    assert ScrollView(horizontal=True, showsHorizontalScrollIndicator=False).props["shows_scroll_indicator"] is False
+    assert ScrollView(showsVerticalScrollIndicator=False).props["shows_scroll_indicator"] is False
+    assert "shows_scroll_indicator" not in ScrollView(horizontal=True, showsVerticalScrollIndicator=False).props
+    assert "shows_horizontal_scroll_indicator" not in ScrollView(showsHorizontalScrollIndicator=False).props
