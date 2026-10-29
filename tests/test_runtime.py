@@ -145,6 +145,9 @@ def test_download_rejects_http_and_http_redirect_and_oversize(tmp_path):
     [("a", "file", b""), ("h", "hard", "a"), ("h", "file", b"")],
     [("s", "sym", "."), ("f", "file", b""), ("h", "hard", "s/f")],
     [("f", "file", b""), ("s", "sym", "f"), ("h", "hard", "s")],
+    # symlink chain that leaves the archive, or loops
+    [("v", "sym", ".."), ("h", "sym", "v/x")],
+    [("a", "sym", "b/x"), ("b", "sym", "a/y")],
 ])
 def test_unsafe_archives_rejected(tmp_path, members):
     tar = tmp_path / "t.tar.gz"
@@ -158,6 +161,18 @@ def test_internal_symlink_ok(tmp_path):
     make_tar(tar, [("a/b", "file", b"1"), ("a/l", "sym", "b"), ("c/l2", "sym", "../a/b")])
     with tarfile.open(str(tar)) as t:
         assert len(runtime.safe_members(t, tmp_path / "dest")) == 3
+
+
+def test_framework_symlink_chain_ok(tmp_path):
+    # macOS framework layout (Catalyst slice): Headers -> Versions/Current/Headers, Current -> A
+    fw = "Python.framework/"
+    tar = tmp_path / "t.tar.gz"
+    make_tar(tar, [(fw + "Versions/A/Headers/Python.h", "file", b"1"), (fw + "Versions/Current", "sym", "A"),
+                   (fw + "Headers", "sym", "Versions/Current/Headers"), (fw + "Python", "sym", "Versions/Current/Python")])
+    with tarfile.open(str(tar)) as t:
+        members = runtime.safe_members(t, tmp_path / "dest")
+        t.extractall(str(tmp_path / "dest"), members=members)
+    assert (tmp_path / "dest" / fw / "Headers" / "Python.h").read_bytes() == b"1"
 
 
 def test_parallel_build_finished_first(tmp_path, monkeypatch, cache):

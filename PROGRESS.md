@@ -36,3 +36,4 @@
 - Android `ensure_device`: pins ANDROID_SERIAL, boots AVD when none connected (PYXPO_EMULATOR_ARGS), clear errors for unauthorized/offline/several devices. Runs before Gradle.
 - iOS: Xcode 27 has no Simulator.app; `show_simulator` falls back to DeviceHub (com.apple.dt.Devices). `simctl bootstatus` after boot.
 - Suite 575 pass + tests/test_android_devices.py. iOS e2e verified (port 8766 fallback). Android auto-boot e2e verified (Pixel_10).
+- Oct 30: iOS runtime extract bug (PyPI users only; dev checkout uses dist/): safe_members rejected Catalyst framework symlink chain (Headers -> Versions/Current/Headers). Fixed in runtime.py (symlinks may chain inside archive, hardlinks still strict) + tests; 578 pass; real 3.13.7-2 ios archive extracts. Uncommitted. Next: commit + 0.1.0a11 release on go-ahead.

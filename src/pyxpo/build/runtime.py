@@ -184,8 +184,16 @@ def _key(parts: Iterable[str]) -> str:
     return unicodedata.normalize("NFD", "/".join(parts)).casefold()
 
 
-def _resolve_link(start: List[str], linkname: str, symlinks: set, what: str) -> List[str]:
-    """Lexically resolve `linkname` from directory `start`; it must stay inside and never pass through a symlink."""
+def _resolve_link(start: List[str], linkname: str, links: Dict[str, Any], what: str,
+                  follow: bool = False, depth: int = 0) -> List[str]:
+    """Lexically resolve `linkname` from directory `start`; it must stay inside the archive.
+
+    With `follow`, a symlink met on the way is resolved too (framework bundles chain them:
+    Headers -> Versions/Current/Headers, Current -> A), so the whole chain must stay inside.
+    Without it, passing through a symlink is an error.
+    """
+    if depth > 40:
+        raise BuildError("%s has a symlink loop: %r" % (what, linkname))
     if not linkname or os.path.isabs(linkname) or "\\" in linkname:
         raise BuildError("%s escapes the archive: %r" % (what, linkname))
     stack = list(start)
@@ -197,8 +205,11 @@ def _resolve_link(start: List[str], linkname: str, symlinks: set, what: str) -> 
             stack.pop()
             continue
         stack.append(c)
-        if i < len(comps) - 1 and _key(stack) in symlinks:
-            raise BuildError("%s goes through another symlink: %r" % (what, linkname))
+        hop = links.get(_key(stack)) if i < len(comps) - 1 else None
+        if hop is not None:
+            if not follow:
+                raise BuildError("%s goes through another symlink: %r" % (what, linkname))
+            stack = _resolve_link(hop[0], hop[1], links, what, True, depth + 1)
     return stack
 
 
@@ -206,11 +217,11 @@ def safe_members(tar: tarfile.TarFile, dest: Path) -> List[tarfile.TarInfo]:
     """Return members that are safe to extract under `dest`; raise on anything that could escape or is special.
 
     This must hold on its own (Python 3.9 before 3.9.17 has no extraction filters): no member may be written
-    through a symlink, no link may resolve through another symlink or outside, and names must be unique, so
+    through a symlink, no symlink chain may resolve outside, no hardlink may pass through a symlink, and names must be unique, so
     neither the archive's order nor a later member can redirect a write.
     """
     members = tar.getmembers()
-    symlinks = {_key(Path(m.name).parts) for m in members if m.issym()}
+    links = {_key(Path(m.name).parts): (list(Path(m.name).parts)[:-1], m.linkname) for m in members if m.issym()}
     seen: set = set()
     files: set = set()
     out = []
@@ -227,12 +238,12 @@ def safe_members(tar: tarfile.TarFile, dest: Path) -> List[tarfile.TarInfo]:
         if parts and key in seen:
             raise BuildError("duplicate entry in runtime archive: %r" % name)
         seen.add(key)
-        if any(_key(parts[:i]) in symlinks for i in range(1, len(parts))):
+        if any(_key(parts[:i]) in links for i in range(1, len(parts))):
             raise BuildError("entry is written through a symlink: %r" % name)
         if m.issym():
-            _resolve_link(parts[:-1], m.linkname, symlinks, "symlink %r" % name)
+            _resolve_link(parts[:-1], m.linkname, links, "symlink %r" % name, follow=True)
         if m.islnk():
-            target = _resolve_link([], m.linkname, symlinks, "hardlink %r" % name)
+            target = _resolve_link([], m.linkname, links, "hardlink %r" % name)
             if _key(target) not in files:  # only to a regular file extracted earlier
                 raise BuildError("hardlink to a non-file or later entry: %r -> %r" % (name, m.linkname))
         if m.isfile():
