@@ -164,3 +164,25 @@ def test_client_rejects_bad_token(server):
     c = DevClient(None, None, s.url, "wrong")
     with pytest.raises(OSError):
         c.poll_once()
+
+
+def test_include_packages_watched(tmp_path, monkeypatch):
+    monkeypatch.setattr(srv, "POLL_TIMEOUT", 1.0)
+    (tmp_path / "pyproject.toml").write_text('[tool.pyxpo]\nname = "A"\ninclude = ["lib"]\n')
+    (tmp_path / "app").mkdir()
+    (tmp_path / "app" / "main.py").write_text("x = 1\n")
+    (tmp_path / "lib").mkdir()
+    (tmp_path / "lib" / "__init__.py").write_text("y = 1\n")
+    s = srv.DevServer(str(tmp_path), port=0, token="tok")
+    s.start()
+    try:
+        snap = get(s, "/poll?since=0&session=")
+        assert set(snap["files"]) == {"app/main.py", "lib/__init__.py"}
+        assert snap["packages"] == ["app", "lib"]
+        (tmp_path / "lib" / "__init__.py").write_text("y = 22\n")
+        s._tick()
+        s._tick()
+        upd = get(s, "/poll?since=%d&session=%s" % (snap["version"], snap["session"]))
+        assert set(upd["files"]) == {"lib/__init__.py"}
+    finally:
+        s.stop()

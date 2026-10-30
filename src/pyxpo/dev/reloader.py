@@ -3,12 +3,13 @@ from __future__ import annotations
 
 import ast
 import base64
+import re
 import hashlib
 import os
 import sys
 import traceback
 import types
-from typing import Any, Dict, List, Optional, Set
+from typing import Any, Dict, List, Optional, Set, Tuple
 
 import importlib
 
@@ -17,17 +18,20 @@ comp_mod = importlib.import_module("pyxpo.component")
 module_name_for = importlib.import_module("pyxpo._internal.modname").module_name_for
 
 PKG = "app"
+# Packages the dev server may name besides app/: the `include` folders of [tool.pyxpo]. Never the framework itself.
+_PACKAGE = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
+_NEVER = ("pyxpo", "assets")
 
 
-def _safe_path(base: str, rel: str) -> str:
-    """Resolve rel under base/app only; reject traversal and absolute paths."""
+def _safe_path(base: str, rel: str, packages: Tuple[str, ...] = (PKG,)) -> str:
+    """Resolve rel under base/<one of packages> only; reject traversal and absolute paths."""
     if not rel or os.path.isabs(rel) or "\\" in rel:
         raise ValueError("bad path %r" % rel)
     parts = rel.split("/")
-    if parts[0] != PKG or ".." in parts or "" in parts:
+    if parts[0] not in packages or ".." in parts or "" in parts:
         raise ValueError("bad path %r" % rel)
     path = os.path.normpath(os.path.join(base, *parts))
-    root = os.path.normpath(os.path.join(base, PKG))
+    root = os.path.normpath(os.path.join(base, parts[0]))
     if os.path.commonpath([path, root]) != root:
         raise ValueError("bad path %r" % rel)
     return path
@@ -50,6 +54,22 @@ class HotReloader:
         # pyxpo itself and re-renders its live RouterRoot instead.
         self.entry = entry if entry and entry.startswith(root + os.sep) else None
         self.loaded: Dict[str, str] = {}
+        self.packages: Tuple[str, ...] = ()
+        self._add_packages([PKG])
+
+    def _add_packages(self, names: List[str]) -> None:
+        """Start tracking more top-level packages (the dev server lists them). A name that is not a plain package
+        folder next to app/ is ignored."""
+        for name in names:
+            if not isinstance(name, str) or name in self.packages or not _PACKAGE.match(name) or name in _NEVER:
+                continue
+            root = os.path.join(self.base, name)
+            if name != PKG and not os.path.isdir(root):
+                continue
+            self.packages += (name,)
+            self._hash_tree(root)
+
+    def _hash_tree(self, root: str) -> None:
         for dp, dns, fns in os.walk(root):
             dns[:] = [d for d in dns if d != "__pycache__" and not d.startswith(".")]
             for fn in fns:
@@ -94,23 +114,27 @@ class HotReloader:
         traceback.print_exception(type(exc), exc, exc.__traceback__, file=sys.stderr)
         self.app.show_error("%s\n%s" % (what, text))
 
+    def _safe(self, rel: str) -> str:
+        return _safe_path(self.base, rel, self.packages)
+
     def _apply(self, update: Dict[str, Any]) -> bool:
+        self._add_packages(list(update.get("packages", ())))
         changed: Dict[str, bytes] = {}
         for rel, meta in update.get("files", {}).items():
-            _safe_path(self.base, rel)
+            self._safe(rel)
             if self.loaded.get(rel) == meta["sha1"]:
                 continue
             changed[rel] = base64.b64decode(meta["data"])
         deleted = [r for r in update.get("deleted", []) if r in self.loaded]
         for rel in deleted:
-            _safe_path(self.base, rel)
+            self._safe(rel)
         if not changed and not deleted:
             return True
         # Compile everything first: a syntax error must change nothing.
         for rel, data in changed.items():
             if rel.endswith(".py"):
                 try:
-                    compile(data, _safe_path(self.base, rel), "exec")
+                    compile(data, self._safe(rel), "exec")
                 except SyntaxError as e:
                     self._report("syntax error in %s" % rel, e)
                     return False
@@ -134,7 +158,7 @@ class HotReloader:
         return True
 
     def _write(self, rel: str, data: bytes) -> None:
-        path = _safe_path(self.base, rel)
+        path = self._safe(rel)
         os.makedirs(os.path.dirname(path), exist_ok=True)
         tmp = path + ".pyxpo-tmp"
         with open(tmp, "wb") as f:
@@ -152,7 +176,7 @@ class HotReloader:
 
     def _remove(self, rel: str) -> None:
         try:
-            os.remove(_safe_path(self.base, rel))
+            os.remove(self._safe(rel))
         except OSError:
             pass
 
@@ -161,7 +185,7 @@ class HotReloader:
         prefix = self.base + os.sep
         for name, mod in list(sys.modules.items()):
             f = getattr(mod, "__file__", None)
-            if f and (name == PKG or name.startswith(PKG + ".")):
+            if f and name.partition(".")[0] in self.packages:
                 f = os.path.realpath(f)
                 if f.startswith(prefix) and f.endswith(".py"):
                     out[name] = f

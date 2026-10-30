@@ -155,7 +155,7 @@ def _android_dev(droid, project: Path, args: argparse.Namespace) -> None:
     try:
         dev.start()
         droid.launch(app_id, extras)
-        print("hot reload on %s; edit app/ files, Ctrl-C to stop" % dev.url, flush=True)
+        print("hot reload on %s; edit %s files, Ctrl-C to stop" % (dev.url, ", ".join(p + "/" for p in dev.packages)), flush=True)
         # Android 14+ relaunches an app that was updated while open (System UI's package-update flow), and that
         # relaunch carries no extras, so the app starts without the dev URL. Relaunch until the client connects.
         for _ in range(ANDROID_DEV_RELAUNCHES):
@@ -216,7 +216,7 @@ def _serve_desktop_app(args: argparse.Namespace, project: Path, start) -> int:
         if dev:
             # Closing the window ends the process: stop serving then too, not only on Ctrl-C.
             threading.Thread(target=lambda: (proc.wait(), dev._stop.set()), daemon=True).start()
-            print("hot reload on %s; edit app/ files, Ctrl-C to stop" % dev.url, flush=True)
+            print("hot reload on %s; edit %s files, Ctrl-C to stop" % (dev.url, ", ".join(p + "/" for p in dev.packages)), flush=True)
             dev.serve_forever()
         else:
             proc.wait()
@@ -248,7 +248,7 @@ def _ios(args: argparse.Namespace, run: bool, kind: str = "simulator") -> int:
                 # Closing the Mac window ends the process: stop serving then too, not only on Ctrl-C.
                 threading.Thread(target=lambda: (proc.wait(), dev._stop.set()), daemon=True).start()
             if dev:
-                print("hot reload on %s; edit app/ files, Ctrl-C to stop" % dev.url, flush=True)
+                print("hot reload on %s; edit %s files, Ctrl-C to stop" % (dev.url, ", ".join(p + "/" for p in dev.packages)), flush=True)
                 dev.serve_forever()
             else:
                 proc.wait()
@@ -377,6 +377,28 @@ def cmd_doctor(args: argparse.Namespace) -> int:
     while not probe.exists() and probe != probe.parent:
         probe = probe.parent
     print("  free disk     %.1f GB" % (shutil.disk_usage(str(probe)).free / 1e9))
+    return 0
+
+
+def cmd_clean(args: argparse.Namespace) -> int:
+    """Delete build output and stop stuck Gradle daemons, for a build that fails for no reason in the app."""
+    from . import term
+    from .build import android as droid
+
+    project = Path(args.dir or ".").resolve()
+    gone = []
+    if args.target in ("android", "all"):
+        gone += droid.clean(project)
+        term.ok("Stopped the Gradle daemons")
+    if args.target in ("ios", "all"):
+        ios_build = project / "build" / "ios"
+        if ios_build.exists():
+            shutil.rmtree(str(ios_build), ignore_errors=True)
+            gone.append(ios_build)
+    for path in gone:
+        term.ok("Deleted %s" % (path.relative_to(project) if path.is_relative_to(project) else path))
+    if not gone:
+        term.ok("Nothing to delete")
     return 0
 
 
@@ -518,6 +540,10 @@ def build_parser() -> argparse.ArgumentParser:
     rt.add_argument("--from", dest="source", help="directory holding the runtime .tar.gz files (offline)")
     rt.add_argument("--all", action="store_true", help="clean: remove every cached runtime version")
     rt.set_defaults(fn=cmd_runtime)
+    cl = sub.add_parser("clean", help="delete build output and stop stuck Gradle daemons")
+    cl.add_argument("target", nargs="?", choices=["android", "ios", "all"], default="all")
+    cl.add_argument("--dir")
+    cl.set_defaults(fn=cmd_clean)
     d = sub.add_parser("doctor", help="check installed toolchains")
     d.set_defaults(fn=cmd_doctor)
     cf = sub.add_parser("config", help="print the resolved app config (validates [tool.pyxpo])")

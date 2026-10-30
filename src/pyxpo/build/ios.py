@@ -175,6 +175,7 @@ def stage(native: Path, project: Path, cfg: Dict[str, object], release: bool, ki
     _stage_app(project, st / "app_root", release, linked.modules, app_dirs(cfg, project))
     app_json.write(st / "app_root" / "pyxpo", nc)
     install_requires(list(cfg.get("requires", [])), kind, st / ("site-" + kind), pip_index_args(cfg, project))
+    compile_pyc([st / "app_root", st / ("site-" + kind)], host_python())
 
 
 def install_requires(requires: List[str], kind: str, target: Path, index_args: List[str] = ()) -> None:
@@ -220,8 +221,35 @@ def _stage_stdlib(slice_dir: Path, dest: Path, compile_with: Optional[Path]) -> 
                     ignore=lambda d, names: [n for n in names if n in STDLIB_SKIP])
     shipped_pyc = any((dest / "lib" / "python3.13" / "__pycache__").glob("os.*.pyc"))
     if not shipped_pyc and compile_with and compile_with.is_file():  # read-only bundle: ship .pyc so startup is fast
-        subprocess.run([str(compile_with), "-m", "compileall", "-q", "-j0", str(dest / "lib" / "python3.13")],
-                       check=False, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        _compileall(compile_with, [str(dest / "lib" / "python3.13")])
+
+
+def compile_pyc(dirs: Sequence[Path], compile_with: Optional[Path]) -> None:
+    """Ships .pyc for the app and its packages. The bundle is read-only, so without them Python compiles every
+    module from source on each launch (a blank screen for seconds). checked-hash: a hot-reloaded or edited source
+    never runs a stale .pyc."""
+    dirs = [str(d) for d in dirs if Path(d).is_dir()]
+    if not dirs or not (compile_with and compile_with.is_file()):
+        return
+    _compileall(compile_with, dirs, "checked-hash")
+
+
+# Clears sys.pycache_prefix: a host Python with one set (PYTHONPYCACHEPREFIX, Apple's python3) would write the
+# .pyc outside the staged tree, and the app would ship none. Worker processes start with the prefix again, so such
+# a Python compiles in one process.
+_COMPILE = ("import sys, compileall, py_compile\n"
+            "workers = 1 if sys.pycache_prefix else 0\n"
+            "sys.pycache_prefix = None\n"
+            "mode = py_compile.PycInvalidationMode[sys.argv[1].upper().replace('-', '_')] if sys.argv[1] else None\n"
+            "for d in sys.argv[2:]:\n"
+            "    compileall.compile_dir(d, quiet=1, workers=workers, invalidation_mode=mode)\n")
+
+
+def _compileall(python: Path, dirs: Sequence[str], mode: str = "") -> None:
+    env = dict(os.environ)
+    env.pop("PYTHONPYCACHEPREFIX", None)
+    subprocess.run([str(python), "-c", _COMPILE, mode] + list(dirs), check=False, env=env,
+                   stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
 
 
 def _stage_app(project: Path, dest: Path, release: bool, modules: Optional[List[autolink.Module]] = None,

@@ -1,4 +1,5 @@
-"""Host-side dev server: watches the project's app/ tree and serves changes by HTTP long-poll."""
+"""Host-side dev server: watches the project's app/ tree and its `include` packages, and serves changes by HTTP
+long-poll."""
 from __future__ import annotations
 
 import base64
@@ -10,7 +11,7 @@ import sys
 import threading
 import time
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
-from typing import Any, Dict, Optional, Tuple
+from typing import Any, Dict, List, Optional, Tuple
 from urllib.parse import parse_qs, urlparse
 
 POLL_TIMEOUT = 25.0
@@ -20,7 +21,7 @@ NATIVE_FILES = ("pyproject.toml", "app_config.py")  # [tool.pyxpo] sources baked
 
 
 def scan(app_dir: str) -> Dict[str, Tuple[int, int]]:
-    """Map 'app/<rel>' to (mtime_ns, size) for every file under app_dir."""
+    """Map '<package>/<rel>' (say 'app/<rel>') to (mtime_ns, size) for every file under app_dir."""
     out: Dict[str, Tuple[int, int]] = {}
     parent = os.path.dirname(os.path.normpath(app_dir))
     for dp, dns, fns in os.walk(app_dir):
@@ -41,6 +42,7 @@ class DevServer:
     def __init__(self, project: str, port: int = 8765, token: str = "") -> None:
         self.project = os.path.abspath(project)
         self.app_dir = os.path.join(self.project, "app")
+        self.packages = self._packages()
         self.token = token
         self.session = "%x" % int(time.time() * 1000)
         self.version = 1
@@ -135,8 +137,29 @@ class DevServer:
         with open(os.path.join(self.project, *rel.split("/")), "rb") as f:
             return f.read()
 
+    def _packages(self) -> List[str]:
+        """app/ and the `include` folders of [tool.pyxpo]: the Python the app ships, so hot reload applies to it."""
+        from pathlib import Path
+
+        from ..config import app_dirs, load_config
+
+        try:
+            dirs = app_dirs(load_config(Path(self.project)), Path(self.project))
+        except FileNotFoundError:
+            return ["app"]
+        except (OSError, ValueError) as e:
+            sys.stderr.write("[pyxpo dev] watching app/ only: %s\n" % e)
+            return ["app"]
+        return [d for d in dirs if d != "assets"]
+
+    def _scan(self) -> Dict[str, Tuple[int, int]]:
+        out: Dict[str, Tuple[int, int]] = {}
+        for name in self.packages:
+            out.update(scan(os.path.join(self.project, name)))
+        return out
+
     def _load_initial(self) -> None:
-        self._sigs = scan(self.app_dir)
+        self._sigs = self._scan()
         for rel in self._sigs:
             try:
                 self._store(rel, self._read(rel))
@@ -172,7 +195,7 @@ class DevServer:
                 files = {r: m for r, m in self.files.items() if self.changed_at.get(r, 0) > since}
                 deleted = [r for r, v in self.deleted.items() if v > since]
             return {"session": self.session, "version": self.version, "files": files, "deleted": deleted,
-                    "reload": self.reload_at}
+                    "reload": self.reload_at, "packages": self.packages}
 
     def _native_stamp(self) -> Dict[str, Optional[str]]:
         """Content hash of the files that feed native config; hot reload cannot apply changes to them."""
@@ -206,7 +229,7 @@ class DevServer:
     def _tick(self) -> None:
         self._check_native()
         self._check_modules()
-        cur = scan(self.app_dir)
+        cur = self._scan()
         if cur != self._sigs:
             if cur != self._pending:  # debounce: publish after two identical scans
                 self._pending = cur

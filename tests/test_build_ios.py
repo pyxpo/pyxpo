@@ -266,3 +266,13 @@ def test_show_simulator_falls_back_to_devicehub(monkeypatch):
     monkeypatch.setattr(ios.subprocess, "run", fake_run)
     assert ios.show_simulator("U") is True
     assert calls == ["com.apple.iphonesimulator", "com.apple.dt.Devices"]
+
+
+def test_compile_pyc_ships_bytecode(tmp_path):
+    app = tmp_path / "app_root" / "app"
+    app.mkdir(parents=True)
+    (app / "main.py").write_text("X = 1\n")
+    ios.compile_pyc([tmp_path / "app_root", tmp_path / "missing"], Path(sys.executable))
+    pyc = list((app / "__pycache__").glob("main.*.pyc"))
+    assert pyc and pyc[0].read_bytes()[4:8] == b"\x03\x00\x00\x00"  # checked-hash flags
+    ios.compile_pyc([tmp_path / "app_root"], None)  # no host Python: no-op

@@ -1,8 +1,11 @@
 from __future__ import annotations
 
 import hashlib
+import collections
 import os
+import re
 import shutil
+import signal
 import subprocess
 import sys
 import tempfile
@@ -41,6 +44,110 @@ def _run(cmd: List[str], quiet: bool = False, **kw) -> None:
         if quiet:
             print("> " + " ".join(str(c) for c in cmd) + "\n" + (r.stdout or ""), end="")
         raise BuildError("command failed (%d): %s" % (r.returncode, cmd[0]))
+
+
+# Output of a Gradle run that failed because of a stuck daemon or a held cache lock, not because of the app.
+# A second run after stopping the daemons succeeds.
+GRADLE_WEDGED = (
+    "Gradle build daemon disappeared unexpectedly",
+    "Timeout waiting to lock",
+    "NoClassDefFoundError: org/gradle",
+    "Could not connect to the Gradle daemon",
+    "Could not receive a message from the daemon",
+    "The message received from the daemon indicates that the daemon has disappeared",
+)
+
+
+def _gradle_wedged(output: str) -> bool:
+    return any(s in output for s in GRADLE_WEDGED)
+
+
+def _gradle_version(gradle: str) -> Optional[str]:
+    """The Gradle version a wrapper or a cached distribution runs, or None when unknown."""
+    path = Path(gradle)
+    props = path.parent / "gradle" / "wrapper" / "gradle-wrapper.properties"
+    text = props.read_text(errors="replace") if path.name == "gradlew" and props.is_file() else str(path)
+    m = re.search(r"gradle-(\d+(?:\.\d+)+)", text)
+    return m.group(1) if m else None
+
+
+def _gradle_daemon_pids(version: Optional[str], output: str) -> List[int]:
+    """Running Gradle daemons that can wedge this build: lock owners named in the output, and daemons of the same
+    Gradle version (each one writes ~/.gradle/daemon/<version>/daemon-<pid>.out.log)."""
+    pids = {int(p) for p in re.findall(r"Owner PID: (\d+)", output)}
+    home = Path(os.environ.get("GRADLE_USER_HOME") or Path.home() / ".gradle")
+    if version:
+        for log in (home / "daemon" / version).glob("daemon-*.out.log"):
+            m = re.match(r"daemon-(\d+)\.out\.log$", log.name)
+            if m:
+                pids.add(int(m.group(1)))
+    alive = []
+    for pid in sorted(pids):
+        if pid == os.getpid():
+            continue
+        r = subprocess.run(["ps", "-o", "command=", "-p", str(pid)], stdout=subprocess.PIPE,
+                           stderr=subprocess.DEVNULL, universal_newlines=True)
+        if r.returncode == 0 and "gradle" in r.stdout.lower():  # a reused PID of another program stays
+            alive.append(pid)
+    return alive
+
+
+def _reset_gradle(gradle: str, output: str, env: Dict[str, str]) -> None:
+    """Stops the Gradle daemons, then kills the ones that ignore `--stop` (a wedged daemon holds the cache lock)."""
+    try:
+        subprocess.run([gradle, "--stop"], env=env, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=60)
+    except (OSError, subprocess.TimeoutExpired):
+        pass
+    pids = _gradle_daemon_pids(_gradle_version(gradle), output)
+    for sig in (signal.SIGTERM, signal.SIGKILL):
+        for pid in pids:
+            try:
+                os.kill(pid, sig)
+            except OSError:
+                pass
+        deadline = time.time() + 10
+        while pids and time.time() < deadline:
+            pids = [p for p in pids if _pid_alive(p)]
+            if pids:
+                time.sleep(0.2)
+        if not pids:
+            return
+
+
+def _pid_alive(pid: int) -> bool:
+    try:
+        os.kill(pid, 0)
+    except OSError:
+        return False
+    # a killed child of ours stays as a zombie until reaped; ps shows it as Z
+    r = subprocess.run(["ps", "-o", "stat=", "-p", str(pid)], stdout=subprocess.PIPE, stderr=subprocess.DEVNULL,
+                       universal_newlines=True)
+    return r.returncode == 0 and not r.stdout.strip().startswith("Z")
+
+
+def _stream(cmd: List[str], env: Dict[str, str]) -> Tuple[int, str]:
+    """Runs a command with its output shown live; returns the exit code and the last lines of output."""
+    tail: "collections.deque[str]" = collections.deque(maxlen=400)
+    p = subprocess.Popen([str(c) for c in cmd], env=env, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+                         universal_newlines=True, errors="replace")
+    assert p.stdout is not None
+    for line in p.stdout:
+        sys.stdout.write(line)
+        tail.append(line)
+    return p.wait(), "".join(tail)
+
+
+def run_gradle(cmd: List[str], env: Dict[str, str]) -> None:
+    """Runs Gradle. When it fails on a stuck daemon or a held cache lock, stops the daemons and retries once."""
+    print("> " + " ".join(str(c) for c in cmd))
+    code, output = _stream(cmd, env)
+    if code != 0 and _gradle_wedged(output):
+        term.warn("the Gradle daemon is stuck; stopping it and building again")
+        _reset_gradle(str(cmd[0]), output, env)
+        code, output = _stream(cmd, env)
+    if code != 0:
+        hint = " (the Gradle daemon is still stuck: run `pyxpo clean android`)" if _gradle_wedged(output) else ""
+        raise BuildError("command failed (%d): %s%s" % (code, cmd[0], hint))
 
 
 def find_sdk() -> Path:
@@ -447,6 +554,27 @@ def stage_project(project: Path, release: bool = False) -> None:
     stage(native_dir(project), project, cfg, release, abis)
 
 
+def clean(project: Path) -> List[Path]:
+    """`pyxpo clean android`: stops the Gradle daemons and deletes Gradle's build output. Returns what it deleted."""
+    project = Path(project).resolve()
+    native = native_dir(project)
+    try:
+        gradle = find_gradle(native)
+    except BuildError:
+        gradle = None
+    if gradle:
+        _reset_gradle(gradle, "", dict(os.environ))
+    gone = []
+    targets = [native / "app" / "build", native / "build", native / ".gradle"]
+    if not prebuild_mod.is_ejected(native):
+        targets = [project / "build" / "android"]
+    for path in targets:
+        if path.exists():
+            shutil.rmtree(str(path), ignore_errors=True)
+            gone.append(path)
+    return gone
+
+
 def build(project: Path, release: bool = False, install: bool = False, run: bool = False,
           device: Optional[str] = None) -> Path:
     project = Path(project).resolve()
@@ -471,8 +599,8 @@ def build(project: Path, release: bool = False, install: bool = False, run: bool
     stage(native, project, cfg, release, abis)
 
     # PYXPO_STAGED: the app is staged already, so the Gradle stage task (for direct ./gradlew builds) skips itself
-    _run([find_gradle(native), "-p", native, "--console=plain", "assembleRelease" if release else "assembleDebug"],
-         env=dict(os.environ, ANDROID_HOME=str(sdk), PYXPO_STAGED="1"))
+    run_gradle([find_gradle(native), "-p", native, "--console=plain", "assembleRelease" if release else "assembleDebug"],
+               env=dict(os.environ, ANDROID_HOME=str(sdk), PYXPO_STAGED="1"))
     outdir = native / "app" / "build" / "outputs" / "apk" / ("release" if release else "debug")
     apk = outdir / ("app-release.apk" if release else "app-debug.apk")
     if release and not apk.is_file() and (outdir / "app-release-unsigned.apk").is_file():

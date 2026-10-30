@@ -116,3 +116,32 @@ def test_reload_all_resets_state_and_says_so(proj, capsys):
     assert rl.reload_all()
     assert r.texts() == ["Count: 0"]
     assert "[pyxpo dev] reloaded the app" in capsys.readouterr().err
+
+
+def test_include_package_edit_reloads(proj):
+    # an `include` package of [tool.pyxpo] (say cmskite/) hot reloads like app/ once the dev server names it
+    app, r, rl, base = proj
+    os.mkdir(os.path.join(base, "lib"))
+    with open(os.path.join(base, "lib", "__init__.py"), "w") as f:
+        f.write("PREFIX = 'L: '\n")
+    try:
+        assert rl.apply(_upd({"app/ui.py": "from lib import PREFIX\ndef label():\n    return PREFIX\n"}))
+        assert r.texts() == ["L: 0"]
+        assert not rl.apply(_upd({"lib/__init__.py": "PREFIX = 'M: '\n"}))  # not named by the server yet
+        upd = _upd({"lib/__init__.py": "PREFIX = 'M: '\n"})
+        upd["packages"] = ["app", "lib"]
+        assert rl.apply(upd)
+        assert r.texts() == ["M: 0"]
+        assert open(os.path.join(base, "lib", "__init__.py")).read() == "PREFIX = 'M: '\n"
+    finally:
+        sys.modules.pop("lib", None)
+
+
+def test_framework_package_never_reloaded(proj):
+    app, r, rl, base = proj
+    os.mkdir(os.path.join(base, "pyxpo"))
+    upd = _upd({"pyxpo/app.py": "x = 1\n"})
+    upd["packages"] = ["pyxpo", "../up", "missing"]
+    assert not rl.apply(upd)
+    assert rl.packages == ("app",)
+    assert not os.path.exists(os.path.join(base, "pyxpo", "app.py"))

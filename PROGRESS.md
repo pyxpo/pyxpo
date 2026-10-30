@@ -3,15 +3,13 @@
 - Env quirks: host py3.9; no `timeout`; `sed -i ''`; no foreground sleep; `pkill -f GradleDaemon` before Android builds. Two iOS sims booted: use UDID D601942E-67CD-4C00-90E0-93886B61B288 (iPhone 17). Android emulator-5554 = AVD pyxpo35 (API 35), start with `-no-audio` (host CoreAudio crash on mic).
 - Rules: no Co-Authored-By/Claude attribution in commits/PRs. Outward actions (release, PyPI, tag, push) need user go-ahead.
 - Done+committed: runtime, bridge, shells, CLI, hot reload, router, prebuild, distribution, app config + plugins + build_properties, native module system, packages image-manipulator, image-picker, media-library, sharing, storage, file-system, secure-store (e2e both OS). Release 0.1.0a1 on PyPI (8 dists).
-- 0.1.0a2 + 11 Tier 1 packages on PyPI Oct 16.
+- 0.1.0a2 + 11 Tier 1 pkgs on PyPI Oct 16.
 
 ## Remote push + remount fix: committed, tag v0.1.0a3 pushed
 - notifications FCM/APNs, tools/send_push.py, Android remount fix.
 - Released (Oct 19): core 0.1.0a3 + 0.1.0a4, pyxpo-notifications 0.1.0a2, pyxpo-dot-env 0.1.0a1 (renamed from pyxpo-env), pyxpo-google-mobile-ads 0.1.0a1.
 
-## VS Code ext 0.1.0 on Marketplace (hand upload). Desktop/web targets pushed Oct 17.
-
-## armeabi-v7a (Oct 19, pushed fe55e66): core 0.1.0a5 v7a runtime.
+## Oct 17-19: VS Code ext 0.1.0 (hand upload), desktop/web targets, armeabi-v7a runtime (core 0.1.0a5).
 
 ## doodle-puppet / birthday-sky (Oct 19, pushed): pose-detection pkg, TextInput stale-echo fix. Gradle hang: `JAVA_TOOL_OPTIONS=-Djava.net.preferIPv6Addresses=true`.
 
@@ -33,7 +31,13 @@
 - 0.1.0a11 on PyPI: iOS runtime extract symlink-chain fix.
 
 ## Oct 30 release batch
-- On PyPI: pyxpo-image-manipulator 0.1.0a2, pyxpo-image-cropper 0.1.0a1 (new repo pyxpo/pyxpo-image-cropper, settings+ruleset+pypi env+pvr done). Fresh venv install OK.
-- Core 0.1.0a12 on PyPI (attempt 3; attempt 2 hit Sigstore Rekor 502). `pypi` env in core repo has required reviewer: user approves each release.
+- On PyPI: pyxpo-image-manipulator 0.1.0a2, pyxpo-image-cropper 0.1.0a1 (new repo pyxpo/pyxpo-image-cropper, settings+ruleset+pypi env+pvr done).
+- Core 0.1.0a12 on PyPI. `pypi` env in core repo has required reviewer: user approves each release.
 
-## pyxpo-rich-editor (Oct 30): local repo cb9843a, not pushed/no GitHub repo yet. autolink OFFICIAL has rich-editor (4d88702). Package test + build OK. cmskite body = preview box that opens full-screen RichEditor in a slide Modal (48be2ab); editor page CSS polish (4a8b17b); web Modal now position fixed (core b02c37e). Core suite: 2 autolink tests fail only because venv has svg/google-sign-in/apple-authentication installed but not in OFFICIAL. Open: README screenshots docs/images/{hero,toolbar,cmskite}.png (user wants device tests later); demo app in scratchpad richdemo.
+## 6 new package repos (Oct 30): all on PyPI 0.1.0a1
+- pyxpo/pyxpo-{rich-editor,query,intl,svg,google-sign-in,apple-authentication}: settings, ruleset, pypi env, pvr, collaborator ivishalchaubey (Write). Trusted publishers active.
+- Core 0.1.0a13 on PyPI (Oct 30). Release = bump __version__ + regen editors/vscode/data/pyxpo.json (test_vscode_data checks it).
+- fetch/secure-store/storage 0.1.0a2 on PyPI (Oct 30, floor pyxpo>=0.1.0a4).
+- Next: README screenshots (rich-editor + 4 others); device tests iOS sim/emulator/S23.
+
+## Stability pass (Oct 31, uncommitted): Gradle wedge auto-retry + `pyxpo clean [android|ios]`; include-package hot reload (iOS ok); iOS ships checked-hash .pyc (ios.compile_pyc), cmskite launch 30s->12s first, 8s->6s warm. Suite 603 pass.
