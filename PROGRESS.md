@@ -29,10 +29,11 @@
 - Core 0.1.0a9 on PyPI (Oct 29): native module contract 4, use_async awaits lambda coroutine. Tags v0.1.0a6-a8 never published (a6/a7 no macOS runner, a8 no sips on ubuntu); release tests now ubuntu + Pillow. Suite 565 pass.
 - pyxpo-video 0.1.0a1 on PyPI (Oct 29). All 29 packages have trusted publishers.
 
-## Run UX hardening: core 0.1.0a10 on PyPI (Oct 30)
-- Dev port busy: `_dev_server` in cli.py tries next 20 ports unless --port given. `--device` flag (android serial/AVD, ios name/UDID).
-- Android `ensure_device`: pins ANDROID_SERIAL, boots AVD when none connected (PYXPO_EMULATOR_ARGS), clear errors for unauthorized/offline/several devices. Runs before Gradle.
-- iOS: Xcode 27 has no Simulator.app; `show_simulator` falls back to DeviceHub (com.apple.dt.Devices). `simctl bootstatus` after boot.
-- Suite 575 pass + tests/test_android_devices.py. iOS e2e verified (port 8766 fallback). Android auto-boot e2e verified (Pixel_10).
-- Oct 30: iOS runtime extract bug (PyPI users only; dev checkout uses dist/): safe_members rejected Catalyst framework symlink chain (Headers -> Versions/Current/Headers). Fixed in runtime.py (symlinks may chain inside archive, hardlinks still strict) + tests; 578 pass; real 3.13.7-2 ios archive extracts. Uncommitted. Next: commit + 0.1.0a11 release on go-ahead.
-- Oct 30: vector_icons Feather got maximize-2, repeat, camera (ImageKit needs them). Uncommitted; ship in next core release with runtime extract fix.
+## Core 0.1.0a10 (Oct 30): dev port fallback, --device flag, Android ensure_device/AVD boot, iOS DeviceHub fallback.
+- 0.1.0a11 on PyPI: iOS runtime extract symlink-chain fix.
+
+## Oct 30 release batch
+- On PyPI: pyxpo-image-manipulator 0.1.0a2, pyxpo-image-cropper 0.1.0a1 (new repo pyxpo/pyxpo-image-cropper, settings+ruleset+pypi env+pvr done). Fresh venv install OK.
+- Core 0.1.0a12 on PyPI (attempt 3; attempt 2 hit Sigstore Rekor 502). `pypi` env in core repo has required reviewer: user approves each release.
+
+## pyxpo-rich-editor (Oct 30): local repo cb9843a, not pushed/no GitHub repo yet. autolink OFFICIAL has rich-editor (4d88702). Package test + build OK. cmskite body = preview box that opens full-screen RichEditor in a slide Modal (48be2ab); editor page CSS polish (4a8b17b); web Modal now position fixed (core b02c37e). Core suite: 2 autolink tests fail only because venv has svg/google-sign-in/apple-authentication installed but not in OFFICIAL. Open: README screenshots docs/images/{hero,toolbar,cmskite}.png (user wants device tests later); demo app in scratchpad richdemo.
