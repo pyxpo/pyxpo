@@ -6,6 +6,7 @@ was written against and is compared with the `nativeContract` field of its `pyxp
 """
 from __future__ import annotations
 
+import sys
 from typing import Any, Callable, Dict, Optional
 
 from ._keys import snake_aliases
@@ -34,8 +35,11 @@ class NotSupportedError(RuntimeError):
 
 
 def platform() -> str:
-    """`"ios"`, `"android"` or `"desktop"`. The native Windows app reports `"desktop"`: modules answer there
-    through their desktop backends."""
+    """`"ios"`, `"android"`, `"web"` or `"desktop"`. The native Windows app reports `"desktop"`: modules answer
+    there through their desktop backends. In the browser it is always `"web"`, even while the dev tools emulate an
+    iOS or Android device: that changes `Platform.OS`, not the networking or storage underneath."""
+    if sys.platform == "emscripten":
+        return "web"
     o = _env.current._data.get("os")
     return "desktop" if o in (None, "windows") else o
 

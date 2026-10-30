@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import json
 import os
+import sys
 from typing import Any, Callable, Dict, List, Optional
 
 from .apis import _env
@@ -26,10 +27,11 @@ def require_linked(native: str, module: str, package: Optional[str] = None) -> N
     (`pyxpo-image-picker`), named in the error so the fix is copy-pasteable.
 
     The check only applies when the native shell reported its module list (an empty list in a
-    real build means nothing is linked); the desktop dev environment reports none and is skipped.
+    real build means nothing is linked); the desktop dev environment reports none and is skipped, and so is the
+    browser, which has no native modules and only web backends, even while the dev tools emulate iOS or Android.
     """
     env = _env.current._data
-    if env.get("os") in (None, "desktop", "windows"):
+    if sys.platform == "emscripten" or env.get("os") in (None, "desktop", "windows"):
         return
     if native not in (env.get("modules") or []):
         raise ModuleNotLinkedError(
