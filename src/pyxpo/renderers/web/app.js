@@ -224,7 +224,12 @@
       el.classList.toggle("clamp", lines > 0);
       el.style.webkitLineClamp = lines > 0 ? String(lines) : "";
     }
-    if (n.type === "Modal") el.style.zIndex = el.style.zIndex || "1000";
+    if (n.type === "Modal") {
+      // A native modal is its own window: pin to the viewport (or the scaled device frame), not the nearest
+      // positioned ancestor.
+      el.style.position = "fixed";
+      el.style.zIndex = el.style.zIndex || "1000";
+    }
     // A prop-driven inline style the reset above wipes.
     if (n.type === "NativeSpinner") el.style.color = n.props.color != null ? color(n.props.color) : "#8e8e93";
   }
