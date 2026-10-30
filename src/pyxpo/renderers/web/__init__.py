@@ -197,7 +197,10 @@ class WebRenderer(MockRenderer):
             value = (msg.get("payload") or {}).get("value") or {}
             emit = bool(prop)
             if isinstance(prop, dict) and "$ae" in prop:
-                self._events(self.driver.aset({str(nid): float(value[k]) for k, nid in prop["$ae"].items() if k in value}))
+                evs = self.driver.aset({str(nid): float(value[k]) for k, nid in prop["$ae"].items() if k in value})
+                self._events(evs)
+                if not evs:  # _events pushes only when listeners fired; the bound styles still moved
+                    self._push_values()
                 emit = bool(prop.get("emit"))
             if not emit:
                 return

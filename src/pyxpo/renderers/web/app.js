@@ -251,7 +251,6 @@
     }
     el.className = CLASS[type] || "v";
     if (type === "ScrollView") {
-      n.content = null;
       let last = 0, pending = null;
       el.addEventListener("scroll", () => {
         if (!n.props.on_scroll) return;
@@ -433,7 +432,7 @@
       case "ScrollView":
         el.classList.toggle("h", !!p.horizontal);
         el.classList.toggle("noind", p.shows_scroll_indicator === false);
-        el.style.scrollSnapType = p.paging_enabled ? (p.horizontal ? "x mandatory" : "y mandatory") : "";
+        el.classList.toggle("page", !!p.paging_enabled);  // a class: applyStyle resets inline styles
         break;
     }
     const pressable = !!(p.on_press || p.on_press_in || p.on_press_out || p.on_long_press);
@@ -456,7 +455,7 @@
       el.style.webkitMaskPosition = el.style.maskPosition = "center";
     }
     if (p.on_layout) observeLayout(n); else unobserveLayout(n);
-    if (n.type === "ScrollView" && n.content) styleScrollContent(n);
+    if (n.type === "ScrollView") styleScrollContent(n);
     if (n.view && n.view.update) {
       const changed = Object.assign({}, props || {});
       delete changed.style;
@@ -502,12 +501,14 @@
   }
 
   function styleScrollContent(sv) {
-    // A ScrollView's content view grows with its children along the scroll axis.
-    const c = sv.content;
-    if (!c) return;
-    if (sv.props.horizontal) { c.el.style.flexShrink = "0"; c.el.style.minWidth = "100%"; c.el.style.alignSelf = "flex-start"; }
-    else { c.el.style.flexShrink = "0"; c.el.style.minHeight = c.el.style.minHeight || ""; }
-    if (sv.props.paging_enabled) for (const ch of c.children) ch.el.style.scrollSnapAlign = "start";
+    // A lone child is the content view: it grows along the scroll axis and its children are the pages.
+    // Several children are the pages themselves. Classes, not inline styles: applyStyle resets those.
+    const on = !!sv.props.paging_enabled, one = sv.children.length === 1;
+    for (const ch of sv.children) {
+      ch.el.classList.toggle("svc", one);
+      ch.el.classList.toggle("snap", on && !one);
+      for (const g of ch.children) g.el.classList.toggle("snap", on && one);
+    }
   }
 
   // -- layout events ----------------------------------------------------------------------------
@@ -536,7 +537,8 @@
     kids.splice(index, 0, c);
     c.parent = p;
     p.el.insertBefore(c.el, before ? before.el : null);
-    if (p.type === "ScrollView") { p.content = c; styleScrollContent(p); }
+    if (p.type === "ScrollView") styleScrollContent(p);
+    else if (p.parent && p.parent.type === "ScrollView") styleScrollContent(p.parent);
     if (p.type === "NavStack") navChanged(p, animate && index === kids.length - 1 && kids.length > 1 ? c : null);
     if (c.observed) requestAnimationFrame(() => sendLayout(c));
   }
@@ -547,8 +549,8 @@
     const i = p.children.indexOf(c);
     if (i >= 0) p.children.splice(i, 1);
     c.parent = null;
-    if (p.type === "ScrollView" && p.content === c) p.content = null;
     if (c.el.parentNode === p.el) p.el.removeChild(c.el);
+    if (p.type === "ScrollView") styleScrollContent(p);
   }
 
   function remove(parentId, id, animate) {

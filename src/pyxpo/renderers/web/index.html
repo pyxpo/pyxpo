@@ -17,8 +17,14 @@
        overflow-wrap: break-word; user-select: text; }
   .t.clamp { display: -webkit-box; -webkit-box-orient: vertical; overflow: hidden; }
   .sv { overflow: auto; overscroll-behavior: contain; }
-  .sv.h { overflow-y: hidden; }
+  .sv.h { overflow-y: hidden; flex-direction: row; }
+  .sv.h > * { flex-shrink: 0; }
+  .sv > .svc { flex-shrink: 0; }
+  .sv.h > .svc { min-width: 100%; align-self: flex-start; }
   .sv:not(.h) { overflow-x: hidden; }
+  .sv.h.page { scroll-snap-type: x mandatory; }
+  .sv.page:not(.h) { scroll-snap-type: y mandatory; }
+  .snap { scroll-snap-align: start; scroll-snap-stop: always; }
   .sv.noind { scrollbar-width: none; }
   .sv.noind::-webkit-scrollbar { display: none; }
   .ns { overflow: hidden; }
