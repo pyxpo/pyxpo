@@ -17,6 +17,11 @@ settings:
     GENERATE_INFOPLIST_FILE: YES
     CODE_SIGN_STYLE: Automatic
     "CODE_SIGN_IDENTITY[sdk=iphonesimulator*]": "-"
+  configs:
+    # The runtime (layout, view updates) runs every frame; unoptimized it makes dev builds lag on a phone.
+    Debug:
+      SWIFT_OPTIMIZATION_LEVEL: "-O"
+      GCC_OPTIMIZATION_LEVEL: s
 targets:
   PyxpoApp:
     type: application

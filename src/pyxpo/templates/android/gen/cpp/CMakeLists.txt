@@ -10,4 +10,6 @@ add_library(pyxpo_jni SHARED pyxpo_jni.c pyxpo_layout_jni.c "${PYXPO_NATIVE_COMM
             "${PYXPO_NATIVE_COMMON}/pyxpo_layout.c")
 target_include_directories(pyxpo_jni PRIVATE "${PY_PREFIX}/include/python3.13" "${PYXPO_NATIVE_COMMON}")
 target_link_libraries(pyxpo_jni python3.13 log m)
+# The layout engine runs every frame; a debug build's -O0 makes dev builds lag on a phone. The last -O wins.
+target_compile_options(pyxpo_jni PRIVATE -O2)
 target_link_options(pyxpo_jni PRIVATE -Wl,-z,max-page-size=16384)

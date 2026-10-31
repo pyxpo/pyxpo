@@ -364,6 +364,8 @@ def build(project: Path, release: bool = False, kind: str = "simulator") -> Path
     derived = project / "build" / "ios" / "DerivedData"
     cmd = ["xcodebuild", "-project", native / "PyxpoApp.xcodeproj", "-scheme", "PyxpoApp",
            "-configuration", cfgname, "-derivedDataPath", derived]
+    if not release:  # also for projects ejected before project.yml set it: unoptimized, dev builds lag on a phone
+        cmd += ["SWIFT_OPTIMIZATION_LEVEL=-O", "GCC_OPTIMIZATION_LEVEL=s"]
     if kind == "catalyst":
         products = "%s-maccatalyst" % cfgname
         cmd += ["-destination", "platform=macOS,variant=Mac Catalyst,arch=arm64", "build"]
