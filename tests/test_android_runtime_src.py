@@ -61,3 +61,9 @@ def test_a_service_can_run_python_without_an_activity():
     assert "runtime?.detach(it)" in (RUNTIME / "MainActivity.kt").read_text()
     host = (RUNTIME / "PxModuleHost.kt").read_text()
     assert "private val act: Activity?" in host and "context.checkSelfPermission" in host
+
+
+def test_text_input_has_no_theme_underline():
+    kt = (RUNTIME / "OpApplier.kt").read_text()
+    # the theme's EditText background drew an accent underline inside every styled field
+    assert '"TextInput" -> EditText(ctx).also { it.background = null }' in kt

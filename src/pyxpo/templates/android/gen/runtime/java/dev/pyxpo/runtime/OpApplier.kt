@@ -171,7 +171,8 @@ class OpApplier(
             }
             "Image" -> ImageView(ctx)
             "Path" -> PxPath(ctx)
-            "TextInput" -> EditText(ctx)
+            // no theme underline: a field looks only as its style paints it, as on iOS
+            "TextInput" -> EditText(ctx).also { it.background = null }
             "ScrollView" -> (if (props.optBoolean("horizontal")) PxHScroll(ctx) else PxScroll(ctx)).also {
                 it.addView(PxGroup(ctx), ViewGroup.LayoutParams(-2, -2))
                 (it as? PxHScroll)?.rtl = rtl
