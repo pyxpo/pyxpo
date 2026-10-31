@@ -15,12 +15,12 @@ val px = Properties().apply {
 
 android {
     namespace = "dev.pyxpo.runtime"
-    compileSdk = 35
+    compileSdk = 36
     ndkVersion = "27.3.13750724"
     defaultConfig {
         applicationId = px.getProperty("applicationId")
         minSdk = 24
-        targetSdk = 35
+        targetSdk = 36
         versionCode = px.getProperty("versionCode").toInt()
         versionName = px.getProperty("versionName")
         ndk { abiFilters += px.getProperty("abis").split(",") }

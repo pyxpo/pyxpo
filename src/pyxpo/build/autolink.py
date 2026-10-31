@@ -436,7 +436,7 @@ def _native_gradle(m: Module) -> str:
 def module_gradle(m: Module) -> str:
     deps = "".join('    implementation("%s")\n' % _gradle_str(d) for d in m.android.get("dependencies", []))
     return ('plugins {\n    id("com.android.library")\n    id("org.jetbrains.kotlin.android")\n}\n\n'
-            'android {\n    namespace = "%s"\n    compileSdk = 35\n    defaultConfig { minSdk = %d }\n%s'
+            'android {\n    namespace = "%s"\n    compileSdk = 36\n    defaultConfig { minSdk = %d }\n%s'
             '    compileOptions {\n        sourceCompatibility = JavaVersion.VERSION_17\n'
             '        targetCompatibility = JavaVersion.VERSION_17\n    }\n    kotlinOptions { jvmTarget = "17" }\n}\n\n'
             'dependencies {\n    implementation(project(":px-module-api"))\n%s}\n'

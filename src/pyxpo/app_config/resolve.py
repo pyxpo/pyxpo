@@ -83,8 +83,8 @@ def resolve(cfg: Dict[str, Any], project: Path, project_version: str = "") -> Di
         "android": {
             "package": android.get("package", bundle), "version_code": int(android.get("version_code", build)),
             "keystore": str(android.get("keystore", "")), "key_alias": str(android.get("key_alias", "")),
-            "min_sdk": int(android.get("min_sdk", 24)), "target_sdk": int(android.get("target_sdk", 35)),
-            "compile_sdk": int(android.get("compile_sdk", 35)),
+            "min_sdk": int(android.get("min_sdk", 24)), "target_sdk": int(android.get("target_sdk", 36)),
+            "compile_sdk": int(android.get("compile_sdk", 36)),
             "permissions": [perm(p) for p in android.get("permissions") or []],
             "blocked_permissions": [perm(p) for p in android.get("blocked_permissions") or []],
             "icon": android.get("icon") or ic,

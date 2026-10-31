@@ -9,22 +9,16 @@
 - notifications FCM/APNs, tools/send_push.py, Android remount fix.
 - Released (Oct 19): core 0.1.0a3 + 0.1.0a4, pyxpo-notifications 0.1.0a2, pyxpo-dot-env 0.1.0a1 (renamed from pyxpo-env), pyxpo-google-mobile-ads 0.1.0a1.
 
-## Oct 17-19: VS Code ext, desktop/web targets, armeabi-v7a (0.1.0a5). Gradle hang: `JAVA_TOOL_OPTIONS=-Djava.net.preferIPv6Addresses=true`.
-
-## AI Keyboard (pyxpo-apps/ai-keyboard): pushed. pyxpo-keyboard, pyxpo-speech, pyxpo-translate 0.1.0a1 on PyPI (Oct 29). README shots done (translate hero; keyboard hero + layouts). Open: S23 check of iOS layout + ML Kit; Phase 3 pyxpo-llm.
-
-## Mac Catalyst + pyxpo-video (Oct 21-22): pushed.
+## Oct 17-29: VS Code ext, desktop/web, Catalyst, pyxpo-video pushed. Gradle hang: `JAVA_TOOL_OPTIONS=-Djava.net.preferIPv6Addresses=true`.
+## AI Keyboard: pushed; keyboard/speech/translate on PyPI. Open: S23 iOS layout + ML Kit check; pyxpo-llm.
 
 ## Package repos split (Oct 29)
 - packages/ removed from monorepo; clones in ../pyxpo-packages/pyxpo-<pkg> (PYXPO_PACKAGES overrides).
 - tools/build_packages.py --path/--tag, dev_install.sh clones missing + `--no-deps -e`. Core suite 564 pass; all 29 package suites pass.
-- Oct 29 pushed all repos; trusted publishers per repo release.yml; rulesets on main.
+- Oct 29 all repos pushed; trusted publishers, rulesets.
 
-- Core 0.1.0a9 on PyPI (Oct 29). Tags a6-a8 never published; release tests run on ubuntu + Pillow.
-- pyxpo-video 0.1.0a1 on PyPI (Oct 29). All 29 packages have trusted publishers.
+- Core a9-a11 on PyPI (Oct 29-30).
 
-## Core 0.1.0a10 (Oct 30): dev port fallback, --device flag, Android ensure_device/AVD boot, iOS DeviceHub fallback.
-- 0.1.0a11 on PyPI: iOS runtime extract symlink-chain fix.
 
 ## Oct 30 release batch
 - On PyPI: pyxpo-image-manipulator 0.1.0a2, pyxpo-image-cropper 0.1.0a1 (new repo pyxpo/pyxpo-image-cropper, settings+ruleset+pypi env+pvr done).
@@ -43,4 +37,10 @@
 - Core f633c3c pushed: web scroll/snap/clip fixes, onboarding in autolink OFFICIAL. Suite 604 pass.
 - cmskite welcome slides shipped (local commit 1252733), e2e on iOS sim pass.
 - e12cc3d (local): archive/key/monitor/puzzle/sparkles icons + path test. 689 pass.
-- iOS dev reload (Oct 31): PxWindow.sendEvent catches R R / Cmd+R before the first responder; hidden focused field resigned. Sim e2e pass (fresh, tab switch, Cmd+R, visible field still types).
+- iOS dev reload fix (Oct 31): R R / Cmd+R caught in PxWindow.sendEvent.
+
+## RTL (Oct 31): cfeac20 pushed. Layout engine mirrors frames, h-scroll anchors right, I18nManager allow/force_rtl (LTR default) on iOS/Android/web. iOS sim verified in Arabic (cmskite 0660a3d: icon flip, RTL charts). Android compiles; not yet run on emulator in Arabic. Suite 695 pass.
+
+## Lag audit (Oct 31, local commits f05d616, 39b6da9; cmskite perf commit): debug builds now compile Swift -O / C -Os (iOS xcodebuild cmd + project.yml) and -O2 (Android CMake). Reconciler skips same-element children; memo works with context (readers refreshed). cmskite SEO tz list cached (toggle 27ms->4ms host). Not yet verified on a phone. Suite 697 pass.
+
+## Android API 36 (Nov 1): default target/compile SDK 35->36 (Play requires 36). AGP 8.7.3 warns only. Doodle Dance release: keystore ../../keystore/doodle-dance, version_code 3, READ_MEDIA_* blocked.
