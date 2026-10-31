@@ -204,7 +204,7 @@ class OpApplier(
             val e = v as EditText
             e.setOnFocusChangeListener { _, f -> event(if (f) "focus" else "blur", id) }
             e.setOnEditorActionListener { tv, action, _ ->
-                event("submit", id, JSONObject().put("value", tv.text.toString()))
+                event("submit_editing", id, JSONObject().put("value", tv.text.toString()))
                 false  // not consumed: the IME still moves focus (Next) or closes (Done)
             }
             wired.add(id)
@@ -303,7 +303,7 @@ class OpApplier(
         var aeNodes = IntArray(0)
         var emit = false
         var onScroll = false
-        var begin = false; var end = false; var momentum = false
+        var begin = false; var end = false; var momentum = false; var dismissKeyboard = false
         var last = 0L
         var dragging = false
         var idle: Runnable? = null
@@ -325,6 +325,7 @@ class OpApplier(
                 val show = props?.optBoolean(k, true) ?: true
                 v.isVerticalScrollBarEnabled = show; v.isHorizontalScrollBarEnabled = show
             }
+            "keyboard_dismiss_mode" -> c.dismissKeyboard = props?.optString(k) in setOf("on-drag", "interactive")
             "bounces" -> v.overScrollMode = if (props?.optBoolean(k, true) ?: true) View.OVER_SCROLL_IF_CONTENT_SCROLLS else View.OVER_SCROLL_NEVER
             "scroll_event_throttle" -> c.throttle = props?.optLong(k, 16) ?: 16
             "on_scroll" -> {
@@ -407,6 +408,11 @@ class OpApplier(
                 android.view.MotionEvent.ACTION_MOVE -> if (!c.dragging) {
                     c.dragging = true
                     if (c.begin) event("scroll_begin_drag", id, JSONObject().put("value", scrollInfo(id, v)))
+                    if (c.dismissKeyboard) v.findFocus()?.let {
+                        (ctx.getSystemService(Context.INPUT_METHOD_SERVICE) as android.view.inputmethod.InputMethodManager)
+                            .hideSoftInputFromWindow(it.windowToken, 0)
+                        it.clearFocus()
+                    }
                 }
                 android.view.MotionEvent.ACTION_UP, android.view.MotionEvent.ACTION_CANCEL -> if (c.dragging) {
                     c.dragging = false

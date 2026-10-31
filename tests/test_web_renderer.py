@@ -127,6 +127,17 @@ def test_pointer_events_reach_every_renderer():
     assert 'pointerEvents != "none"' in (kt / "PxViews.kt").read_text()
 
 
+def test_return_key_reaches_on_submit_editing():
+    # The reconciler keys a handler by its prop name without "on_", so on_submit_editing listens for
+    # "submit_editing". Every renderer must send that name when the return key is pressed.
+    from pathlib import Path
+    src = Path(__file__).resolve().parents[1] / "src" / "pyxpo"
+    kt = src / "templates" / "android" / "gen" / "runtime" / "java" / "dev" / "pyxpo" / "runtime" / "OpApplier.kt"
+    assert 'emit("submit_editing", id' in (src / "renderers" / "web" / "app.js").read_text()
+    assert 'event("submit_editing", id' in (src / "templates" / "ios" / "gen" / "runtime" / "OpApplier.swift").read_text()
+    assert 'event("submit_editing", id' in kt.read_text()
+
+
 def test_ios_module_view_fill_is_under_its_drawing():
     # A style background on iOS is a sublayer, which covers the layer's contents. A module view that draws its
     # own contents (a whiteboard) must get the fill on its layer instead, or its ink is hidden.
@@ -227,3 +238,12 @@ def test_file_route_serves_byte_ranges(tmp_path):
     assert clipped == (206, "bytes 95-99/100", data[95:])
     assert past == (416, "bytes */100", b"")
     assert multi == (200, None, data)
+
+
+def test_scroll_view_dismisses_keyboard_on_drag():
+    # keyboard_dismiss_mode="on-drag" lets the user hide the keyboard by scrolling, so buttons under it stay reachable.
+    from pathlib import Path
+    src = Path(__file__).resolve().parents[1] / "src" / "pyxpo" / "templates"
+    assert 'case "keyboard_dismiss_mode":' in (src / "ios" / "gen" / "runtime" / "OpApplier.swift").read_text()
+    kt = src / "android" / "gen" / "runtime" / "java" / "dev" / "pyxpo" / "runtime" / "OpApplier.kt"
+    assert '"keyboard_dismiss_mode" -> c.dismissKeyboard' in kt.read_text()

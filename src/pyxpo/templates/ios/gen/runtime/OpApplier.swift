@@ -195,7 +195,7 @@ final class OpApplier {
             }, for: .editingChanged)
             t.addAction(UIAction { [weak self] _ in self?.event("focus", id) }, for: .editingDidBegin)
             t.addAction(UIAction { [weak self] _ in self?.event("blur", id) }, for: .editingDidEnd)
-            t.addAction(UIAction { [weak self, weak t] _ in self?.event("submit", id, ["value": t?.text ?? ""]) },
+            t.addAction(UIAction { [weak self, weak t] _ in self?.event("submit_editing", id, ["value": t?.text ?? ""]) },
                         for: .editingDidEndOnExit)
             v = t
         case "Image":
@@ -391,6 +391,9 @@ final class OpApplier {
             let on = val as? Bool ?? true
             s.showsVerticalScrollIndicator = on; s.showsHorizontalScrollIndicator = on
         case "bounces": s.bounces = val as? Bool ?? true
+        case "keyboard_dismiss_mode":
+            let m = val as? String
+            s.keyboardDismissMode = m == "on-drag" ? .onDrag : m == "interactive" ? .interactive : .none
         case "scroll_event_throttle": s.throttle = (val as? NSNumber).map { $0.doubleValue / 1000 } ?? 0.016
         case "on_scroll":
             let o = val as? [String: Any]

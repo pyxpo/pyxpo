@@ -316,7 +316,7 @@
     });
     inp.addEventListener("blur", () => emit("blur", id));
     inp.addEventListener("keydown", (e) => {
-      if (e.key === "Enter" && !multi) { e.preventDefault(); emit("submit", id, { value: inp.value }); }
+      if (e.key === "Enter" && !multi) { e.preventDefault(); emit("submit_editing", id, { value: inp.value }); }
     });
     if (n.el && n.el.parentNode) n.el.parentNode.replaceChild(inp, n.el);
     n.el = inp; n.input = inp; n.multi = multi;
