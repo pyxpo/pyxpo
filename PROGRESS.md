@@ -3,11 +3,7 @@
 - Env quirks: host py3.9; no `timeout`; `sed -i ''`; no foreground sleep; `pkill -f GradleDaemon` before Android builds. Two iOS sims booted: use UDID D601942E-67CD-4C00-90E0-93886B61B288 (iPhone 17). Android emulator-5554 = AVD pyxpo35 (API 35), start with `-no-audio` (host CoreAudio crash on mic).
 - Rules: no Co-Authored-By/Claude attribution in commits/PRs. Outward actions (release, PyPI, tag, push) need user go-ahead.
 - Done+committed: runtime, bridge, shells, CLI, hot reload, router, prebuild, distribution, app config + plugins + build_properties, native module system, packages image-manipulator, image-picker, media-library, sharing, storage, file-system, secure-store (e2e both OS). Release 0.1.0a1 on PyPI (8 dists).
-- 0.1.0a2 + 11 Tier 1 pkgs on PyPI Oct 16.
-
-## Remote push + remount fix: committed, tag v0.1.0a3 pushed
-- notifications FCM/APNs, tools/send_push.py, Android remount fix.
-- Released (Oct 19): core 0.1.0a3 + 0.1.0a4, pyxpo-notifications 0.1.0a2, pyxpo-dot-env 0.1.0a1 (renamed from pyxpo-env), pyxpo-google-mobile-ads 0.1.0a1.
+- Oct 16-19: 0.1.0a2-a4, 11 Tier 1 pkgs, notifications (FCM/APNs), dot-env, google-mobile-ads on PyPI.
 
 ## Oct 17-29: VS Code ext, desktop/web, Catalyst, pyxpo-video pushed. Gradle hang: `JAVA_TOOL_OPTIONS=-Djava.net.preferIPv6Addresses=true`.
 ## AI Keyboard: pushed; keyboard/speech/translate on PyPI. Open: S23 iOS layout + ML Kit check; pyxpo-llm.
