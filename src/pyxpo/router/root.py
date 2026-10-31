@@ -72,8 +72,9 @@ def RouterRoot(tree: Optional[RouteTree] = None, root_dir: str = "", initial_hre
     use_effect(lambda: BackHandler.addEventListener("hardwareBackPress", rt.store.back).remove, [])
 
     def on_url(payload: Any) -> None:
-        href = href_from_url(str((payload or {}).get("url", "")))
-        if href is not None:
+        url = str((payload or {}).get("url", ""))
+        href = href_from_url(url)
+        if href is not None and not Linking.is_claimed(url):
             rt.store.navigate(href)
 
     use_effect(lambda: _events.on("url", on_url), [])

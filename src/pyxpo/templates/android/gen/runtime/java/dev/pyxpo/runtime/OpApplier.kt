@@ -989,6 +989,8 @@ class OpApplier(
         val parent = host(id, parent0)
         val v = views[id] ?: return
         val g = groupOf(parent)
+        // a field being edited leaves the tree: the keyboard goes with it, as on iOS (delete() runs after the focus moved)
+        if (v.hasFocus()) dropFocus(v)
         if (!(g is PxNav && g.popped(v))) g?.removeView(v)
         layout.remove(parentNode(parent), id)
     }

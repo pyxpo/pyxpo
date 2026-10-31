@@ -149,6 +149,20 @@ def test_deep_link_url_event_and_initial_url(tmp_app, monkeypatch):
     assert "id=3" in r2.texts()
 
 
+def test_claimed_url_is_not_opened_as_a_route(tmp_app):
+    from pyxpo.apis.linking import Linking
+    d = tmp_app({"_layout.py": LAYOUT, "index.py": INDEX, "details/[id].py": DETAILS})
+    app, r = mount(d)
+    Linking.claimed.append("myapp://details/")
+    try:
+        app._handle_event('{"id": 0, "event": "url", "payload": {"url": "myapp://details/9"}}')
+        assert "id=9" not in r.texts()
+    finally:
+        Linking.claimed.remove("myapp://details/")
+    app._handle_event('{"id": 0, "event": "url", "payload": {"url": "myapp://details/9"}}')
+    assert "id=9" in r.texts()
+
+
 def test_pressable_derives_accessibility_label_from_text():
     from pyxpo import Pressable, Text, View, create_app
     ch = LocalChannel()

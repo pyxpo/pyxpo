@@ -35,6 +35,16 @@ def test_a_pushed_screen_takes_the_keyboard_away_from_the_screen_it_covers():
     assert "hideSoftInputFromWindow" in drop[:400] and "views[1]?.requestFocus()" in drop[:400]
     delete = kt[kt.index("private fun delete("):]
     assert "v.hasFocus()) dropFocus(v)" in delete[:300]
+    # a removed field (a whole form swapped out) took the keyboard with it on iOS only: here it stayed up
+    remove = kt[kt.index("private fun remove("):]
+    assert "v.hasFocus()) dropFocus(v)" in remove[:400]
+
+
+def test_edge_to_edge_root_ends_above_the_keyboard():
+    kt = (RUNTIME / "MainActivity.kt").read_text()
+    # edge-to-edge windows are not resized for adjustResize: the root pads itself by the keyboard height
+    assert "SOFT_INPUT_ADJUST_RESIZE" in kt and "v.setPadding(0, 0, 0, kb)" in kt
+    assert "if (kb > 0) b = 0" in kt
 
 
 def test_a_service_can_run_python_without_an_activity():

@@ -56,6 +56,13 @@ class MainActivity : Activity() {
                 val sb = insets.getInsets(android.view.WindowInsets.Type.systemBars() or android.view.WindowInsets.Type.displayCutout())
                 l = sb.left; t = sb.top; r = sb.right; b = sb.bottom
                 if (insets.isVisible(android.view.WindowInsets.Type.ime())) kb = insets.getInsets(android.view.WindowInsets.Type.ime()).bottom
+                // Edge-to-edge windows are not shrunk for adjustResize any more: the root ends above the keyboard
+                // itself, so screens and scroll views get shorter as in React Native (focused field scrolls into view).
+                val adjust = window.attributes.softInputMode and android.view.WindowManager.LayoutParams.SOFT_INPUT_MASK_ADJUST
+                if (adjust == android.view.WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE) {
+                    if (v.paddingBottom != kb) v.setPadding(0, 0, 0, kb)
+                    if (kb > 0) b = 0
+                }
             } else {
                 l = insets.systemWindowInsetLeft; t = insets.systemWindowInsetTop
                 r = insets.systemWindowInsetRight; b = insets.systemWindowInsetBottom

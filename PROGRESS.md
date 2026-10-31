@@ -21,22 +21,25 @@
 - Core 0.1.0a12 on PyPI. `pypi` env in core repo has required reviewer: user approves each release.
 
 ## 6 new package repos (Oct 30): all on PyPI 0.1.0a1
-- pyxpo/pyxpo-{rich-editor,query,intl,svg,google-sign-in,apple-authentication}: settings, ruleset, pypi env, pvr, collaborator ivishalchaubey (Write). Trusted publishers active.
-- Core 0.1.0a13 on PyPI (Oct 30). Release = bump __version__ + regen editors/vscode/data/pyxpo.json (test_vscode_data checks it).
+- rich-editor,query,intl,svg,google-sign-in,apple-authentication: repos fully set up.
+- Core 0.1.0a13 on PyPI (Oct 30). Release = bump __version__ + regen editors/vscode/data/pyxpo.json.
 - fetch/secure-store/storage 0.1.0a2 on PyPI (Oct 30, floor pyxpo>=0.1.0a4).
 - Next: README screenshots (rich-editor + 4 others); device tests iOS sim/emulator/S23.
 
 ## Stability pass (Oct 31, uncommitted): Gradle wedge auto-retry + `pyxpo clean [android|ios]`; include-package hot reload (iOS ok); iOS ships checked-hash .pyc (ios.compile_pyc), cmskite launch 30s->12s first, 8s->6s warm. Suite 603 pass.
 
 ## pyxpo-onboarding (Oct 31)
-- pyxpo/pyxpo-onboarding on GitHub (Oct 31), settings copied from query, CI green. 0.1.0a1 on PyPI (tag v0.1.0a1).
-- Core f633c3c pushed: web scroll/snap/clip fixes, onboarding in autolink OFFICIAL. Suite 604 pass.
+- pyxpo/pyxpo-onboarding on GitHub (Oct 31), CI green. 0.1.0a1 on PyPI (tag v0.1.0a1).
+- Core f633c3c pushed: web scroll/snap/clip fixes, onboarding in autolink OFFICIAL. 604 pass.
 - cmskite welcome slides shipped (local commit 1252733), e2e on iOS sim pass.
 - e12cc3d (local): archive/key/monitor/puzzle/sparkles icons + path test. 689 pass.
 - iOS dev reload fix (Oct 31): R R / Cmd+R caught in PxWindow.sendEvent.
 
-## RTL (Oct 31): cfeac20 pushed. Layout engine mirrors frames, h-scroll anchors right, I18nManager allow/force_rtl (LTR default) on iOS/Android/web. iOS sim verified in Arabic (cmskite 0660a3d: icon flip, RTL charts). Android compiles; not yet run on emulator in Arabic. Suite 695 pass.
+## RTL (Oct 31): cfeac20 pushed. Layout engine mirrors frames, h-scroll anchors right, I18nManager allow/force_rtl (LTR default) on iOS/Android/web. iOS sim verified in Arabic. Android compiles; not yet run on emulator in Arabic. Suite 695 pass.
 
-## Lag audit (Oct 31, local commits f05d616, 39b6da9; cmskite perf commit): debug builds now compile Swift -O / C -Os (iOS xcodebuild cmd + project.yml) and -O2 (Android CMake). Reconciler skips same-element children; memo works with context (readers refreshed). cmskite SEO tz list cached (toggle 27ms->4ms host). Not yet verified on a phone. Suite 697 pass.
+## Lag audit (Oct 31, local commits f05d616, 39b6da9; cmskite perf commit): debug builds now compile Swift -O / C -Os (iOS xcodebuild cmd + project.yml) and -O2 (Android CMake). Reconciler skips same-element children; memo works with context (readers refreshed). Not yet verified on a phone. Suite 697 pass.
 
-## Android API 36 (Nov 1): default target/compile SDK 35->36 (Play requires 36). AGP 8.7.3 warns only. Doodle Dance release: keystore ../../keystore/doodle-dance, version_code 3, READ_MEDIA_* blocked.
+## Android API 36 (Nov 1): default target/compile SDK 35->36 (Play requires 36). AGP 8.7.3 warns only. Doodle Dance v6 AAB done.
+
+## Nov 1: 53e34b7 (local): return key now fires on_submit_editing; ScrollView keyboard_dismiss_mode on iOS/Android. 699 pass.
+- Nov 1 (local): Android removed focused field drops keyboard; edge-to-edge root pads by keyboard; `Linking.claimed` keeps auth redirects out of router (web-browser 17cc9ae). cmskite email+SSO e2e pass on emulator. 701 pass.
