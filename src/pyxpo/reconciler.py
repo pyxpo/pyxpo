@@ -36,7 +36,8 @@ class Fiber:
         self.hook_index = 0
         self.hooks_ready = False
         self.unmounted = False
-        self.ctx_below = False  # this fiber or a descendant reads context: memo must not skip it
+        self.ctx_below = False  # this fiber or a descendant reads context: a skipped re-render must look below
+        self.ctx_seen: Optional[Dict[Any, Tuple[Optional["Fiber"], Any]]] = None  # context -> (provider, value read)
 
 
 def _host_ids(fiber: Fiber, out: List[int]) -> List[int]:
@@ -134,6 +135,7 @@ class Reconciler:
         self._refreshed_bp: Optional[Tuple[Any, ...]] = None
         self._ctx_key: Optional[Tuple[Any, ...]] = None
         self._ctx: Optional[_themes.Context] = None
+        self._ctx_changed = False  # a Provider's value changed in this pass: skipped subtrees may hold stale readers
 
     # -- public --------------------------------------------------------
     def schedule(self, fiber: Fiber) -> None:
@@ -141,6 +143,7 @@ class Reconciler:
             self._schedule(fiber)
 
     def render(self, element: Element) -> None:
+        self._ctx_changed = False
         self._reconcile_children(self.root, flatten([element]))
         self._sync(self.root)
 
@@ -148,6 +151,7 @@ class Reconciler:
         if fiber.unmounted:
             return
         marks = (len(self.ops), len(self.pending_effects), len(self._deletes), self._next_id, _anim.mark())
+        self._ctx_changed = False
         try:
             self._render_comp(fiber)
         except Exception as e:  # noqa: BLE001
@@ -399,11 +403,32 @@ class Reconciler:
             if e.children or f.children:  # leaf stays a leaf: nothing to reconcile or reorder
                 self._reconcile_children(f, e.children)
                 self._sync(f)
-        elif e.type.memo is not None and not f.ctx_below and e.type.memo(old, e):
-            f.element = e  # memo hit: props unchanged, keep the rendered subtree as is
+        elif not self.hot and (old is e or (e.type.memo is not None and e.type.memo(old, e))):
+            # Same element (a parent passed its children through) or a memo hit: props unchanged, keep the
+            # rendered subtree. Its own state changes are scheduled on their own; context readers are checked below.
+            f.element = e
+            if self._ctx_changed and f.ctx_below:
+                self._refresh_readers(f)
         else:
+            if e.type._context is not None and old.props.get("value") is not e.props.get("value"):
+                self._ctx_changed = True
             f.element = e
             self._render_comp(f)
+
+    def _refresh_readers(self, f: Fiber) -> None:
+        """Re-render the context readers at or under a skipped fiber whose Provider now holds a different value."""
+        stack = [f]
+        while stack:
+            c = stack.pop()
+            seen = c.ctx_seen
+            if seen and any(p is not None and p.element.props.get("value") is not v for p, v in seen.values()):
+                self._render_comp(c)  # its subtree is reconciled (and checked) as part of this
+                host = c.parent
+                while host.kind == "comp":
+                    host = host.parent
+                self._sync(host)
+            elif c.ctx_below:
+                stack.extend(c.children)
 
     @staticmethod
     def _bind_ref(f: Fiber, e: Element) -> None:

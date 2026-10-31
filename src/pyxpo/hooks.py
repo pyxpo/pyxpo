@@ -177,6 +177,7 @@ class Context:
     def __init__(self, default: Any) -> None:
         self.default = default
         self.Provider = Component(lambda *children, value=None: list(children), name="Provider")
+        self.Provider._context = self
         self.Consumer = Component(lambda children=None: children(use_context(self)) if children else None, name="Consumer")
 
 
@@ -190,10 +191,16 @@ def use_context(ctx: Context) -> Any:
     node = cur.parent
     while node is not None:
         if node.element is not None and node.element.type is ctx.Provider:
-            return node.element.props.get("value")
-        node.ctx_below = True  # a memoized ancestor must re-render when a Provider above changes
+            value = node.element.props.get("value")
+            break
+        node.ctx_below = True  # a skipped ancestor must look for readers when a Provider above changes
         node = node.parent
-    return ctx.default
+    else:
+        value = ctx.default
+    if cur.ctx_seen is None:
+        cur.ctx_seen = {}
+    cur.ctx_seen[ctx] = (node, value)
+    return value
 
 
 class AsyncResult(NamedTuple):

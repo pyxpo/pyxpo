@@ -11,6 +11,7 @@ class Component:
     """A function component. Calling it builds an Element; the fn runs during reconciliation."""
 
     _boundary = False  # ErrorBoundary: the reconciler catches render errors below it
+    _context: Any = None  # a Context's Provider: the Context it provides
 
     def __init__(self, fn: Callable[..., Any], name: str = "") -> None:
         self.fn = fn
@@ -132,8 +133,7 @@ def _props_equal(old: Element, new: Element) -> bool:
 def memo(comp: Component, are_equal: Optional[Callable[[Dict[str, Any], Dict[str, Any]], bool]] = None) -> Component:
     """Skip re-rendering `comp` when its props are unchanged (shallow ==). Use `use_callback` for handlers.
 
-    A component that reads context (or has a descendant that does) is never skipped, so theme and
-    navigation updates still reach it. `are_equal(old_props, new_props)` overrides the comparison."""
+    When a Provider above changes its value, the components below that read it still re-render. `are_equal(old_props, new_props)` overrides the comparison."""
     out = Component(lambda *a, **k: comp.fn(*a, **k), name=comp.name)  # late-bound: hot reload swaps comp.fn
     out._target = comp._target
     if are_equal is None:

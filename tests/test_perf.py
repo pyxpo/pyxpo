@@ -99,6 +99,61 @@ def test_dispatch_handler_arity_and_inner_type_error():
     assert _takes_value(bad) and not _takes_value(count)
 
 
+def test_children_passed_through_skip_rerender_when_a_wrapper_changes_state():
+    renders = []
+
+    @component
+    def Leaf(label=""):
+        renders.append(label)
+        return Text(label)
+
+    box = {}
+
+    @component
+    def Wrapper(*children):
+        on, set_on = use_state(False)
+        box["set"] = set_on
+        return View(*children, style={"opacity": 0.5 if on else 1})
+
+    app, r = mount(lambda: Wrapper(Leaf(label="a"), Leaf(label="b")))
+    assert renders == ["a", "b"]
+    box["set"](True)
+    app.flush()
+    assert renders == ["a", "b"]  # same child elements: only the wrapper re-rendered
+
+
+def test_reader_under_skipped_subtree_gets_new_context_value():
+    seen, outer = [], []
+
+    @component
+    def Reader():
+        seen.append(use_context(ThemeCtx)["dark"])
+        return Text("r")
+
+    @component
+    def Middle():
+        outer.append(1)
+        return View(Reader())
+
+    MMiddle = memo(Middle)
+    box = {}
+
+    @component
+    def App():
+        d, set_d = use_state(False)
+        n, set_n = use_state(0)
+        box["dark"], box["n"] = set_d, set_n
+        return ThemeCtx.Provider(MMiddle(), Text(str(n)), value={"dark": d})
+
+    app, r = mount(lambda: App())
+    box["n"](1)  # provider value is a new dict but equal content: the reader still re-renders (identity, like React)
+    app.flush()
+    assert outer == [1]
+    box["dark"](True)
+    app.flush()
+    assert outer == [1] and seen[-1] is True  # Middle stays skipped, its reader sees the new value
+
+
 def test_normalize_cache_key_distinguishes_value_types():
     from pyxpo.style import normalize
     assert "flex_grow" not in normalize({"flex": True})
