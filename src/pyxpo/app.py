@@ -100,6 +100,8 @@ class App:
         self._pending: Dict[int, Any] = {}
         _bridge.set_app(self)
         anim_runtime.set_app(self)
+        from .apis import i18n_manager
+        i18n_manager.on_app(self)
         self._committed: Dict[int, int] = {}  # native node id -> parent id (0 = detached)
         self._error_shown = False
         self.dev_reload: Optional[Callable[[], None]] = None  # set by the dev client

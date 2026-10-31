@@ -25,6 +25,8 @@ class NativeLayout(private val measurer: (Int, Float, Int, Float, Int) -> Long) 
     fun setNum(id: Int, prop: Int, v: Float) = nSetNum(ptr, id, prop, v)
     fun setStr(id: Int, prop: Int, v: String) = nSetStr(ptr, id, prop, v)
     fun reset(id: Int, prop: Int) = nReset(ptr, id, prop)
+    /** Right to left: frames are mirrored inside their parents from the next calc. */
+    fun setRtl(on: Boolean) = nSetRtl(ptr, if (on) 1 else 0)
 
     /** Lays out the tree and reports changed frames (dp, relative to the parent). */
     inline fun calc(w: Float, h: Float, onFrame: (Int, Float, Float, Float, Float) -> Unit) {
@@ -60,4 +62,5 @@ class NativeLayout(private val measurer: (Int, Float, Int, Float, Int) -> Long) 
     private external fun nPropId(name: String): Int
     private external fun nCalc(p: Long, w: Float, h: Float, out: FloatArray): Int
     private external fun nChanged(p: Long, out: FloatArray): Int
+    private external fun nSetRtl(p: Long, rtl: Int)
 }

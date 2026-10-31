@@ -17,6 +17,8 @@ DEFAULT_ENV: Dict[str, Any] = {
     "color_scheme": "light",
     "insets": {"top": 0.0, "right": 0.0, "bottom": 0.0, "left": 0.0},
     "keyboard": {"visible": False, "height": 0.0},
+    "rtl": False,  # the device language is written right to left
+    "locale": None,  # device locale, such as "ar_EG"
     "initial_url": None,  # deep link the app was launched with
     "modules": [],  # native modules linked into this build
     # {bridge module name: constants}, sent once at startup. None so the first snapshot replaces it whole.

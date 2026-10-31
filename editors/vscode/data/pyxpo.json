@@ -1123,7 +1123,7 @@
    "kind": "class"
   },
   "I18nManager": {
-   "doc": "Layout direction flags (LTR only for now).",
+   "doc": "Layout direction flags. `isRTL` is the direction in use.",
    "kind": "class"
   },
   "Image": {

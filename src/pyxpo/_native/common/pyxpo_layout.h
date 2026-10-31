@@ -41,6 +41,10 @@ int px_tree_changed_count(PxTree *t);                          /* frames that ch
 int px_tree_changed_at(PxTree *t, int i, float *xywh);         /* returns node id, fills x,y,w,h */
 int px_node_frame(PxTree *t, int id, float *xywh);             /* last computed frame, 0 on success */
 
+/* Right-to-left: frames are mirrored inside their parents. Takes effect at the next calc. */
+void px_tree_set_rtl(PxTree *t, int rtl);
+int px_tree_rtl(PxTree *t);
+
 #ifdef __cplusplus
 }
 #endif

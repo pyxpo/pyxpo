@@ -95,3 +95,40 @@ def test_pressable_style_fn_gets_press_state():
     app, r = mount(App)
     assert got[0] == (False, False, False)
     assert r.find_all("View")[0].props["test_id"] == "btn"
+
+
+def test_i18n_manager_direction():
+    from pyxpo import I18nManager
+    from pyxpo.apis import i18n_manager
+
+    sent, seen = [], []
+
+    class FakeApp:
+        def call(self, mod, meth, *a, reply=False):
+            sent.append((mod, meth) + a)
+
+    old_app, old_state = _bridge.get_app(), dict(i18n_manager._state)
+    env = _env.current
+    _bridge.set_app(FakeApp())
+    sub = I18nManager.addListener(seen.append)
+    try:
+        env.update({"rtl": True})
+        i18n_manager._sync()
+        assert I18nManager.isRTL is False and sent == []  # LTR until the app opts in
+        I18nManager.allowRTL(True)
+        assert I18nManager.isRTL is True and sent == [("I18nManager", "set_rtl", True)] and seen == [True]
+        I18nManager.allowRTL(True)
+        assert len(sent) == 1  # no repeat when nothing changed
+        env.update({"rtl": False})
+        I18nManager.allowRTL(True)
+        assert I18nManager.isRTL is False and sent[-1] == ("I18nManager", "set_rtl", False)
+        I18nManager.forceRTL(True)
+        assert I18nManager.isRTL is True and seen == [True, False, True]
+        sub.remove()
+        I18nManager.forceRTL(False)
+        assert seen == [True, False, True]
+    finally:
+        env.update({"rtl": False})
+        _bridge.set_app(old_app)
+        i18n_manager._state.update(old_state)
+        i18n_manager._sync()

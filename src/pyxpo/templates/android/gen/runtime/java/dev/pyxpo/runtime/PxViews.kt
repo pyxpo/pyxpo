@@ -88,6 +88,27 @@ class PxScroll(ctx: Context) : android.widget.ScrollView(ctx), PxScrollable {
 
 class PxHScroll(ctx: Context) : android.widget.HorizontalScrollView(ctx), PxScrollable {
     override var userScroll = true
+    // RTL: the list starts at its right end, and the part shown keeps its distance from the right edge when the
+    // content grows (the content is mirrored inside it, so new items appear on the left).
+    private var fromRight = 0
+    var rtl = false
+        set(on) {
+            if (on == field) return
+            field = on
+            fromRight = 0
+            if (on) requestLayout() else scrollTo(0, 0)
+        }
+
+    override fun onLayout(changed: Boolean, l: Int, t: Int, r: Int, b: Int) {
+        super.onLayout(changed, l, t, r, b)
+        val c = getChildAt(0) ?: return
+        if (rtl) scrollTo(maxOf(0, c.width - width - fromRight), 0)
+    }
+    override fun onScrollChanged(l: Int, t: Int, oldl: Int, oldt: Int) {
+        super.onScrollChanged(l, t, oldl, oldt)
+        val c = getChildAt(0) ?: return
+        fromRight = maxOf(0, c.width - width - l)
+    }
     override fun onInterceptTouchEvent(e: android.view.MotionEvent) = userScroll && super.onInterceptTouchEvent(e)
     override fun onTouchEvent(e: android.view.MotionEvent) = userScroll && super.onTouchEvent(e)
     override fun dispatchDraw(canvas: android.graphics.Canvas) {

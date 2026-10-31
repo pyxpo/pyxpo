@@ -39,6 +39,8 @@ def lib(tmp_path_factory):
     L.px_tree_changed_count.argtypes = [C.c_void_p]
     L.px_tree_changed_at.argtypes = [C.c_void_p, C.c_int, C.POINTER(C.c_float)]
     L.px_node_frame.argtypes = [C.c_void_p, C.c_int, C.POINTER(C.c_float)]
+    L.px_tree_set_rtl.argtypes = [C.c_void_p, C.c_int]
+    L.px_tree_rtl.argtypes = [C.c_void_p]
     return L
 
 
@@ -421,3 +423,54 @@ def test_auto_size_scroll_view_is_not_forced_to_full_height(lib):
     t.add(parent=content, height=40)
     t.calc(300, 600)
     assert t.f(sv)[3] == 40
+
+
+def test_rtl_row_runs_right_to_left_and_swaps_left_and_right(lib):
+    t = Tree(lib)
+    t.L.px_tree_set_rtl(t.t, 1)
+    row = t.add(flex_direction="row", height=40, padding_left=10)
+    a = t.add(row, width=50)
+    b = t.add(row, width=30, margin_left=5)
+    t.calc(300, 600)
+    assert t.f(row) == (0, 0, 300, 40)
+    assert t.f(a) == (240, 0, 50, 40)
+    assert t.f(b) == (205, 0, 30, 40)
+
+
+def test_rtl_column_align_start_and_absolute_left(lib):
+    t = Tree(lib)
+    t.L.px_tree_set_rtl(t.t, 1)
+    t.set(1, align_items="flex_start")
+    a = t.add(width=100, height=20)
+    b = t.add(position="absolute", left=8, top=4, width=10, height=10)
+    t.calc(300, 600)
+    assert t.f(a) == (200, 0, 100, 20)
+    assert t.f(b) == (282, 4, 10, 10)
+
+
+def test_rtl_toggle_reports_every_moved_frame(lib):
+    t = Tree(lib)
+    row = t.add(flex_direction="row", height=40)
+    a = t.add(row, width=50)
+    t.calc(300, 600)
+    assert t.f(a) == (0, 0, 50, 40)
+    t.L.px_tree_set_rtl(t.t, 1)
+    assert t.L.px_tree_rtl(t.t) == 1
+    t.calc(300, 600)
+    assert t.changed() == {a: (250, 0, 50, 40)}
+    t.L.px_tree_set_rtl(t.t, 0)
+    t.calc(300, 600)
+    assert t.changed() == {a: (0, 0, 50, 40)}
+
+
+def test_rtl_horizontal_scroll_content_is_not_mirrored_against_the_viewport(lib):
+    t = Tree(lib)
+    t.L.px_tree_set_rtl(t.t, 1)
+    sv = t.add(height=100, scroll=1, flex_direction="row")
+    content = t.add(sv, flex_direction="row")
+    a = t.add(content, width=200)
+    b = t.add(content, width=200)
+    t.calc(300, 600)
+    assert t.f(content) == (0, 0, 400, 100)
+    assert t.f(a) == (200, 0, 200, 100)
+    assert t.f(b) == (0, 0, 200, 100)

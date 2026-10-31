@@ -52,6 +52,8 @@ class OpApplier(
                     .put("right", ins[2] / dm.density.toDouble()).put("bottom", ins[3] / dm.density.toDouble()))
                 .put("keyboard", JSONObject().put("visible", kbPx > 0).put("height", kbPx / dm.density.toDouble()))
                 .put("modules", JSONArray(pxModules.map { it.name }))
+                .put("rtl", android.text.TextUtils.getLayoutDirectionFromLocale(java.util.Locale.getDefault()) == View.LAYOUT_DIRECTION_RTL)
+                .put("locale", java.util.Locale.getDefault().toString())
             if (startup) j.put("module_constants", moduleConstants(ctx))
             return j
         }
@@ -172,6 +174,7 @@ class OpApplier(
             "TextInput" -> EditText(ctx)
             "ScrollView" -> (if (props.optBoolean("horizontal")) PxHScroll(ctx) else PxScroll(ctx)).also {
                 it.addView(PxGroup(ctx), ViewGroup.LayoutParams(-2, -2))
+                (it as? PxHScroll)?.rtl = rtl
             }
             "Modal" -> PxGroup(ctx).also { it.isClickable = true; it.isFocusable = true }
             "NavStack" -> PxNav(ctx).also { n -> n.onPop = { event("pop_gesture", id) } }
@@ -421,7 +424,8 @@ class OpApplier(
         if (flushPending || batching) flush()  // layout is coalesced per frame: content size must be current (to_end after append)
         val f = frames[id or CONTENT]
         val horiz = v is PxHScroll
-        val tx = x?.let { (it * d).roundToInt() } ?: if (horiz) max(0, ((f?.get(2) ?: 0f) * d).roundToInt() - v.width) else v.scrollX
+        // scroll_to_end in RTL: the end of a horizontal list is its left edge
+        val tx = x?.let { (it * d).roundToInt() } ?: if (horiz) (if (rtl) 0 else max(0, ((f?.get(2) ?: 0f) * d).roundToInt() - v.width)) else v.scrollX
         val ty = y?.let { (it * d).roundToInt() } ?: if (!horiz) max(0, ((f?.get(3) ?: 0f) * d).roundToInt() - v.height) else v.scrollY
         if (animated) {
             if (horiz) (v as PxHScroll).smoothScrollTo(tx, ty) else (v as PxScroll).smoothScrollTo(tx, ty)
@@ -650,6 +654,7 @@ class OpApplier(
                 }
                 "SplashScreen.prevent_auto_hide" -> { splash.preventAutoHide(); null }
                 "SplashScreen.hide" -> { splash.hide(); null }
+                "I18nManager.set_rtl" -> { setRtl(args.optBoolean(0)); null }
                 "Linking.can_open_url" -> {
                     android.content.Intent(android.content.Intent.ACTION_VIEW, android.net.Uri.parse(args.optString(0)))
                         .resolveActivity(ctx.packageManager) != null
@@ -1195,10 +1200,11 @@ class OpApplier(
             v.setShadowLayer((num(s, "text_shadow_radius", 0.0) * d).toFloat(), (num(s, "text_shadow_offset_x") * d).toFloat(),
                 (num(s, "text_shadow_offset_y") * d).toFloat(), if (s.has("text_shadow_color")) col(s, "text_shadow_color") else 0xFF000000.toInt())
         else v.setShadowLayer(0f, 0f, 0f, 0)
+        // left/right are start/end: swapped in RTL, as in React Native
         val h = when (s.optString("text_align")) {
             "center" -> Gravity.CENTER_HORIZONTAL
-            "right" -> Gravity.END
-            else -> Gravity.START
+            "right" -> if (rtl) Gravity.LEFT else Gravity.END
+            else -> if (rtl) Gravity.RIGHT else Gravity.START
         }
         v.gravity = h or (if (v is EditText || v is Button) Gravity.CENTER_VERTICAL else Gravity.TOP)
         val lines = num(s, "number_of_lines", 0.0).toInt()
@@ -1239,6 +1245,7 @@ class OpApplier(
 
     private var insets = IntArray(4)  // px: left, top, right, bottom
     private var kbPx = 0
+    private var rtl = false
 
     /** System bar / cutout insets and keyboard height (px) from the activity. */
     fun setInsets(l: Int, t: Int, r: Int, b: Int, kb: Int) {
@@ -1255,6 +1262,17 @@ class OpApplier(
         if (s == sentEnv) return
         sentEnv = s
         event("env", 0, j)
+    }
+
+    /** `I18nManager.set_rtl` from Python: mirrors the frames, aligns text right, starts horizontal lists at the right. */
+    private fun setRtl(on: Boolean) {
+        if (on == rtl) return
+        rtl = on
+        layout.setRtl(on)
+        for ((id, s) in styles) (views[id] as? TextView)?.let { paintText(id, it, s) }
+        for ((id, t) in types) if (t in LEAVES) layout.markDirty(id)
+        flush(force = true)
+        for (v in views.values) (v as? PxHScroll)?.rtl = on
     }
 
     /** Call after a configuration change (density, font scale, dark mode, rotation). */

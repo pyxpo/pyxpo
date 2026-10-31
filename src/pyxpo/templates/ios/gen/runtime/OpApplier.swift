@@ -31,6 +31,7 @@ final class OpApplier {
     /// Native modules linked into this app (see `PxModuleRegistry`).
     private(set) lazy var modules = PxModuleHost(root: root) { [weak self] n, d in self?.event("module", 0, ["name": n, "data": d]) }
     private var kbHeight: CGFloat = 0
+    private var rtl = false  // `I18nManager.set_rtl` from Python: frames mirrored, text aligned to the right
     private var batching = false
     private lazy var anim = Animated(emit: { [weak self] n, id, pl in self?.event(n, id, pl) },
                                      onFrame: { [weak self] t in self?.onAnimFrame(t) })
@@ -56,9 +57,17 @@ final class OpApplier {
             "font_scale": Double(fontScale),
             "color_scheme": dark ? "dark" : "light",
             "modules": PxModuleHost.names,
+            "rtl": deviceRTL,
+            "locale": Locale.current.identifier,
         ]
         if startup { j["module_constants"] = PxModuleHost.constants }
         return j
+    }
+
+    /// The device language is written right to left (Python decides whether the app follows it).
+    static var deviceRTL: Bool {
+        guard let l = Locale.preferredLanguages.first else { return false }
+        return Locale.characterDirection(forLanguage: l) == .rightToLeft
     }
 
     let splash = PxSplash()
@@ -483,7 +492,8 @@ final class OpApplier {
         guard let s = views[id] as? ScrollHost else { return }
         let maxX = max(0, s.contentSize.width - s.bounds.width), maxY = max(0, s.contentSize.height - s.bounds.height)
         let horiz = s.horizontal
-        let tx = x.map { CGFloat($0) } ?? (horiz ? maxX : s.contentOffset.x)
+        // scroll_to_end in RTL: the end of a horizontal list is its left edge
+        let tx = x.map { CGFloat($0) } ?? (horiz ? (rtl ? 0 : maxX) : s.contentOffset.x)
         let ty = y.map { CGFloat($0) } ?? (horiz ? s.contentOffset.y : maxY)
         s.setContentOffset(CGPoint(x: min(max(0, tx), maxX), y: min(max(0, ty), maxY)), animated: animated)
     }
@@ -656,6 +666,7 @@ final class OpApplier {
             if let u = URL(string: args.first as? String ?? "") { UIApplication.shared.open(u) }
         case "SplashScreen.prevent_auto_hide": splash.preventAutoHide()
         case "SplashScreen.hide": splash.hide()
+        case "I18nManager.set_rtl": setRTL((args.first as? Bool) ?? false)
         case "Vibration.vibrate": AudioServicesPlaySystemSound(kSystemSoundID_Vibrate)
         case "Alert.alert":
             let labels = (args.count > 2 ? args[2] as? [String] : nil) ?? ["OK"]
@@ -932,11 +943,7 @@ final class OpApplier {
     /// Label text as an attributed string: style attributes plus optional nested-Text spans.
     private func renderLabel(_ id: Int, _ l: UILabel, _ s: [String: Any]) {
         let para = NSMutableParagraphStyle()
-        switch s["text_align"] as? String {
-        case "center": para.alignment = .center
-        case "right": para.alignment = .right
-        default: para.alignment = .natural
-        }
+        para.alignment = textAlign(s)
         let n = Int(num(s, "number_of_lines"))
         para.lineBreakMode = n > 0 ? .byTruncatingTail : .byWordWrapping
         if let lh = s["line_height"] as? NSNumber {
@@ -960,16 +967,33 @@ final class OpApplier {
         l.lineBreakMode = para.lineBreakMode
     }
 
+    /// left/right are start/end: swapped in RTL, as in React Native.
+    private func textAlign(_ s: [String: Any]) -> NSTextAlignment {
+        switch s["text_align"] as? String {
+        case "center": return .center
+        case "justify": return .justified
+        case "right": return rtl ? .left : .right
+        default: return rtl ? .right : .natural
+        }
+    }
+
+    /// Mirrors the layout. Frames move at the next flush; text alignment and scroll positions follow here.
+    private func setRTL(_ on: Bool) {
+        if on == rtl { return }
+        rtl = on
+        px_tree_set_rtl(tree, on ? 1 : 0)
+        root.semanticContentAttribute = on ? .forceRightToLeft : .forceLeftToRight
+        for (id, s) in styles { if let v = views[id] { paintText(id, v, s) } }
+        for (id, t) in types where Self.leaves.contains(t) { px_node_mark_dirty(tree, Int32(id)) }
+        flush()
+        for case let sh as ScrollHost in views.values where sh.horizontal { sh.toStart(rtl: on) }
+    }
+
     private func paintText(_ id: Int, _ v: UIView, _ s: [String: Any]) {
         guard v is UILabel || v is UIButton || v is UITextField || v is PxTextArea else { return }
         let font = Self.uiFont(s)
         let c = col(s, "color")
-        let align: NSTextAlignment
-        switch s["text_align"] as? String {
-        case "center": align = .center
-        case "right": align = .right
-        default: align = .natural
-        }
+        let align = textAlign(s)
         if let l = v as? UILabel {
             renderLabel(id, l, s)
         } else if let b = v as? UIButton {
@@ -1047,8 +1071,10 @@ final class OpApplier {
             if id == 1 { continue }
             if id & Self.content != 0 {
                 if let sh = views[id & ~Self.content] as? ScrollHost {
+                    let old = sh.contentSize
                     sh.content.frame = CGRect(origin: .zero, size: r.size)
                     sh.contentSize = r.size
+                    if rtl && sh.horizontal { sh.keepRightEdge(was: old) }
                 }
             } else {
                 if layoutListeners.contains(id) {

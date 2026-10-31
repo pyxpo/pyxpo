@@ -1,7 +1,12 @@
 /* pyxpo flexbox layout engine. See pyxpo_layout.h.
  *
  * Model: border-box sizing, CSS flexbox with React-Native defaults (column, align stretch, shrink 0,
- * align-content flex-start). Left-to-right only. Auto margins are not supported (treated as 0).
+ * align-content flex-start). Auto margins are not supported (treated as 0).
+ *
+ * Right-to-left: the tree is laid out left to right, then each frame is mirrored inside its parent when it is
+ * reported. That is Yoga's RTL with left/right swapped (React Native's default): rows run right to left, start
+ * and left mean the right edge. A scroll view's content node keeps x 0 (it is wider than the viewport); its children
+ * are mirrored inside it, and the native side starts a horizontal list scrolled to its right end.
  */
 #include "pyxpo_layout.h"
 
@@ -56,6 +61,7 @@ struct PxTree {
     int nchanged, capchanged;
     float rw, rh;
     int calced;
+    int rtl;
 };
 
 /* ---- properties --------------------------------------------------------------------------- */
@@ -902,9 +908,18 @@ static void push_changed(PxTree *t, int id) {
     t->changed[t->nchanged++] = id;
 }
 
+/* The x a frame is reported at: mirrored inside the parent in RTL. */
+static float shown_x(PxTree *t, PxNode *n) {
+    PxNode *p = n->parent;
+    if (!t->rtl || !p) return n->x;
+    if (p->s.scroll && (p->s.direction == DIR_ROW || p->s.direction == DIR_ROW_REV)) return n->x;
+    return p->w - n->x - n->w;
+}
+
 static void collect(PxTree *t, PxNode *n) {
-    if (!n->reported || n->sx != n->x || n->sy != n->y || n->sw != n->w || n->sh != n->h) {
-        n->sx = n->x; n->sy = n->y; n->sw = n->w; n->sh = n->h;
+    float x = shown_x(t, n);
+    if (!n->reported || n->sx != x || n->sy != n->y || n->sw != n->w || n->sh != n->h) {
+        n->sx = x; n->sy = n->y; n->sw = n->w; n->sh = n->h;
         n->reported = 1;
         push_changed(t, n->id);
     }
@@ -936,13 +951,19 @@ int px_tree_changed_at(PxTree *t, int i, float *xywh) {
     if (i < 0 || i >= t->nchanged) return -1;
     PxNode *n = find(t, t->changed[i]);
     if (!n) return -1;
-    xywh[0] = n->x; xywh[1] = n->y; xywh[2] = n->w; xywh[3] = n->h;
+    xywh[0] = n->sx; xywh[1] = n->sy; xywh[2] = n->sw; xywh[3] = n->sh;
     return n->id;
 }
 
 int px_node_frame(PxTree *t, int id, float *xywh) {
     PxNode *n = find(t, id);
     if (!n) return -1;
-    xywh[0] = n->x; xywh[1] = n->y; xywh[2] = n->w; xywh[3] = n->h;
+    xywh[0] = shown_x(t, n); xywh[1] = n->y; xywh[2] = n->w; xywh[3] = n->h;
     return 0;
 }
+
+void px_tree_set_rtl(PxTree *t, int rtl) {
+    t->rtl = rtl ? 1 : 0;  /* frames only move: the next calc reports every mirrored one */
+}
+
+int px_tree_rtl(PxTree *t) { return t->rtl; }

@@ -674,6 +674,9 @@
         if (n) n.el.scrollTo({ left: n.props.horizontal ? n.el.scrollWidth : 0, top: n.props.horizontal ? 0 : n.el.scrollHeight,
                                behavior: a[1] === false ? "auto" : "smooth" });
         reply(op, null);
+      } else if (m === "I18nManager.set_rtl") {  // CSS flexbox mirrors rows and text under dir="rtl"
+        document.documentElement.dir = a[0] ? "rtl" : "ltr";
+        reply(op, null);
       } else if (m === "Keyboard.dismiss") {
         if (document.activeElement && document.activeElement.blur) document.activeElement.blur();
         reply(op, null);

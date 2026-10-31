@@ -105,6 +105,18 @@ final class ScrollHost: UIScrollView, UIScrollViewDelegate {
 
     required init?(coder: NSCoder) { fatalError("init(coder:) not supported") }
 
+    /// RTL: a horizontal list starts at its right end. When the content grows, the part shown stays put relative
+    /// to the right edge (content is mirrored inside it, so new items appear on the left).
+    func keepRightEdge(was old: CGSize) {
+        let fromRight = old.width > 0 ? max(0, old.width - bounds.width - contentOffset.x) : 0
+        contentOffset.x = max(0, contentSize.width - bounds.width - fromRight)
+    }
+
+    /// Scrolls to where reading starts: the right end in RTL.
+    func toStart(rtl: Bool) {
+        contentOffset.x = rtl ? max(0, contentSize.width - bounds.width) : 0
+    }
+
     func info() -> [String: Any] {
         ["x": Double(contentOffset.x), "y": Double(contentOffset.y),
          "width": Double(bounds.width), "height": Double(bounds.height),

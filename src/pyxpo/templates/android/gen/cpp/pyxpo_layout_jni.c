@@ -95,6 +95,8 @@ JNIEXPORT jint JNICALL FN(nCalc)(JNIEnv *env, jobject t, jlong p, jfloat w, jflo
     return n;
 }
 
+JNIEXPORT void JNICALL FN(nSetRtl)(JNIEnv *env, jobject t, jlong p, jint rtl) { px_tree_set_rtl(TREE(p), rtl); }
+
 JNIEXPORT jint JNICALL FN(nChanged)(JNIEnv *env, jobject t, jlong p, jfloatArray out) {
     PxTree *tr = TREE(p);
     int n = px_tree_changed_count(tr);
