@@ -13,5 +13,5 @@ def test_path_parses_inside_the_box(name):
 
 
 def test_app_icons_exist():
-    for name in ("archive", "key", "monitor", "puzzle", "sparkles"):
+    for name in ("archive", "key", "monitor", "phone", "puzzle", "sparkles"):
         assert name in Feather.glyphMap
