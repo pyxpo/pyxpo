@@ -43,4 +43,4 @@
 - Core f633c3c pushed: web scroll/snap/clip fixes, onboarding in autolink OFFICIAL. Suite 604 pass.
 - cmskite welcome slides shipped (local commit 1252733), e2e on iOS sim pass.
 - e12cc3d (local): archive/key/monitor/puzzle/sparkles icons + path test. 689 pass.
-- iOS dev reload (Oct 31): PxWindow.sendEvent catches R R / Cmd+R before the first responder; hidden focused field resigned. Sim e2e pass (fresh, tab switch, Cmd+R, visible field still types). Debug stdio: `SIMCTL_CHILD_PYXPO_STDIO=1 pyxpo run ios`.
+- iOS dev reload (Oct 31): PxWindow.sendEvent catches R R / Cmd+R before the first responder; hidden focused field resigned. Sim e2e pass (fresh, tab switch, Cmd+R, visible field still types).
