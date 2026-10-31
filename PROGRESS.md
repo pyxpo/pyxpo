@@ -9,22 +9,18 @@
 - notifications FCM/APNs, tools/send_push.py, Android remount fix.
 - Released (Oct 19): core 0.1.0a3 + 0.1.0a4, pyxpo-notifications 0.1.0a2, pyxpo-dot-env 0.1.0a1 (renamed from pyxpo-env), pyxpo-google-mobile-ads 0.1.0a1.
 
-## Oct 17-19: VS Code ext 0.1.0 (hand upload), desktop/web targets, armeabi-v7a runtime (core 0.1.0a5).
-
-## doodle-puppet / birthday-sky (Oct 19, pushed): pose-detection pkg, TextInput stale-echo fix. Gradle hang: `JAVA_TOOL_OPTIONS=-Djava.net.preferIPv6Addresses=true`.
+## Oct 17-19: VS Code ext, desktop/web targets, armeabi-v7a (0.1.0a5). Gradle hang: `JAVA_TOOL_OPTIONS=-Djava.net.preferIPv6Addresses=true`.
 
 ## AI Keyboard (pyxpo-apps/ai-keyboard): pushed. pyxpo-keyboard, pyxpo-speech, pyxpo-translate 0.1.0a1 on PyPI (Oct 29). README shots done (translate hero; keyboard hero + layouts). Open: S23 check of iOS layout + ML Kit; Phase 3 pyxpo-llm.
 
-## Mac Catalyst + pyxpo-video (Oct 21-22): pushed. Catalyst ssl slice published in runtime 3.13.7-2 (_ssl, _hashlib checked).
+## Mac Catalyst + pyxpo-video (Oct 21-22): pushed.
 
 ## Package repos split (Oct 29)
-- 29 repos pyxpo/pyxpo-<pkg>.
-- packages/ removed from monorepo. Clones live in ../pyxpo-packages/pyxpo-<pkg> (PYXPO_PACKAGES overrides). Each has tests/, ci.yml, release.yml (tag v<version>, env `pypi`), committed local.
+- packages/ removed from monorepo; clones in ../pyxpo-packages/pyxpo-<pkg> (PYXPO_PACKAGES overrides).
 - tools/build_packages.py --path/--tag, dev_install.sh clones missing + `--no-deps -e`. Core suite 564 pass; all 29 package suites pass.
-- Oct 29 pushed: monorepo + 29 package repos (community/CI files). `pypi` env + private vuln reporting on.
-- PyPI trusted publishers moved to pyxpo-<pkg>/release.yml. main rulesets on 30 repos. Org: GitHub refuses conversion of pyxpo.
+- Oct 29 pushed all repos; trusted publishers per repo release.yml; rulesets on main.
 
-- Core 0.1.0a9 on PyPI (Oct 29): native module contract 4, use_async awaits lambda coroutine. Tags v0.1.0a6-a8 never published (a6/a7 no macOS runner, a8 no sips on ubuntu); release tests now ubuntu + Pillow. Suite 565 pass.
+- Core 0.1.0a9 on PyPI (Oct 29). Tags a6-a8 never published; release tests run on ubuntu + Pillow.
 - pyxpo-video 0.1.0a1 on PyPI (Oct 29). All 29 packages have trusted publishers.
 
 ## Core 0.1.0a10 (Oct 30): dev port fallback, --device flag, Android ensure_device/AVD boot, iOS DeviceHub fallback.
@@ -41,3 +37,10 @@
 - Next: README screenshots (rich-editor + 4 others); device tests iOS sim/emulator/S23.
 
 ## Stability pass (Oct 31, uncommitted): Gradle wedge auto-retry + `pyxpo clean [android|ios]`; include-package hot reload (iOS ok); iOS ships checked-hash .pyc (ios.compile_pyc), cmskite launch 30s->12s first, 8s->6s warm. Suite 603 pass.
+
+## pyxpo-onboarding (Oct 31)
+- pyxpo/pyxpo-onboarding on GitHub (Oct 31), settings copied from query, CI green. 0.1.0a1 on PyPI (tag v0.1.0a1).
+- Core f633c3c pushed: web scroll/snap/clip fixes, onboarding in autolink OFFICIAL. Suite 604 pass.
+- cmskite welcome slides shipped (local commit 1252733), e2e on iOS sim pass.
+- e12cc3d (local): archive/key/monitor/puzzle/sparkles icons + path test. 689 pass.
+- iOS dev reload (Oct 31): PxWindow.sendEvent catches R R / Cmd+R before the first responder; hidden focused field resigned. Sim e2e pass (fresh, tab switch, Cmd+R, visible field still types). Debug stdio: `SIMCTL_CHILD_PYXPO_STDIO=1 pyxpo run ios`.

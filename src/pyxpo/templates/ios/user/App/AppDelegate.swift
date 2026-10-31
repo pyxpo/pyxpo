@@ -23,7 +23,11 @@ class SceneDelegate: UIResponder, UIWindowSceneDelegate {
         guard let ws = scene as? UIWindowScene else { return }
         let vc = PxRootViewController()
         vc.view.backgroundColor = .white
+        #if DEBUG
+        let w: UIWindow = PxWindow(windowScene: ws)
+        #else
         let w = UIWindow(windowScene: ws)
+        #endif
         w.rootViewController = vc
         #if DEBUG
         // The simulator ignores its own dark setting under automation; this forces the trait so the theme path can be tested.
@@ -55,7 +59,7 @@ class SceneDelegate: UIResponder, UIWindowSceneDelegate {
         applier = ap
         rt.onOps = { [weak ap] json in ap?.apply(json) }
         #if DEBUG
-        vc.onDevReload = { [weak ap] in ap?.devReload() }
+        (w as? PxWindow)?.onDevReload = { [weak ap] in ap?.devReload() }
         #endif
 
         let bundle = Bundle.main.resourcePath ?? Bundle.main.bundlePath  // Contents/Resources in the Mac (Catalyst) app
@@ -97,48 +101,16 @@ final class PxRootViewController: UIViewController {
 
     override func viewDidLoad() { super.viewDidLoad(); Self.shared = self }
     override var preferredStatusBarStyle: UIStatusBarStyle { barStyle }
-    var onDevReload: (() -> Void)?
-    private var lastR = Date.distantPast
 
     #if DEBUG
     // Key presses go to the first responder only. With no text field focused there is none (the Mac app, a hardware
-    // keyboard), so the controller takes that role, and takes it back when a text field stops editing.
+    // keyboard), so the controller takes that role. PxWindow reads the R key itself, so this only keeps the keyboard
+    // attached to the app.
     override var canBecomeFirstResponder: Bool { true }
 
     override func viewDidAppear(_ animated: Bool) {
         super.viewDidAppear(animated)
         becomeFirstResponder()
-        for name in [UITextField.textDidEndEditingNotification, UITextView.textDidEndEditingNotification] {
-            NotificationCenter.default.addObserver(self, selector: #selector(reclaimKeys), name: name, object: nil)
-        }
-    }
-
-    @objc private func reclaimKeys() {
-        DispatchQueue.main.async { [weak self] in  // after focus has moved on (Tab to the next field)
-            guard let self = self, self.view.window != nil, !Self.textInputFocused(in: self.view) else { return }
-            self.becomeFirstResponder()
-        }
-    }
-
-    private static func textInputFocused(in v: UIView) -> Bool {
-        if v.isFirstResponder && v is UITextInput { return true }
-        return v.subviews.contains { textInputFocused(in: $0) }
-    }
-
-    /// Dev builds: R twice (hardware keyboard / simulator / Mac app) or Cmd+R reloads, as in React Native.
-    override func pressesBegan(_ presses: Set<UIPress>, with event: UIPressesEvent?) {
-        for p in presses {
-            guard let k = p.key, k.charactersIgnoringModifiers.lowercased() == "r",
-                  k.modifierFlags.isDisjoint(with: [.control, .alternate]) else { continue }
-            let now = Date()
-            if k.modifierFlags.contains(.command) || now.timeIntervalSince(lastR) < 0.8 {
-                lastR = .distantPast
-                onDevReload?()
-                return
-            }
-            lastR = now
-        }
-        super.pressesBegan(presses, with: event)
     }
     #endif
     private var barHidden = false
@@ -157,3 +129,63 @@ final class PxRootViewController: UIViewController {
         setNeedsStatusBarAppearanceUpdate()
     }
 }
+
+#if DEBUG
+/// Dev builds: R twice (hardware keyboard / simulator / Mac app) or Cmd+R reloads, as in React Native.
+/// The window sees every key before the first responder does, so this works whatever holds focus: the root controller,
+/// a sheet, or a text field left focused on a screen that is no longer shown (a hidden tab). Only a text field the
+/// person can see keeps plain R presses, so typing "rr" still types.
+final class PxWindow: UIWindow {
+    var onDevReload: (() -> Void)?
+    private var lastR = Date.distantPast
+
+    override func sendEvent(_ event: UIEvent) {
+        if let e = event as? UIPressesEvent, handleReloadKey(e) { return }
+        super.sendEvent(event)
+    }
+
+    private func handleReloadKey(_ event: UIPressesEvent) -> Bool {
+        for p in event.allPresses where p.phase == .began {
+            guard let k = p.key, k.charactersIgnoringModifiers.lowercased() == "r",
+                  k.modifierFlags.isDisjoint(with: [.control, .alternate]) else { continue }
+            if k.modifierFlags.contains(.command) { return reload() }
+            if let field = Self.focusedTextInput(in: self) {
+                if Self.isShown(field) { lastR = .distantPast; return false }
+                field.resignFirstResponder()  // a hidden field would swallow every key from now on
+                rootViewController?.becomeFirstResponder()
+            }
+            let now = Date()
+            if now.timeIntervalSince(lastR) < 0.8 { return reload() }
+            lastR = now
+        }
+        return false
+    }
+
+    private func reload() -> Bool {
+        lastR = .distantPast
+        onDevReload?()
+        return true
+    }
+
+    private static func focusedTextInput(in v: UIView) -> UIView? {
+        if v.isFirstResponder && v is UITextInput { return v }
+        for s in v.subviews { if let f = focusedTextInput(in: s) { return f } }
+        return nil
+    }
+
+    /// On screen: in this window, no hidden or transparent ancestor, and inside the window's bounds.
+    private static func isShown(_ v: UIView) -> Bool {
+        guard let w = v.window else { return false }
+        var a: UIView? = v
+        while let x = a {
+            if x.isHidden || x.alpha < 0.01 { return false }
+            a = x.superview
+        }
+        let frame = v.convert(v.bounds, to: w)
+        guard w.bounds.intersects(frame) else { return false }
+        // A field on a tab or screen that another view covers is not shown.
+        guard let hit = w.hitTest(CGPoint(x: frame.midX, y: frame.midY), with: nil) else { return false }
+        return hit === v || hit.isDescendant(of: v)
+    }
+}
+#endif
