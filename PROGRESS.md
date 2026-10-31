@@ -42,4 +42,4 @@
 ## Android API 36 (Nov 1): default target/compile SDK 35->36 (Play requires 36). AGP 8.7.3 warns only. Doodle Dance v6 AAB done.
 
 ## Nov 1: 53e34b7 (local): return key now fires on_submit_editing; ScrollView keyboard_dismiss_mode on iOS/Android. 699 pass.
-- Nov 1 (local): Android removed focused field drops keyboard; edge-to-edge root pads by keyboard; `Linking.claimed` keeps auth redirects out of router (web-browser 17cc9ae). cmskite email+SSO e2e pass on emulator. 701 pass.
+- Nov 1: Android keyboard/focus fixes, `Linking.claimed`, TextInput no theme underline (694fee9). a14 on PyPI; a15 tagged (2c72fbf), publish needs user approval. 702 pass.
