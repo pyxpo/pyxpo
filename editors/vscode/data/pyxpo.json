@@ -160,6 +160,24 @@
     "test_id"
    ]
   },
+  "ImageViewer": {
+   "doc": "Shows `images` full screen while `visible`, starting at `image_index`.\n\nThe user pinches or double-taps to zoom, swipes sideways to page and swipes down (`swipe_to_close_enabled`) or\ntaps the close button to leave; then `on_request_close` runs, and the app sets `visible` back to False.\n`on_image_index_change(index)` runs on each page change. `max_zoom` is the largest zoom, `show_count` shows\n\"2 / 5\" at the top, `close_label` is the close button's accessibility label.",
+   "props": [
+    "images",
+    "image_index",
+    "visible",
+    "on_request_close",
+    "on_image_index_change",
+    "background_color",
+    "swipe_to_close_enabled",
+    "double_tap_to_zoom_enabled",
+    "max_zoom",
+    "show_count",
+    "close_label",
+    "style",
+    "test_id"
+   ]
+  },
   "KeyboardAvoidingView": {
    "doc": "Moves its content above the keyboard. `behavior`: \"padding\" | \"height\" | \"position\"; without one the view\nis a plain View (as in RN).",
    "props": [
@@ -1132,6 +1150,10 @@
   },
   "ImageBackground": {
    "doc": "Image drawn behind its children (RN `ImageBackground`).",
+   "kind": "component"
+  },
+  "ImageViewer": {
+   "doc": "Shows `images` full screen while `visible`, starting at `image_index`.",
    "kind": "component"
   },
   "Keyboard": {

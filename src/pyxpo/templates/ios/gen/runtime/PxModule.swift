@@ -78,15 +78,18 @@ final class PxModuleHost: PxModuleContext {
     init(root: UIView, emit: @escaping (String, [String: Any]) -> Void) {
         self.root = root
         self.emitEvent = emit
-        for t in pxModules { types[t.moduleName] = t }
+        for t in Self.all { types[t.moduleName] = t }
     }
 
-    static var names: [String] { pxModules.map { $0.moduleName }.sorted() }
+    /// Built into the runtime (no package needed), then the ones listed in [tool.pyxpo] modules.
+    static let all: [PxModule.Type] = [ImageViewerModule.self] + pxModules
+
+    static var names: [String] { all.map { $0.moduleName }.sorted() }
 
     /// {module name: constants} for modules that export any.
     static var constants: [String: Any] {
         var out: [String: Any] = [:]
-        for t in pxModules {
+        for t in all {
             let c = t.constants
             if !c.isEmpty && JSONSerialization.isValidJSONObject(c) { out[t.moduleName] = c }
         }
@@ -102,7 +105,7 @@ final class PxModuleHost: PxModuleContext {
 
     /// Makes a module view, or returns nil when no linked module provides `type`.
     func makeView(_ type: String, _ tag: Int, _ emit: @escaping (String, Any?) -> Void) -> PxNativeView? {
-        guard let t = pxModules.first(where: { ($0 as? PxViewModule.Type)?.viewTypes.contains(type) == true }),
+        guard let t = Self.all.first(where: { ($0 as? PxViewModule.Type)?.viewTypes.contains(type) == true }),
               let m = instance(t.moduleName) as? PxViewModule else { return nil }
         let v = m.makeView(self, type, emit)
         views[tag] = v

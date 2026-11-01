@@ -51,7 +51,7 @@ class OpApplier(
                 .put("insets", JSONObject().put("left", ins[0] / dm.density.toDouble()).put("top", ins[1] / dm.density.toDouble())
                     .put("right", ins[2] / dm.density.toDouble()).put("bottom", ins[3] / dm.density.toDouble()))
                 .put("keyboard", JSONObject().put("visible", kbPx > 0).put("height", kbPx / dm.density.toDouble()))
-                .put("modules", JSONArray(pxModules.map { it.name }))
+                .put("modules", JSONArray(allModules.map { it.name }))
                 .put("rtl", android.text.TextUtils.getLayoutDirectionFromLocale(java.util.Locale.getDefault()) == View.LAYOUT_DIRECTION_RTL)
                 .put("locale", java.util.Locale.getDefault().toString())
             if (startup) j.put("module_constants", moduleConstants(ctx))
@@ -61,7 +61,7 @@ class OpApplier(
         /** {module name: constants} for modules that export any. A module that fails is left out. */
         private fun moduleConstants(ctx: Context): JSONObject {
             val out = JSONObject()
-            for (m in pxModules) {
+            for (m in allModules) {
                 val c = try { m.constants(ctx) } catch (e: Throwable) { android.util.Log.e("pyxpo", "constants of ${m.name}", e); continue }
                 if (c.isNotEmpty()) (JSONObject.wrap(c) as? JSONObject)?.let { out.put(m.name, it) }
             }

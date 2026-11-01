@@ -26,7 +26,7 @@ class PxModuleHost(override val context: Context, private val act: Activity?,
     override val hasActivity: Boolean get() = act != null
 
     private val main = Handler(Looper.getMainLooper())
-    private val modules: Map<String, PxModule> = pxModules.associateBy { it.name }
+    private val modules: Map<String, PxModule> = allModules.associateBy { it.name }
     private val results = SparseArray<(Int, Intent?) -> Unit>()
     private val permissionCallbacks = SparseArray<(Map<String, Boolean>) -> Unit>()
     private var nextCode = 0

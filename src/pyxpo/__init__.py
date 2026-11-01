@@ -21,6 +21,7 @@ from .element import Element
 from .components.activity_indicator import ActivityIndicator
 from .components.button import Button
 from .components.image import Image, ImageBackground
+from .components.image_viewer import ImageViewer
 from .components.keyboard_avoiding_view import KeyboardAvoidingView
 from .components.lists import FlatList, SectionList, VirtualizedList
 from .components.modal import Modal
@@ -76,7 +77,7 @@ __all__ = [
     "App", "create_app", "run_app", "Channel", "LocalChannel", "Component", "component", "memo", "Element",
     # components
     "View", "Text", "TextInput", "Image", "ImageBackground", "ScrollView", "FlatList", "SectionList",
-    "VirtualizedList", "Pressable", "TouchableOpacity", "TouchableHighlight", "TouchableWithoutFeedback",
+    "VirtualizedList", "ImageViewer", "Pressable", "TouchableOpacity", "TouchableHighlight", "TouchableWithoutFeedback",
     "TouchableNativeFeedback", "Button", "Switch", "ActivityIndicator", "Modal", "KeyboardAvoidingView",
     "SafeAreaView", "StatusBar", "RefreshControl", "Picker", "Slider", "ErrorBoundary",
     # layout + responsive
