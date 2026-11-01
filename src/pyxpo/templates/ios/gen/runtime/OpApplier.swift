@@ -478,14 +478,22 @@ final class OpApplier {
             } else if imgReq[id] != uri {
                 imgReq[id] = uri
                 let tinted = v.tintColor != nil && (props["tint_color"] != nil)
-                images.load(uri) { [weak self, weak v] img, err in
-                    guard let self = self, let v = v, self.imgReq[id] == uri else { return }
-                    if let img = img {
-                        v.image = tinted ? img.withRenderingMode(.alwaysTemplate) : img
-                        px_node_mark_dirty(self.tree, Int32(id))
-                        self.flush()
-                        self.event("load", id, ["value": ["width": Double(img.size.width), "height": Double(img.size.height)]])
-                    } else { self.event("error", id, ["value": ["message": err ?? "error"]]) }
+                // after this batch, so a new view has its frame. A frame with both sides set is the display size
+                // (a view the engine sizes from the image is 0 on a side until it loads, so it gets the image whole).
+                DispatchQueue.main.async { [weak self, weak v] in
+                    guard let self = self, let v = v, self.imgReq[id] == uri, self.views[id] === v else { return }
+                    let s = v.window?.screen.scale ?? UIScreen.main.scale
+                    let fit = v.contentMode != .center && v.bounds.width >= 1 && v.bounds.height >= 1
+                    let px = fit ? CGSize(width: v.bounds.width * s, height: v.bounds.height * s) : .zero
+                    self.images.load(uri, px: px) { [weak self, weak v] img, err in
+                        guard let self = self, let v = v, self.imgReq[id] == uri else { return }
+                        if let img = img {
+                            v.image = tinted ? img.withRenderingMode(.alwaysTemplate) : img
+                            px_node_mark_dirty(self.tree, Int32(id))
+                            self.flush()
+                            self.event("load", id, ["value": ["width": Double(img.size.width), "height": Double(img.size.height)]])
+                        } else { self.event("error", id, ["value": ["message": err ?? "error"]]) }
+                    }
                 }
             }
         }

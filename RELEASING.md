@@ -41,7 +41,7 @@ downloads them on first use into `~/.cache/pyxpo/runtime/<runtime-version>/` and
 
 ## Release the core `pyxpo`
 
-1. Bump `__version__` in `src/pyxpo/__init__.py`.
+1. Bump `__version__` in `src/pyxpo/__init__.py`, then run `.venv/bin/python tools/gen_vscode_data.py` (the VS Code data embeds the version; a stale copy fails the release tests).
 2. Run the tests: `.venv/bin/python -m pytest -q`
 3. Commit and push to `main`.
 4. Tag and push:
