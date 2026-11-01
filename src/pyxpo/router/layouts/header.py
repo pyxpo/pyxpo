@@ -10,7 +10,7 @@ from ...components.text import Text
 from ...components.view import View
 from ...hooks import create_context, use_context, use_effect, use_safe_area_insets
 from ...vector_icons import Feather
-from ..runtime import on_web
+from ..runtime import on_android, on_web
 from ..theme import useTheme
 
 # False once an ancestor header already paints under the status bar.
@@ -32,10 +32,11 @@ def Header(title: Any = "", can_back: bool = False, on_back: Optional[Callable[[
     colors = theme["colors"]
     use_effect(lambda: StatusBar.set_bar_style("light-content" if theme.get("dark") else "dark-content"), [theme.get("dark")])
     inset = use_safe_area_insets()["top"] if use_context(TopInset) else 0
-    tint = o.get("headerTintColor") or colors["primary"]
-    web = on_web()
-    bar = {"height": (56 if web else 48) + inset, "padding_top": inset, "flex_direction": "row", "align_items": "center",
-           "padding_horizontal": 4, "background_color": colors["card"], "border_bottom_width": 1,
+    web, android = on_web(), on_android()
+    # Android follows Material like react-navigation: arrow in the text colour, 64 high bar, 20/500 title
+    tint = o.get("headerTintColor") or colors["text" if android else "primary"]
+    bar = {"height": (64 if android else 56 if web else 48) + inset, "padding_top": inset, "flex_direction": "row",
+           "align_items": "center", "padding_horizontal": 4, "background_color": colors["card"], "border_bottom_width": 1,
            "border_color": colors["border"]}
     hs = o.get("headerStyle") or {}
     if o.get("headerTransparent"):
@@ -45,14 +46,16 @@ def Header(title: Any = "", can_back: bool = False, on_back: Optional[Callable[[
     if lft is None:
         show_back = can_back and o.get("headerBackVisible", True)
         # Web: an arrow in a round button (hover and focus ring come from the page), like react-navigation on web.
-        icon = Feather(name="arrow-left", size=22, color=tint) if web else Feather(name="chevron-left", size=26, color=tint)
+        icon = (Feather(name="arrow-left", size=24 if android else 22, color=tint) if web or android
+                else Feather(name="chevron-left", size=26, color=tint))
         lft = (Pressable(icon, on_press=on_back, accessibility_label="Back",
                          style={"width": 40, "height": 40, "align_items": "center", "justify_content": "center",
-                                "border_radius": 20, "margin_horizontal": 4 if web else 0})
-               if show_back else View(style={"width": 12 if web else 8}))
+                                "border_radius": 20, "margin_horizontal": 4 if web or android else 0})
+               if show_back else View(style={"width": 12 if web or android else 8}))
     t = resolve(o.get("headerTitle"), {"children": title, "tintColor": tint})
     if t is None or isinstance(t, str):
         t = Text(str(title if t is None else t), number_of_lines=1,
-                 style=[{"flex": 1, "font_size": 18 if web else 17, "font_weight": "500" if web else "600", "color": o.get("headerTintColor") or colors["text"]},
+                 style=[{"flex": 1, "font_size": 20 if android else 18 if web else 17,
+                         "font_weight": "500" if web or android else "600", "color": o.get("headerTintColor") or colors["text"]},
                         o.get("headerTitleStyle")])
     return View(lft, t, resolve(o.get("headerRight"), ctx), style=[bar, hs])

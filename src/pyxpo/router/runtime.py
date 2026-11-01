@@ -14,6 +14,11 @@ def on_web() -> bool:
     return app is not None and app.env.get().get("os") == "web"
 
 
+def on_android() -> bool:
+    app = _bridge.get_app()
+    return app is not None and app.env.get().get("os") == "android"
+
+
 def same(a: Any, b: Any) -> bool:
     """Equality for option dicts where closures are rebuilt every render: functions match by code and captured values."""
     if callable(a) and callable(b) and hasattr(a, "__code__") and hasattr(b, "__code__"):

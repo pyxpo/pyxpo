@@ -161,10 +161,16 @@ class OpApplier(
         sendEvent(JSONObject().put("event", name).put("id", id).put("payload", payload).toString())
     }
 
+    private val primaryText: android.content.res.ColorStateList? by lazy {
+        val a = ctx.obtainStyledAttributes(intArrayOf(android.R.attr.textColorPrimary))
+        try { a.getColorStateList(0) } finally { a.recycle() }
+    }
+
     private fun create(id: Int, type: String, props: JSONObject) {
         val v: View = when (type) {
             in PxControls.TYPES -> controls.create(id, type)
-            "Text" -> TextView(ctx).also { it.includeFontPadding = false }
+            // RN Text defaults to the primary text colour; a bare TextView takes the grey secondary one
+            "Text" -> TextView(ctx).also { it.includeFontPadding = false; primaryText?.let(it::setTextColor) }
             "Button" -> Button(ctx).also {
                 it.minWidth = 0; it.minHeight = 0; it.minimumWidth = 0; it.minimumHeight = 0
                 it.stateListAnimator = null

@@ -79,3 +79,9 @@ def test_image_decodes_at_view_size_not_full_resolution():
     assert "if (v is ImageView && !(wm == 0 && hm == 0)) measuredImages.add(id)" in kt
     assert "val sized = f != null && id !in measuredImages" in kt
     assert "measuredImages.remove(id)" in kt
+
+
+def test_text_defaults_to_primary_text_colour():
+    kt = (RUNTIME / "OpApplier.kt").read_text()
+    assert "android.R.attr.textColorPrimary" in kt
+    assert '"Text" -> TextView(ctx).also { it.includeFontPadding = false; primaryText?.let(it::setTextColor) }' in kt

@@ -204,3 +204,15 @@ def test_stack_on_web_is_page_navigation(tmp_app, monkeypatch):
     router.push("/details/8")
     ns, hidden = _stack_state(r)
     assert len(ns.children) == 3 and hidden == []
+
+
+def test_android_header_is_material(tmp_app, monkeypatch):
+    import json
+    from pyxpo.vector_icons import PATHS, parse_path
+    monkeypatch.setenv("PYXPO_ENV", json.dumps({"os": "android"}))
+    d = tmp_app({"_layout.py": LAYOUT, "index.py": INDEX, "details/[id].py": DETAILS})
+    app, r = mount(d)
+    r.press(r.find_text("Open"))
+    back = r.find_all("Path")[-1]
+    # react-navigation on Android: arrow, not the iOS chevron
+    assert back.props["path"] == parse_path(PATHS["arrow-left"])
