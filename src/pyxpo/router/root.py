@@ -5,7 +5,7 @@ from typing import Any, Optional
 
 from ..apis import _bridge, _events
 from ..apis.linking import Linking
-from ..apis.back_handler import BackHandler
+from ..apis.back_handler import _Back
 from ..component import ErrorBoundary, component
 from ..components.button import Button
 from ..components.status_bar import StatusBar
@@ -69,7 +69,8 @@ def RouterRoot(tree: Optional[RouteTree] = None, root_dir: str = "", initial_hre
         holder.current = rt
     rt = holder.current
     router._bind(rt.store)
-    use_effect(lambda: BackHandler.addEventListener("hardwareBackPress", rt.store.back).remove, [])
+    use_effect(lambda: _Back.add(rt.store.back, can=rt.store.can_go_back), [])
+    use_effect(lambda: rt.store.subscribe(_Back.sync), [])
 
     def on_url(payload: Any) -> None:
         url = str((payload or {}).get("url", ""))

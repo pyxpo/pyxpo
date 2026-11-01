@@ -511,10 +511,12 @@ final class PxPath: UIView {
     }
 }
 
-/// Native stack host. Screens are its subviews (last = top). Pushes slide in from the right over a parallax-shifted
-/// previous screen, pops slide out, and a left-edge drag pops interactively. Motion uses UIKit animations, so Python
-/// is not in the loop while a transition plays. Screens are moved with translation-only transforms; the layout
-/// engine keeps owning their frames.
+/// Native stack host. Screens are its subviews (last = top). Motion follows UINavigationController: pushes slide in
+/// from the right on a critically damped spring over a parallax-shifted previous screen, with a shadow on the moving
+/// edge, and a back swipe starts anywhere on the screen as on iOS 26 (from the left edge only when a horizontal
+/// scroller or slider sits under the finger). A released swipe finishes or springs back by where it would land at its
+/// speed, keeping the finger's velocity. Python is not in the loop while a transition plays. Screens are moved with
+/// translation-only transforms; the layout engine keeps owning their frames.
 final class PxNav: PxGroup, UIGestureRecognizerDelegate {
     var animated = true
     var gestureEnabled = true
@@ -522,70 +524,116 @@ final class PxNav: PxGroup, UIGestureRecognizerDelegate {
     /// Screens kept only until their pop animation ends.
     private(set) var lingering = Set<UIView>()
 
-    private lazy var edge: UIScreenEdgePanGestureRecognizer = {
-        let g = UIScreenEdgePanGestureRecognizer(target: self, action: #selector(panned(_:)))
-        g.edges = .left; g.delegate = self
+    private lazy var pan: UIPanGestureRecognizer = {
+        let g = UIPanGestureRecognizer(target: self, action: #selector(panned(_:)))
+        g.delegate = self; g.maximumNumberOfTouches = 1
         return g
     }()
 
     override init(frame: CGRect) {
         super.init(frame: frame)
-        addGestureRecognizer(edge)
+        addGestureRecognizer(pan)
     }
     required init?(coder: NSCoder) { fatalError() }
 
     private func live() -> [UIView] { subviews.filter { !lingering.contains($0) } }
-    private func parallax(_ w: CGFloat) -> CGFloat { w * 0.25 }
-    private func slide(_ v: UIView?, to x: CGFloat, _ duration: TimeInterval, done: (() -> Void)? = nil) {
-        UIView.animate(withDuration: duration, delay: 0, options: [.curveEaseOut, .allowUserInteraction], animations: {
-            v?.transform = CGAffineTransform(translationX: x, y: 0)
-        }, completion: { _ in done?() })
+    private func parallax(_ w: CGFloat) -> CGFloat { w * 0.3 }
+    private static let edgeWidth: CGFloat = 24
+
+    /// `velocity` is in points per second along the move, as UIKit's spring wants it relative to the distance.
+    private func slide(_ moves: [(UIView?, CGFloat)], _ duration: TimeInterval, velocity: CGFloat = 0,
+                       done: (() -> Void)? = nil) {
+        let views = moves.compactMap { $0.0 }
+        let first = moves.first.flatMap { m in m.0.map { abs(m.1 - $0.transform.tx) } } ?? 0
+        let v0 = first > 1 ? min(max(0, velocity) / first, 30) : 0
+        views.forEach { shadow($0, on: $0 === moves.first?.0) }
+        UIView.animate(withDuration: duration, delay: 0, usingSpringWithDamping: 1, initialSpringVelocity: v0,
+                       options: [.allowUserInteraction, .beginFromCurrentState], animations: {
+            for (v, x) in moves { v?.transform = CGAffineTransform(translationX: x, y: 0) }
+        }, completion: { [weak self] _ in
+            views.forEach { if $0.transform.tx == 0 || $0.superview !== self { self?.shadow($0, on: false) } }
+            done?()
+        })
     }
 
-    override func gestureRecognizerShouldBegin(_ g: UIGestureRecognizer) -> Bool {
-        g === edge ? gestureEnabled && live().count > 1 : super.gestureRecognizerShouldBegin(g)
+    /// The soft shadow UIKit casts left of a screen sliding over another.
+    private func shadow(_ v: UIView, on: Bool) {
+        v.layer.shadowOpacity = on ? 0.18 : 0
+        guard on else { return }
+        v.layer.shadowColor = UIColor.black.cgColor
+        v.layer.shadowRadius = 10
+        v.layer.shadowOffset = CGSize(width: -2, height: 0)
+        v.layer.shadowPath = UIBezierPath(rect: v.bounds).cgPath
     }
 
     func pushed(_ v: UIView) {
         let l = live()
-        guard animated, bounds.width > 0, let i = l.firstIndex(of: v), i > 0 else { return }
+        guard animated, bounds.width > 0, let i = l.firstIndex(of: v), i > 0, i == l.count - 1 else { return }
         let w = bounds.width
         v.transform = CGAffineTransform(translationX: w, y: 0)
-        slide(v, to: 0, 0.32)
-        slide(l[i - 1], to: -parallax(w), 0.32)
+        slide([(v, 0), (l[i - 1], -parallax(w))], 0.5)
     }
 
     /// Returns true when the view stays until its exit animation ends.
     func popped(_ v: UIView) -> Bool {
         let w = bounds.width
-        guard animated, w > 0, v.superview === self, v.transform.tx < w * 0.99 else { return false }
+        guard animated, w > 0, v.superview === self, v.transform.tx < w * 0.99, live().last === v else {
+            if live().last === v, let next = live().dropLast().last { next.transform = .identity }
+            return false
+        }
         lingering.insert(v)
-        slide(v, to: w, 0.26) { [weak self, weak v] in
+        slide([(v, w), (live().last, 0)], 0.45) { [weak self, weak v] in
             guard let self = self, let v = v else { return }
             self.lingering.remove(v); v.removeFromSuperview()
         }
-        slide(live().last, to: 0, 0.26)
         return true
     }
 
-    @objc private func panned(_ g: UIScreenEdgePanGestureRecognizer) {
+    override func gestureRecognizerShouldBegin(_ g: UIGestureRecognizer) -> Bool {
+        guard g === pan else { return super.gestureRecognizerShouldBegin(g) }
+        guard gestureEnabled, live().count > 1 else { return false }
+        let v = pan.velocity(in: self)
+        guard v.x > 0, abs(v.x) > abs(v.y) else { return false }
+        if pan.location(in: self).x <= PxNav.edgeWidth { return true }
+        // Away from the edge a sideways swipe belongs to anything under the finger that moves sideways itself.
+        var hit = hitTest(pan.location(in: self), with: nil)
+        while let h = hit, h !== self {
+            if h is UISlider || h is UISwitch { return false }
+            if let s = h as? UIScrollView, s.contentSize.width > s.bounds.width + 1,
+               s.contentOffset.x > -s.adjustedContentInset.left + 0.5 { return false }
+            hit = h.superview
+        }
+        return true
+    }
+
+    /// A vertical scroller under the finger waits for this swipe to fail, so a sideways start goes back instead of
+    /// scrolling; horizontal scrollers keep theirs (see `gestureRecognizerShouldBegin`).
+    func gestureRecognizer(_ g: UIGestureRecognizer, shouldBeRequiredToFailBy other: UIGestureRecognizer) -> Bool {
+        guard g === pan, let s = other.view as? UIScrollView, other === s.panGestureRecognizer else { return false }
+        return s.contentSize.width <= s.bounds.width + 1
+    }
+
+    @objc private func panned(_ g: UIPanGestureRecognizer) {
         let l = live()
         guard let top = l.last else { return }
         let below = l.count > 1 ? l[l.count - 2] : nil
         let w = bounds.width
         let dx = max(0, min(w, g.translation(in: self).x))
         switch g.state {
+        case .began:
+            shadow(top, on: true)
         case .changed:
             top.transform = CGAffineTransform(translationX: dx, y: 0)
             below?.transform = CGAffineTransform(translationX: -parallax(w) * (1 - dx / w), y: 0)
         case .ended, .cancelled, .failed:
-            let commit = g.state == .ended && (dx > w * 0.35 || (g.velocity(in: self).x > 900 && dx > 24))
+            let vx = g.velocity(in: self).x
+            // Where the screen would come to rest at this speed (UIScrollView's normal deceleration).
+            let landing = dx + vx * 0.998 / (1 - 0.998) / 1000
+            let commit = g.state == .ended && landing > w * 0.5 && vx > -100
             if commit {
-                slide(top, to: w, 0.18) { [weak self] in self?.onPop?() }
-                slide(below, to: 0, 0.18)
+                slide([(top, w), (below, 0)], 0.4, velocity: vx) { [weak self] in self?.onPop?() }
             } else {
-                slide(top, to: 0, 0.2)
-                slide(below, to: -parallax(w), 0.2)
+                slide([(top, 0), (below, -parallax(w))], 0.4, velocity: -vx)
             }
         default: break
         }

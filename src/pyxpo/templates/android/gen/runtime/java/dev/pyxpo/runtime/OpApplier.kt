@@ -963,9 +963,27 @@ class OpApplier(
             val id = views.entries.firstOrNull { it.value === root.getChildAt(i) }?.key ?: continue
             if (types[id] == "Modal") { if (closeListeners.contains(id)) event("request_close", id); return true }
         }
-        if (backEnabled) { event("hardware_back", 0); return true }  // Python navigators consume it
+        if (backEnabled) { previewNav?.backInvoked(); previewNav = null; event("hardware_back", 0); return true }  // Python navigators consume it
         return false
     }
+
+    /** The stack showing the predictive-back preview, between `backStarted` and the release or cancel. */
+    private var previewNav: PxNav? = null
+
+    /** The innermost on-screen stack that can go back, which is the one the router pops first; none under a Modal. */
+    private fun backNav(): PxNav? {
+        val root = groupOf(1) ?: return null
+        val modal = (0 until root.childCount).any { i ->
+            val c = root.getChildAt(i); views.entries.any { it.value === c && types[it.key] == "Modal" }
+        }
+        if (modal || !backEnabled) return null
+        fun depth(v: View): Int { var d = 0; var p = v.parent; while (p != null) { d++; p = p.parent }; return d }
+        return views.values.filterIsInstance<PxNav>().filter { it.canPreview() }.maxByOrNull { depth(it) }
+    }
+
+    fun backStarted() { previewNav?.cancelPreview(); previewNav = backNav(); previewNav?.backStarted() }
+    fun backProgressed(p: Float, fromLeft: Boolean) { previewNav?.backProgressed(p, fromLeft) }
+    fun backCancelled() { previewNav?.cancelPreview(); previewNav = null }
 
     /** Set by the Python `Back` module while a navigator has something to pop (a Stack past its root, an open Drawer). */
     private var backEnabled = false

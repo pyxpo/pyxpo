@@ -157,7 +157,19 @@ class MainActivity : Activity() {
      *  `onBackPressed`). It is registered only while a navigator or Modal can take Back, so at the root the system
      *  plays its predictive back-to-home animation. */
     private val backCallback: Any? =
-        if (android.os.Build.VERSION.SDK_INT >= 33) android.window.OnBackInvokedCallback { applier?.handleBack() } else null
+        when {
+            // Android 14+: the swipe's progress drives the predictive-back preview of the screen below.
+            android.os.Build.VERSION.SDK_INT >= 34 -> object : android.window.OnBackAnimationCallback {
+                override fun onBackStarted(e: android.window.BackEvent) { applier?.backStarted() }
+                override fun onBackProgressed(e: android.window.BackEvent) {
+                    applier?.backProgressed(e.progress, e.swipeEdge == android.window.BackEvent.EDGE_LEFT)
+                }
+                override fun onBackCancelled() { applier?.backCancelled() }
+                override fun onBackInvoked() { applier?.handleBack() }
+            }
+            android.os.Build.VERSION.SDK_INT >= 33 -> android.window.OnBackInvokedCallback { applier?.handleBack() }
+            else -> null
+        }
     private var backRegistered = false
 
     private fun setBackCallback(on: Boolean) {

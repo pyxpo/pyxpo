@@ -66,6 +66,44 @@ def test_backhandler_order_and_remove():
     assert _Back.handlers == []
 
 
+def test_back_enabled_follows_can_predicate():
+    sent = []
+
+    class FakeApp:
+        loop = None
+
+        def call(self, mod, meth, *a, reply=False):
+            sent.append((mod, meth) + a)
+
+    old = _bridge.get_app()
+    saved = (list(_Back.handlers), dict(_Back.can), _Back.enabled)
+    _Back.handlers.clear()
+    _Back.can.clear()
+    _Back.enabled = False
+    _bridge.set_app(FakeApp())
+    deep = [False]
+    try:
+        remove = _Back.add(lambda: True, can=lambda: deep[0])
+        assert sent == []  # at the root nothing would take Back: the system keeps it
+        deep[0] = True
+        _Back.sync()
+        assert sent == [("Back", "set_enabled", True)]
+        deep[0] = False
+        _Back.sync()
+        assert sent[-1] == ("Back", "set_enabled", False)
+        other = _Back.add(lambda: False)  # no predicate: might always take Back
+        assert sent[-1] == ("Back", "set_enabled", True)
+        other()
+        remove()
+        assert _Back.handlers == [] and _Back.can == {} and _Back.enabled is False
+    finally:
+        _bridge.set_app(old)
+        _Back.handlers[:] = saved[0]
+        _Back.can.clear()
+        _Back.can.update(saved[1])
+        _Back.enabled = saved[2]
+
+
 def test_keyboard_listener_edges():
     seen = []
     sub = Keyboard.addListener("keyboardDidShow", seen.append)
