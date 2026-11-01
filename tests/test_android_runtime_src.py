@@ -85,3 +85,13 @@ def test_text_defaults_to_primary_text_colour():
     kt = (RUNTIME / "OpApplier.kt").read_text()
     assert "android.R.attr.textColorPrimary" in kt
     assert '"Text" -> TextView(ctx).also { it.includeFontPadding = false; primaryText?.let(it::setTextColor) }' in kt
+
+
+def test_release_build_shrinks_with_r8_and_keeps_what_c_calls_by_name():
+    app = (droid.TEMPLATE / "user/app/build.gradle.kts").read_text()
+    assert "isMinifyEnabled = true" in app and "../pyxpo-gen/proguard-rules.pro" in app
+    rules = (droid.TEMPLATE / "gen/proguard-rules.pro").read_text()
+    jni = (droid.TEMPLATE / "gen/cpp/pyxpo_jni.c").read_text() + (droid.TEMPLATE / "gen/cpp/pyxpo_layout_jni.c").read_text()
+    assert '"onOps"' in jni and "void onOps(java.lang.String)" in rules
+    assert '"measure", "(IFIFI)J"' in jni and "long measure(int, float, int, float, int)" in rules
+    assert "native <methods>" in rules and "startHeadless(android.content.Context)" in rules
