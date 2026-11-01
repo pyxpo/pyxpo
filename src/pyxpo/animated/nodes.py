@@ -117,6 +117,48 @@ class Value(AnimatedNode):
         for cb in list(self._listeners.values()):
             cb({"value": v})
 
+    # RN spellings
+    setValue = set_value
+    getValue = get_value
+    addListener = add_listener
+    removeListener = remove_listener
+    stopAnimation = stop_animation
+
+
+class ValueXY:
+    """RN `Animated.ValueXY`: two Values, `.x` and `.y`, for 2D motion such as a drag. `timing`/`spring`/`decay`
+    take one with a `{"x": .., "y": ..}` target and animate both."""
+
+    def __init__(self, value: Optional[Dict[str, float]] = None) -> None:
+        value = value or {}
+        self.x = Value(value.get("x", 0.0))
+        self.y = Value(value.get("y", 0.0))
+
+    def set_value(self, value: Dict[str, float]) -> None:
+        self.x.set_value(value["x"])
+        self.y.set_value(value["y"])
+
+    def get_value(self) -> Dict[str, float]:
+        return {"x": self.x.get_value(), "y": self.y.get_value()}
+
+    def stop_animation(self, cb: Optional[Callable[[Dict[str, float]], None]] = None) -> None:
+        self.x.stop_animation()
+        self.y.stop_animation()
+        if cb is not None:
+            cb(self.get_value())
+
+    def get_translate_transform(self) -> List[Dict[str, Any]]:
+        return [{"translateX": self.x}, {"translateY": self.y}]
+
+    def get_layout(self) -> Dict[str, Any]:
+        return {"left": self.x, "top": self.y}
+
+    setValue = set_value
+    getValue = get_value
+    stopAnimation = stop_animation
+    getTranslateTransform = get_translate_transform
+    getLayout = get_layout
+
 
 def _angle(s: str) -> float:
     s = s.strip().lower()

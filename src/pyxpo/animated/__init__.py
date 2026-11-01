@@ -11,7 +11,7 @@ from ..hooks import use_effect, use_ref
 from . import runtime
 from .api import Animated as _Animated
 from .easing import Easing
-from .nodes import AnimatedNode, Interpolation, Value
+from .nodes import AnimatedNode, Interpolation, Value, ValueXY
 
 
 class Animated(_Animated):
@@ -35,4 +35,4 @@ def use_animated_value(initial: float = 0.0) -> Value:
     return v
 
 
-__all__ = ["Animated", "AnimatedNode", "Easing", "Interpolation", "Value", "use_animated_value"]
+__all__ = ["Animated", "AnimatedNode", "Easing", "Interpolation", "Value", "ValueXY", "use_animated_value"]

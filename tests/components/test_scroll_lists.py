@@ -181,3 +181,23 @@ def test_section_list_rows_keys_and_empty_sections():
         renderSectionHeader=lambda p: Text("h" + p["section"]["title"]),
         renderSectionFooter=lambda p: Text("f" + p["section"]["title"])))
     assert [n.props["text"] for n in r.find_all("Text")] == ["hA", "i1", "i2", "fA", "hB", "fB"]
+
+
+def test_flatlist_measures_rows_and_unmounts_offscreen():
+    app, r = mount(lambda: FlatList(data=list(range(1000)), renderItem=lambda p: Text("n%d" % p["item"]),
+                                    initialNumToRender=10, windowSize=3))
+
+    def measure_all():
+        for n in r.root.walk():
+            if n.props.get("on_layout") and n.props.get("on_layout") is not None:
+                r.emit("layout", n, {"value": {"x": 0, "y": 0, "width": 360, "height": 50}})
+
+    measure_all()
+    sv = r.find_all("ScrollView")[0]
+    r.scroll(sv, y=20000, height=600, content_height=50000)
+    measure_all()
+    texts = [n.props["text"] for n in r.find_all("Text")]
+    assert "n0" not in texts and "n400" in texts and len(texts) < 60
+    r.scroll(sv, y=0, height=600, content_height=50000)
+    texts = [n.props["text"] for n in r.find_all("Text")]
+    assert texts[0] == "n0" and "n400" not in texts

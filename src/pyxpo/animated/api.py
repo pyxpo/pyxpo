@@ -6,7 +6,7 @@ from typing import Any, Callable, Dict, List, Optional
 from ..ops import Animate, AStop
 from . import easing as easing_mod
 from . import runtime
-from .nodes import Value
+from .nodes import Value, ValueXY
 
 
 class Animation:
@@ -113,8 +113,21 @@ def _with_delay(a: Animation, delay: float) -> Animation:
     return _Group("seq", [_Delay(delay), a]) if delay else a
 
 
+def _xy(fn: Callable[..., Animation], value: ValueXY, to_value: Any, kw: Dict[str, Any]) -> Animation:
+    """Both axes of a ValueXY, in parallel. `to_value` and `velocity` are `{"x": .., "y": ..}` dicts."""
+    def axis(a: str) -> Animation:
+        k = {n: v[a] if n == "velocity" and isinstance(v, dict) else v for n, v in kw.items()}
+        if to_value is None:
+            return fn(getattr(value, a), **k)
+        return fn(getattr(value, a), to_value[a], **k)
+    return parallel([axis("x"), axis("y")])
+
+
 def timing(value: Value, to_value: float, duration: float = 300, easing: Any = None, delay: float = 0,
            use_native_driver: bool = True) -> Animation:
+    if isinstance(value, ValueXY):
+        return _xy(timing, value, to_value, dict(duration=duration, easing=easing, delay=delay,
+                                                 use_native_driver=use_native_driver))
     _check(value)
     nat = use_native_driver and easing_mod.is_native(easing)
     s = {"t": "timing", "to": float(to_value), "ms": float(duration), "easing": easing if nat else easing}
@@ -125,6 +138,11 @@ def spring(value: Value, to_value: float, stiffness: float = 100, damping: float
            velocity: Optional[float] = None, overshoot_clamping: bool = False,
            rest_displacement_threshold: float = 0.001, rest_speed_threshold: float = 0.001, delay: float = 0,
            use_native_driver: bool = True) -> Animation:
+    if isinstance(value, ValueXY):
+        return _xy(spring, value, to_value, dict(
+            stiffness=stiffness, damping=damping, mass=mass, velocity=velocity, overshoot_clamping=overshoot_clamping,
+            rest_displacement_threshold=rest_displacement_threshold, rest_speed_threshold=rest_speed_threshold,
+            delay=delay, use_native_driver=use_native_driver))
     _check(value)
     s = {"t": "spring", "to": float(to_value), "k": float(stiffness), "c": float(damping), "m": float(mass),
          "v0": velocity, "clamp": overshoot_clamping, "rest_d": rest_displacement_threshold,
@@ -135,6 +153,9 @@ def spring(value: Value, to_value: float, stiffness: float = 100, damping: float
 def decay(value: Value, velocity: Optional[float] = None, deceleration: float = 0.998, delay: float = 0,
           use_native_driver: bool = True) -> Animation:
     """`velocity` in units per ms (like React Native). None continues the value's current velocity."""
+    if isinstance(value, ValueXY):
+        return _xy(decay, value, None, dict(velocity=velocity, deceleration=deceleration, delay=delay,
+                                            use_native_driver=use_native_driver))
     _check(value)
     s = {"t": "decay", "v0": velocity, "decel": deceleration}
     return _with_delay(_Leaf(value, s, use_native_driver), delay)
@@ -226,6 +247,7 @@ def event(mapping: Any, listener: Optional[Callable[[Dict[str, Any]], Any]] = No
 
 class Animated:
     Value = Value
+    ValueXY = ValueXY
     event = staticmethod(event)
     timing = staticmethod(timing)
     spring = staticmethod(spring)

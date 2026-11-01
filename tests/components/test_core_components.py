@@ -92,3 +92,13 @@ def test_safe_area_view_insets_and_style_padding():
     app.flush()
     st = first(r, "View").props["style"]
     assert st["padding_top"] == 34 and st["padding_bottom"] == 24 and st["padding_left"] == 4 and "padding" not in st
+
+
+def test_image_relative_path_resolves_from_project_root(monkeypatch, tmp_path):
+    import types
+    import sys
+    from pyxpo import Image
+    app_pkg = types.ModuleType("app")
+    app_pkg.__path__ = [str(tmp_path / "app")]
+    monkeypatch.setitem(sys.modules, "app", app_pkg)
+    assert Image(source="assets/p.png").props["source"]["uri"] == str(tmp_path / "assets" / "p.png")

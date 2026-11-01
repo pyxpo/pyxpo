@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import os
-from typing import Any, Callable, Dict, List, Optional, Tuple
+from typing import Any, Callable, Dict, List, Optional, Tuple, Union
 
 from ._keys import alias_props, prop_name
 from .element import Element, flatten
@@ -130,10 +130,12 @@ def _props_equal(old: Element, new: Element) -> bool:
             and all(_same(a, b) for a, b in zip(old.children, new.children)))
 
 
-def memo(comp: Component, are_equal: Optional[Callable[[Dict[str, Any], Dict[str, Any]], bool]] = None) -> Component:
+def memo(comp: Union[Component, Callable[..., Any]], are_equal: Optional[Callable[[Dict[str, Any], Dict[str, Any]], bool]] = None) -> Component:
     """Skip re-rendering `comp` when its props are unchanged (shallow ==). Use `use_callback` for handlers.
 
     When a Provider above changes its value, the components below that read it still re-render. `are_equal(old_props, new_props)` overrides the comparison."""
+    if not isinstance(comp, Component):
+        comp = component(comp)  # React.memo(fn) takes a plain function too
     out = Component(lambda *a, **k: comp.fn(*a, **k), name=comp.name)  # late-bound: hot reload swaps comp.fn
     out._target = comp._target
     if are_equal is None:

@@ -19,7 +19,7 @@ from ..component import component
 from ..hooks import use_effect, use_ref, use_safe_area_insets, use_state
 from ..module_api import platform
 from ..modules import on_event
-from .image import Image
+from .image import Image, resolve_uri
 from .modal import Modal
 from .pressable import Pressable
 from .text import Text
@@ -37,7 +37,7 @@ def _uris(images: Sequence[ImageSource]) -> List[str]:
         uri = img.get("uri") if isinstance(img, dict) else img
         if not isinstance(uri, str) or not uri:
             raise ValueError("each image needs a uri, got %r" % (img,))
-        out.append(uri)
+        out.append(resolve_uri(uri))
     return out
 
 

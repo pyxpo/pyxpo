@@ -135,7 +135,7 @@
    ]
   },
   "Image": {
-   "doc": "Image from `source`: a path, an http(s) URL, a data: URI, `asset:name`, or `{\"uri\": ...}`.\nRN props: resizeMode, tintColor (style), onLoad, onError, onLoadStart, onLoadEnd, blurRadius, fadeDuration.",
+   "doc": "Image from `source`: a path (relative ones resolve from the project root), an http(s) URL, a data: URI, `asset:name`, or `{\"uri\": ...}`.\nRN props: resizeMode, tintColor (style), onLoad, onError, onLoadStart, onLoadEnd, blurRadius, fadeDuration.",
    "props": [
     "resize_mode",
     "tint_color",
@@ -1145,7 +1145,7 @@
    "kind": "class"
   },
   "Image": {
-   "doc": "Image from `source`: a path, an http(s) URL, a data: URI, `asset:name`, or `{\"uri\": ...}`.\nRN props: resizeMode, tintColor (style), onLoad, onError, onLoadStart, onLoadEnd, blurRadius, fadeDuration.",
+   "doc": "Image from `source`: a path (relative ones resolve from the project root), an http(s) URL, a data: URI, `asset:name`, or `{\"uri\": ...}`.\nRN props: resizeMode, tintColor (style), onLoad, onError, onLoadStart, onLoadEnd, blurRadius, fadeDuration.",
    "kind": "component"
   },
   "ImageBackground": {

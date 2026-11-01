@@ -186,3 +186,22 @@ def test_loop_and_stagger():
     r.advance(1000)
     assert r.driver.anims          # still running
     Animated.stagger(50, [Animated.timing(b, 1, duration=50), Animated.timing(b, 2, duration=50)])
+
+
+def test_value_xy_translate_and_timing():
+    holder = {}
+
+    @component
+    def App():
+        if "xy" not in holder:
+            holder["xy"] = Animated.ValueXY({"x": 0, "y": 0})
+        return View(style={"transform": holder["xy"].getTranslateTransform(), "width": 10})
+
+    app, r = mount(App)
+    xy = holder["xy"]
+    Animated.timing(xy, {"x": 100, "y": 50}, duration=100, easing=Easing.linear).start()
+    r.advance(300)
+    n = _find(r)
+    assert r.resolved(n, "translate_x") == 100 and r.resolved(n, "translate_y") == 50
+    xy.setValue({"x": 5, "y": 6})
+    assert xy.getValue() == {"x": 5.0, "y": 6.0}

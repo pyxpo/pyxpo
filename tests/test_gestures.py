@@ -94,3 +94,28 @@ def test_modal_slide_does_not_create_nodes_per_render(monkeypatch):
     for i in range(1, 6):
         box["set"](i)
     assert len(r.driver.nodes) == before
+
+
+def test_pan_responder_snake_case_and_move_gate():
+    got = []
+    pan = PanResponder.create({"on_move_should_set_pan_responder": lambda e, g: abs(g.dx) > 10,
+                               "on_pan_responder_grant": lambda e, g: got.append("grant"),
+                               "on_pan_responder_move": lambda e, g: got.append(g.dx),
+                               "on_pan_responder_release": lambda e, g: got.append("release")})
+    h = pan.panHandlers
+    h["on_touch_start"]({"x": 0, "y": 0})
+    h["on_touch_move"]({"x": 5, "y": 0})
+    assert got == []
+    h["on_touch_move"]({"x": 20, "y": 0})
+    h["on_touch_end"]({"x": 20, "y": 0})
+    assert got == ["grant", 20.0, "release"]
+
+
+def test_pan_responder_start_gate_false_ignores_touch():
+    got = []
+    pan = PanResponder.create({"onStartShouldSetPanResponder": lambda e, g: False,
+                               "onPanResponderRelease": lambda e, g: got.append(1)})
+    h = pan.panHandlers
+    h["on_touch_start"]({"x": 0, "y": 0})
+    h["on_touch_end"]({"x": 0, "y": 0})
+    assert got == []

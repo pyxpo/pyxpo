@@ -1,7 +1,8 @@
 """FlatList, SectionList and VirtualizedList on top of ScrollView.
 
-Windowing needs row sizes: pass `getItemLayout` (RN) or `item_size`. Without them rows are rendered in batches
-as the user nears the end.
+Lists are windowed like RN's VirtualizedList: rows far outside the viewport unmount. `getItemLayout` (RN) or
+`item_size` gives exact row sizes; without them each row is measured on layout and unmeasured rows are estimated
+from the average.
 """
 from __future__ import annotations
 
@@ -36,6 +37,34 @@ def window_range(offset: float, viewport: float, stride: float, rows: int, windo
     first = max(0, int((offset - pad) // stride))
     last = min(rows, int(-(-(offset + viewport + pad) // stride)))
     return first, max(first, last)
+
+
+def measured_range(offset: float, viewport: float, sizes: Dict[int, float], rows: int, window_size: float,
+                   min_rows: int) -> tuple:
+    """Rows [first, last) plus the spacer lengths above and below them, for rows of measured `sizes` (row -> length).
+    Unmeasured rows count as the average measured length. Before anything is measured, the first `min_rows`."""
+    if not sizes:
+        return 0, min(rows, max(min_rows, 1)), 0.0, 0.0
+    avg = sum(sizes.values()) / len(sizes)
+    pad = viewport * max(0.0, window_size - 1) / 2
+    lo, hi = offset - pad, offset + viewport + pad
+    y, first, top, last = 0.0, -1, 0.0, rows
+    for r in range(rows):
+        if first < 0 and y + sizes.get(r, avg) > lo:
+            first, top = r, y
+        if y >= hi:
+            last = r
+            break
+        y += sizes.get(r, avg)
+    if first < 0:  # scrolled past the estimated end: keep the last rows
+        first = max(0, rows - max(min_rows, 1))
+        top = sum(sizes.get(r, avg) for r in range(first))
+        y = top + sum(sizes.get(r, avg) for r in range(first, rows))
+    if first == 0:
+        last = max(last, min(rows, max(min_rows, 1)))
+        y = sum(sizes.get(r, avg) for r in range(last))
+    total = sum(sizes.values()) + avg * (rows - len(sizes))
+    return first, max(first, last), top, max(0.0, total - y)
 
 
 class FlatListHandle:
@@ -95,7 +124,15 @@ def FlatList(data: Optional[List[Any]] = None, render_item: Optional[Callable] =
     win = use_window_dimensions()
     vp0 = win["width"] if horizontal else win["height"]
     st, set_st = use_state({"offset": 0.0, "viewport": float(vp0), "content": 0.0, "head": 0.0})
-    shown, set_shown = use_state(int(initial_num_to_render))
+    shown, set_shown = use_state(int(initial_num_to_render))  # rows to render until any row is measured
+    _ver, set_ver = use_state(0)  # bumped when a measured row size moves the window
+    sizes_ref = use_ref(None)
+    if sizes_ref.current is None:
+        sizes_ref.current = {"sizes": {}, "handlers": {}, "first": 0, "last": 0, "n": n}
+    meas = sizes_ref.current
+    if meas["n"] != n:  # rows past the end are gone; keep sizes of the rows that are left
+        meas["sizes"] = {r: v for r, v in meas["sizes"].items() if r * cols < n}
+        meas["n"] = n
     fired = use_ref(None)
     sref = use_ref(None)
     prop = "width" if horizontal else "height"
@@ -109,15 +146,21 @@ def FlatList(data: Optional[List[Any]] = None, render_item: Optional[Callable] =
     windowed = length is not None
     stride = stride or 0
 
-    geo = {"horizontal": horizontal, "cols": cols, "stride": stride, "head": st["head"], "viewport": st["viewport"]}
+    geo = {"horizontal": horizontal, "cols": cols, "stride": stride, "head": st["head"], "viewport": st["viewport"],
+           "offset": st["offset"]}
     geo_ref = use_ref(geo)
     geo_ref.current = geo
     use_imperative_handle(ref, lambda: FlatListHandle(sref, lambda: geo_ref.current), [])
 
     ae = on_scroll if getattr(on_scroll, "_is_animated_event", False) else None
 
+    def min_rows() -> int:
+        return int(initial_num_to_render) if meas["sizes"] else shown
+
     def span(offset: float, viewport: float, head: float) -> tuple:
-        return window_range(offset - head, viewport, stride, rows, window_size)
+        if windowed:
+            return window_range(offset - head, viewport, stride, rows, window_size)
+        return measured_range(offset - head, viewport, meas["sizes"], rows, window_size, min_rows())[:2]
 
     def on_scroll_evt(e: Dict[str, Any]) -> None:
         off = e["x"] if horizontal else e["y"]
@@ -125,19 +168,19 @@ def FlatList(data: Optional[List[Any]] = None, render_item: Optional[Callable] =
         ct = e["content_width"] if horizontal else e["content_height"]
 
         def upd(s: Dict[str, Any]) -> Dict[str, Any]:  # several events can land before the next render
-            moved = windowed and span(off, vp, s["head"]) != span(s["offset"], s["viewport"], s["head"])
+            moved = span(off, vp, s["head"]) != (meas["first"], meas["last"])
             if moved or vp != s["viewport"] or ct != s["content"]:
                 return {**s, "offset": float(off), "viewport": float(vp), "content": float(ct)}
             return s
 
         set_st(upd)
+        if not windowed and not meas["sizes"] and off + vp >= ct - vp * 1.5 and shown < rows:
+            set_shown(lambda s: s + max_to_render_per_batch if s == shown else s)
         if on_end_reached is not None and ct > 0:
             key = (n, ct)
             if off + vp >= ct - vp * on_end_reached_threshold and fired.current != key:
                 fired.current = key
                 on_end_reached({"distanceFromEnd": ct - off - vp})
-        if not windowed and off + vp >= ct - vp * 1.5 and shown < rows:
-            set_shown(lambda s: s + max_to_render_per_batch if s == shown else s)
         if ae is not None:
             if not ae.native:
                 ae(e)
@@ -149,6 +192,23 @@ def FlatList(data: Optional[List[Any]] = None, render_item: Optional[Callable] =
     def on_head_layout(e: Dict[str, Any]) -> None:
         h = float(e[prop])
         set_st(lambda s: s if s["head"] == h else {**s, "head": h})
+
+    def row_layout(r: int) -> Callable[[Dict[str, Any]], None]:
+        fn = meas["handlers"].get(r)
+        if fn is None:
+            def fn(e: Dict[str, Any]) -> None:
+                v = float(e[prop])
+                if meas["sizes"].get(r) == v:
+                    return
+                meas["sizes"][r] = v
+                s = geo_ref.current
+                # rows above the window shift the top spacer; others matter only when they move the window
+                if r < meas["first"] or measured_range(
+                        s["offset"] - s["head"], s["viewport"], meas["sizes"], rows, window_size,
+                        min_rows())[:2] != (meas["first"], meas["last"]):
+                    set_ver(lambda x: x + 1)
+            meas["handlers"][r] = fn
+        return fn
 
     def cell(i: int) -> Any:
         return render_item({"item": data[i], "index": i, "separators": _SEPARATORS})
@@ -163,14 +223,18 @@ def FlatList(data: Optional[List[Any]] = None, render_item: Optional[Callable] =
     else:
         if windowed:
             first, last = span(st["offset"], st["viewport"], st["head"])
+            top, bottom = first * stride, (rows - last) * stride
         else:
-            first, last = 0, min(rows, max(shown, 1))
+            first, last, top, bottom = measured_range(st["offset"] - st["head"], st["viewport"], meas["sizes"], rows,
+                                                      window_size, min_rows())
+        meas["first"], meas["last"] = first, last
         if first > 0:
-            out.append(View(style={prop: first * stride}, key="__top"))
+            out.append(View(style={prop: top}, key="__top"))
         for r in range(first, last):
             fixed = {prop: length} if windowed else {}
+            lay = {} if windowed else {"on_layout": row_layout(r)}
             if cols == 1:
-                out.append(View(cell(r), style=fixed, key=_key_of(data[r], r, key_extractor)))
+                out.append(View(cell(r), style=fixed, key=_key_of(data[r], r, key_extractor), **lay))
             else:
                 cells = []
                 for c in range(cols):
@@ -181,11 +245,11 @@ def FlatList(data: Optional[List[Any]] = None, render_item: Optional[Callable] =
                                       key=_key_of(data[i], i, key_extractor))
                                  if i < n else View(style={"flex": 1}, key="pad%d" % c))
                 out.append(View(*cells, style=[{"flex_direction": "row"}, column_wrapper_style, fixed],
-                                key="r%d" % r))
+                                key="r%d" % r, **lay))
             if item_separator_component is not None and r < rows - 1:
                 out.append(View(_node(item_separator_component), key="s%d" % r))
-        if windowed and last < rows:
-            out.append(View(style={prop: (rows - last) * stride}, key="__bottom"))
+        if last < rows and bottom > 0:
+            out.append(View(style={prop: bottom}, key="__bottom"))
 
     if list_footer_component is not None:
         out.append(View(_node(list_footer_component), key="__foot"))
