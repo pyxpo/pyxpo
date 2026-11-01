@@ -71,6 +71,25 @@ def wrap(bundle: str, template: str, bundle_id: str, platform: str = "iPhoneOS",
     return frameworks
 
 
+def prune(bundle: str) -> List[str]:
+    """Removes extension frameworks whose module left the bundle. An incremental Xcode build keeps the Frameworks
+    of an earlier build, so a dropped package or stdlib module would ship on. Only frameworks this script made
+    (they carry a .origin file) are touched."""
+    gone = []
+    fw_dir = os.path.join(bundle, "Frameworks")
+    for name in sorted(os.listdir(fw_dir)) if os.path.isdir(fw_dir) else []:
+        fw = os.path.join(fw_dir, name)
+        origin = os.path.join(fw, name[:-len(".framework")] + ".origin")
+        if not (name.endswith(".framework") and os.path.isfile(origin)):
+            continue
+        with open(origin) as f:
+            if os.path.isfile(os.path.join(bundle, f.read().strip())):
+                continue
+        shutil.rmtree(fw)
+        gone.append(fw)
+    return gone
+
+
 def sign(frameworks: Iterable[str], identity: str) -> None:
     for fw in frameworks:
         subprocess.run(["/usr/bin/codesign", "--force", "--sign", identity, "--timestamp=none",
@@ -87,9 +106,10 @@ def main(argv: List[str] = None) -> int:
     ns = ap.parse_args(argv)
     platform = "iPhoneSimulator" if "simulator" in ns.sdk else "iPhoneOS"
     fws = wrap(ns.bundle, ns.template, ns.bundle_id, platform)
+    gone = prune(ns.bundle)
     # Also sign pre-existing frameworks (e.g. wheels shipped as frameworks); idempotent.
     sign(fws, ns.sign)
-    print("pyxpo: wrapped %d extension frameworks" % len(fws))
+    print("pyxpo: wrapped %d extension frameworks, removed %d stale" % (len(fws), len(gone)))
     return 0
 
 

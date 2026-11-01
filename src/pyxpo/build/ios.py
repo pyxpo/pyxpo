@@ -25,6 +25,15 @@ TEMPLATE = Path(__file__).resolve().parent.parent / "templates" / "ios"
 WRAP_SCRIPT = Path(__file__).resolve().parent / "ios_wrap.py"
 
 STDLIB_SKIP = ("test", "idlelib", "tkinter", "turtledemo", "ensurepip", "lib2to3", "config-3.13")
+# iOS ships the stdlib as files, so it also drops what only an interactive session uses (help topics, the REPL).
+IOS_STDLIB_SKIP = STDLIB_SKIP + ("pydoc_data", "_pyrepl")
+# CPython's own test extensions in lib-dynload; each would become a framework in the app (about 1.5 MB in all).
+TEST_EXTENSIONS = ("_test", "_ctypes_test", "_xxtestfuzz", "xxlimited", "xxsubtype")
+
+
+def _skip_stdlib(names: Sequence[str]) -> List[str]:
+    return [n for n in names if n in IOS_STDLIB_SKIP
+            or (n.endswith((".so", ".fwork")) and n.split(".", 1)[0].startswith(TEST_EXTENSIONS))]
 # kind -> pip platform tag. "catalyst" is the native Mac desktop app (UIKit on macOS); there is no Catalyst wheel tag,
 # so it takes macOS wheels (pure-Python packages work; binary ones must not depend on AppKit-only APIs).
 PIP_TAGS = {"simulator": "ios_15_0_arm64_iphonesimulator", "device": "ios_15_0_arm64_iphoneos",
@@ -171,7 +180,7 @@ def stage(native: Path, project: Path, cfg: Dict[str, object], release: bool, ki
         autolink.check_ios_wiring(native, linked.modules)
     gen = render_gen(native, nc, linked, project)
     st = gen / "stage"
-    _stage_stdlib(slice_dir, st / ("python-" + kind), host_python())
+    _stage_stdlib(slice_dir, st / ("python-" + kind), host_python(), release)
     _stage_app(project, st / "app_root", release, linked.modules, app_dirs(cfg, project))
     app_json.write(st / "app_root" / "pyxpo", nc)
     install_requires(list(cfg.get("requires", [])), kind, st / ("site-" + kind), pip_index_args(cfg, project))
@@ -213,15 +222,35 @@ def host_python() -> Optional[Path]:
     return None
 
 
-def _stage_stdlib(slice_dir: Path, dest: Path, compile_with: Optional[Path]) -> None:
+def _stage_stdlib(slice_dir: Path, dest: Path, compile_with: Optional[Path], release: bool = False) -> None:
     if dest.exists():
         shutil.rmtree(str(dest))
     src = slice_dir / "lib" / "python3.13"
-    shutil.copytree(str(src), str(dest / "lib" / "python3.13"), symlinks=True,
-                    ignore=lambda d, names: [n for n in names if n in STDLIB_SKIP])
-    shipped_pyc = any((dest / "lib" / "python3.13" / "__pycache__").glob("os.*.pyc"))
+    lib = dest / "lib" / "python3.13"
+    shutil.copytree(str(src), str(lib), symlinks=True,
+                    ignore=lambda d, names: _skip_stdlib(names))
+    shipped_pyc = any((lib / "__pycache__").glob("os.*.pyc"))
     if not shipped_pyc and compile_with and compile_with.is_file():  # read-only bundle: ship .pyc so startup is fast
-        _compileall(compile_with, [str(dest / "lib" / "python3.13")])
+        _compileall(compile_with, [str(lib)])
+    slim_stdlib(lib, release)
+
+
+def slim_stdlib(lib: Path, release: bool) -> None:
+    """The app runs at optimization level 0, so the -O/-OO copies the runtime ships are never read (a third of the
+    stdlib size). A release build also swaps each module for its sourceless .pyc next to where the .py was: imports
+    work the same, tracebacks show file and line without the source text."""
+    for f in list(lib.rglob("*.opt-[12].pyc")):
+        f.unlink()
+    if not release:
+        return
+    for pyc in list(lib.rglob("__pycache__/*.cpython-313.pyc")):
+        py = pyc.parent.parent / (pyc.name.split(".", 1)[0] + ".py")
+        if py.is_file():
+            pyc.replace(py.with_suffix(".pyc"))
+            py.unlink()
+    for d in list(lib.rglob("__pycache__")):
+        if d.is_dir() and not any(d.iterdir()):
+            d.rmdir()
 
 
 def compile_pyc(dirs: Sequence[Path], compile_with: Optional[Path]) -> None:

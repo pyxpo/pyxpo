@@ -32,6 +32,11 @@ def test_wrap_fake_bundle(tmp_path):
     assert (fw / "pkg._c.origin").read_text() == "app_packages/pkg/_c.cpython-313-iphoneos.fwork"
     info = plistlib.loads((fw / "Info.plist").read_bytes())
     assert info["MinimumOSVersion"] == "15.0" and info["CFBundleExecutable"] == "pkg._c"
+    (b / "Frameworks" / "Python.framework").mkdir()
+    assert ios_wrap.prune(str(b)) == [] and fw.is_dir()
+    (ext.parent / "_c.cpython-313-iphoneos.fwork").unlink()  # the module left the app; its framework stayed
+    assert ios_wrap.prune(str(b)) == [str(fw)] and not fw.exists()
+    assert (b / "Frameworks" / "Python.framework").is_dir()
 
 
 def test_pick_simulator_prefers_booted():
@@ -276,3 +281,47 @@ def test_compile_pyc_ships_bytecode(tmp_path):
     pyc = list((app / "__pycache__").glob("main.*.pyc"))
     assert pyc and pyc[0].read_bytes()[4:8] == b"\x03\x00\x00\x00"  # checked-hash flags
     ios.compile_pyc([tmp_path / "app_root"], None)  # no host Python: no-op
+
+
+def _fake_stdlib(tmp_path):
+    from pyxpo.build import ios
+    lib = tmp_path / "lib" / "python3.13"
+    for mod in ("os", "json/__init__"):
+        py = lib / (mod + ".py")
+        py.parent.mkdir(parents=True, exist_ok=True)
+        py.write_text("x = 1\n")
+        cache = py.parent / "__pycache__"
+        cache.mkdir(exist_ok=True)
+        stem = py.stem
+        for tag in ("", ".opt-1", ".opt-2"):
+            (cache / ("%s.cpython-313%s.pyc" % (stem, tag))).write_bytes(b"pyc")
+    (lib / "nopyc.py").write_text("y = 2\n")
+    return ios, lib
+
+
+def test_slim_stdlib_debug_drops_optimized_pyc_only(tmp_path):
+    ios, lib = _fake_stdlib(tmp_path)
+    ios.slim_stdlib(lib, release=False)
+    assert not list(lib.rglob("*.opt-*.pyc"))
+    assert (lib / "os.py").is_file() and (lib / "__pycache__" / "os.cpython-313.pyc").is_file()
+
+
+def test_slim_stdlib_release_ships_sourceless_pyc(tmp_path):
+    ios, lib = _fake_stdlib(tmp_path)
+    ios.slim_stdlib(lib, release=True)
+    assert (lib / "os.pyc").is_file() and not (lib / "os.py").exists()
+    assert (lib / "json" / "__init__.pyc").is_file() and not (lib / "json" / "__init__.py").exists()
+    assert (lib / "nopyc.py").is_file()  # no compiled copy: the source stays
+    assert not list(lib.rglob("__pycache__"))
+
+
+def test_ios_stdlib_skips_interactive_only_packages():
+    from pyxpo.build import ios
+    assert {"pydoc_data", "_pyrepl", "test", "idlelib"} <= set(ios.IOS_STDLIB_SKIP)
+
+
+def test_ios_stdlib_skips_test_extensions():
+    from pyxpo.build import ios
+    names = ["_testcapi.cpython-313-iphonesimulator.so", "xxlimited_35.cpython-313-iphonesimulator.so",
+             "_ctypes.cpython-313-iphonesimulator.so", "_ssl.cpython-313-iphonesimulator.so", "pydoc_data", "json"]
+    assert ios._skip_stdlib(names) == names[:2] + ["pydoc_data"]
