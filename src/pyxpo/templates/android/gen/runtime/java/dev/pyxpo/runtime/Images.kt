@@ -32,6 +32,9 @@ class Images(private val ctx: Context) {
     // full size of each source in px, for the load event (the cached bitmap may be subsampled)
     private val sizes = java.util.concurrent.ConcurrentHashMap<String, IntArray>()
 
+    // callbacks of loads in flight, by cache key; touched on the UI thread only
+    private val waiting = HashMap<String, ArrayList<(Bitmap?, Int, Int, String?) -> Unit>>()
+
     /**
      * Calls [done] on the UI thread with a bitmap and the source's full size in px, or an error message.
      * [tw] x [th] is the view size in px; 0 means unknown, so only huge images are subsampled.
@@ -39,6 +42,9 @@ class Images(private val ctx: Context) {
     fun load(uri: String, tw: Int, th: Int, done: (Bitmap?, Int, Int, String?) -> Unit) {
         val key = if (tw > 0 && th > 0) "$uri@${tw}x$th" else uri
         mem.get(key)?.let { b -> val sz = sizes[uri]; done(b, sz?.get(0) ?: b.width, sz?.get(1) ?: b.height, null); return }
+        // a grid shows the same photo in many cells at once: one decode serves every waiting cell
+        waiting[key]?.let { it.add(done); return }
+        waiting[key] = arrayListOf(done)
         pool.execute {
             var bmp: Bitmap? = null
             var err: String? = null
@@ -50,7 +56,9 @@ class Images(private val ctx: Context) {
             }
             if (bmp != null) mem.put(key, bmp)
             val sz = sizes[uri]
-            main.post { done(bmp, sz?.get(0) ?: bmp?.width ?: 0, sz?.get(1) ?: bmp?.height ?: 0, err) }
+            main.post {
+                for (cb in waiting.remove(key) ?: emptyList()) cb(bmp, sz?.get(0) ?: bmp?.width ?: 0, sz?.get(1) ?: bmp?.height ?: 0, err)
+            }
         }
     }
 

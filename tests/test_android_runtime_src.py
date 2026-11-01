@@ -75,10 +75,13 @@ def test_image_decodes_at_view_size_not_full_resolution():
     assert 'val key = if (tw > 0 && th > 0) "$uri@${tw}x$th" else uri' in img
     assert "while (w / (s * 2) >= tw && h / (s * 2) >= th) s *= 2" in img
     kt = (RUNTIME / "OpApplier.kt").read_text()
-    # an Image measured from its bitmap has no frame to decode to: it keeps the full size
-    assert "if (v is ImageView && !(wm == 0 && hm == 0)) measuredImages.add(id)" in kt
-    assert "val sized = f != null && id !in measuredImages" in kt
-    assert "measuredImages.remove(id)" in kt
+    # a grid cell's Image (flex: 1 in a sized Pressable) is measured during layout but still has a full frame: it
+    # decodes at the frame size. Only a frame that is 0 on a side (sized by the bitmap) gets the full image.
+    assert "val sized = f != null && f[2] >= 1f && f[3] >= 1f" in kt
+    assert "measuredImages" not in kt
+    # many cells showing one photo share one decode instead of each decoding it while the cache is cold
+    assert "waiting[key]?.let { it.add(done); return }" in img
+    assert "for (cb in waiting.remove(key) ?: emptyList())" in img
 
 
 def test_text_defaults_to_primary_text_colour():

@@ -321,7 +321,6 @@ class OpApplier(
     private val layoutListeners = HashSet<Int>()
     private val imgReq = HashMap<Int, String>()
     private val images by lazy { Images(ctx) }
-    private val measuredImages = HashSet<Int>()  // Image views whose size comes from the bitmap
     private val ui = android.os.Handler(android.os.Looper.getMainLooper())
 
     private fun scrollProp(id: Int, v: FrameLayout, k: String, props: JSONObject?) {
@@ -472,11 +471,12 @@ class OpApplier(
                 imgReq.remove(id); v.setImageDrawable(null); layout.markDirty(id)
             } else if (imgReq[id] != uri) {
                 imgReq[id] = uri
-                // after this batch, so a new view has its frame; a view the engine sizes from the bitmap gets it whole
+                // after this batch, so a new view has its frame. A frame with both sides set is the display size (a
+                // view the engine sizes from the bitmap is 0 on a side until it loads, so it gets the bitmap whole).
                 v.post {
                     if (imgReq[id] != uri || views[id] !== v) return@post
                     val f = frames[id]
-                    val sized = f != null && id !in measuredImages
+                    val sized = f != null && f[2] >= 1f && f[3] >= 1f
                     val tw = if (sized) (f!![2] * d).toInt() else 0
                     val th = if (sized) (f!![3] * d).toInt() else 0
                     images.load(uri, tw, th) { bmp, w, h, err ->
@@ -1063,7 +1063,7 @@ class OpApplier(
         val host = v?.parent as? ViewGroup
         if (!(host is PxNav && v in host.lingering)) host?.removeView(v)  // a popping screen leaves when its animation ends
         scrolls.remove(id)?.idle?.let { ui.removeCallbacks(it) }  // no stale scroll events for a deleted id
-        layoutListeners.remove(id); imgReq.remove(id); measuredImages.remove(id)
+        layoutListeners.remove(id); imgReq.remove(id)
         if (types.remove(id) == "ScrollView") layout.delete(id or CONTENT)
         controls.drop(id)
         modules.dropView(id)
@@ -1284,7 +1284,6 @@ class OpApplier(
     private fun measure(id: Int, w: Float, wm: Int, h: Float, hm: Int): Long {
         val v = views[id] ?: return 0L
         val p = pads[id] ?: IntArray(4)
-        if (v is ImageView && !(wm == 0 && hm == 0)) measuredImages.add(id)
         fun spec(size: Float, mode: Int, pad: Int): Int = when {
             mode == 2 || size.isNaN() || size > 1e6f -> MeasureSpec.makeMeasureSpec(0, MeasureSpec.UNSPECIFIED)
             mode == 0 -> MeasureSpec.makeMeasureSpec(max(0, (size * d).roundToInt()) + pad, MeasureSpec.EXACTLY)
