@@ -67,7 +67,7 @@ def _values(name: str, color: str) -> str:
 def android(project: Path, nc: Dict[str, Any], gen: Path) -> Dict[str, Any]:
     """Writes pyxpo-gen/res/{values,values-night,values-v31,drawable-nodpi,drawable}. Returns {"theme": bool} for the manifest.
 
-    Resources: `pyxpo_splash_bg` color (+ night), `pyxpo_splash_image` drawable (+ night variant), the `PyxpoSplash` theme.
+    Resources: `pyxpo_splash_bg` color (+ night), `pyxpo_splash_image` drawable (+ night variant), `pyxpo_splash_icon` (the image inset for the Android 12+ icon), the `PyxpoSplash` theme.
     Android 12+ uses the system splash (background + animated icon); older versions use a layer-list window background.
     """
     s = nc["android"]["splash"]
@@ -91,6 +91,16 @@ def android(project: Path, nc: Dict[str, Any], gen: Path) -> Dict[str, Any]:
                '    <item android:drawable="@color/pyxpo_splash_bg" />\n'
                '    <item android:width="%ddp" android:height="%ddp" android:gravity="center">\n'
                '        <bitmap android:src="@drawable/pyxpo_splash_image" android:gravity="fill" />\n    </item>\n</layer-list>\n' % (dp_w, dp_h))
+        # Android 12+ stretches the icon over a 240dp canvas, scales it 1.2x (no icon background) and clips it to a
+        # circle, so the raw image would be cut. Inset it so it shows at its configured size (same as the window above),
+        # shrunk to fit inside that circle.
+        fit = min(1.0, 160 / (dp_w * dp_w + dp_h * dp_h) ** 0.5)
+        ix, iy = ((1 - d * fit / 288) * 50 for d in (dp_w, dp_h))
+        (res / "drawable" / "pyxpo_splash_icon.xml").parent.mkdir(parents=True, exist_ok=True)
+        (res / "drawable" / "pyxpo_splash_icon.xml").write_text(
+            '<?xml version="1.0" encoding="utf-8"?>\n<inset xmlns:android="http://schemas.android.com/apk/res/android"\n'
+            '    android:drawable="@drawable/pyxpo_splash_image" android:insetLeft="%.2f%%" android:insetRight="%.2f%%"\n'
+            '    android:insetTop="%.2f%%" android:insetBottom="%.2f%%" />\n' % (ix, ix, iy, iy))
     else:
         win = None
     (res / "drawable").mkdir(parents=True, exist_ok=True)
@@ -105,7 +115,7 @@ def android(project: Path, nc: Dict[str, Any], gen: Path) -> Dict[str, Any]:
         '<?xml version="1.0" encoding="utf-8"?>\n<resources>\n    <style name="PyxpoSplash" parent="android:Theme.DeviceDefault.NoActionBar">\n'
         '        <item name="android:windowBackground">@drawable/pyxpo_splash_window</item>\n    </style>\n</resources>\n')
     (res / "values-v31").mkdir(parents=True, exist_ok=True)
-    extra = '        <item name="android:windowSplashScreenAnimatedIcon">@drawable/pyxpo_splash_image</item>\n' if img else ""
+    extra = '        <item name="android:windowSplashScreenAnimatedIcon">@drawable/pyxpo_splash_icon</item>\n' if img else ""
     (res / "values-v31" / "pyxpo_splash_theme.xml").write_text(
         '<?xml version="1.0" encoding="utf-8"?>\n<resources>\n    <style name="PyxpoSplash" parent="android:Theme.DeviceDefault.Light.NoActionBar">\n'
         '        <item name="android:windowSplashScreenBackground">@color/pyxpo_splash_bg</item>\n%s    </style>\n</resources>\n' % extra)

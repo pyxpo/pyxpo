@@ -247,6 +247,10 @@ def test_splash_ios_and_android(tmp_path):
     assert (res / "drawable-night-nodpi/pyxpo_splash_image.png").is_file()
     win = (res / "drawable/pyxpo_splash_window.xml").read_text()
     assert 'android:width="100dp"' in win and 'android:height="100dp"' in win
+    # Android 12+ icon: inset so 100dp of the 288dp (240dp x 1.2) canvas shows the image (already fits the 160dp circle)
+    assert "@drawable/pyxpo_splash_icon" in (res / "values-v31/pyxpo_splash_theme.xml").read_text()
+    icon = (res / "drawable/pyxpo_splash_icon.xml").read_text()
+    assert 'android:insetLeft="32.64%"' in icon and 'android:insetTop="32.64%"' in icon
     m = android_config.manifest(nc, False, False, True)
     assert 'android:theme="@style/PyxpoSplash"' in m and "android:theme" in m.split("tools:replace=")[-1]
     assert '"pyxpo.splash_image_width" android:value="100"' in m
