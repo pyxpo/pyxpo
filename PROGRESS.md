@@ -4,7 +4,6 @@
 - Rules: no Co-Authored-By/Claude attribution in commits/PRs. Outward actions (release, PyPI, tag, push) need user go-ahead.
 - Done+committed: runtime, bridge, shells, CLI, hot reload, router, prebuild, distribution, app config + plugins + build_properties, native module system, packages image-manipulator, image-picker, media-library, sharing, storage, file-system, secure-store (e2e both OS). Release 0.1.0a1 on PyPI (8 dists).
 
-## Oct 17-29: VS Code ext, desktop/web, Catalyst, pyxpo-video pushed. Gradle hang: `JAVA_TOOL_OPTIONS=-Djava.net.preferIPv6Addresses=true`.
 ## AI Keyboard: pushed; keyboard/speech/translate on PyPI. Open: S23 iOS layout + ML Kit check; pyxpo-llm.
 
 ## Package repos split (Oct 29)
@@ -38,4 +37,4 @@
 - Nov 1 cmskite 2fcef9c pushed: post view as article + info sheet; trash rows open sheet (restore/purge). 437 pass, iOS sim checked.
 - Nov 1 cmskite AAB 2.0.0 build 10 (e791814 pushed; 3 was used on Play) at ~/Desktop/cmskite-2.0.0-10.aab. AAB = `./gradlew bundleRelease` in android/ with PYXPO_KEYSTORE_PASSWORD env; `pyxpo build android --release` gives APK only.
 - Nov 1 6185e34 (local): Android 16+ Back closed app; fix = OnBackInvokedCallback while router/Modal wants Back (`_Back` `can` predicate; root leaves Back to system).
-- Nov 1 native nav commit (local): Android Material shared-axis push/pop + predictive-back preview (scale/corners, verified API 37), no own edge drag. iOS spring push/pop, full-screen swipe w/ velocity, shadow (compiles, push checked; swipe untested, no touch tool). Not pushed. cmskite needs AAB build 11. Later: UINavigationController, header crossfade.
+- Nov 1 native nav commit (local): Android Material shared-axis push/pop + predictive-back preview (scale/corners, verified API 37), no own edge drag. iOS spring push/pop, full-screen swipe w/ velocity, shadow (push checked; swipe untested). Not pushed. cmskite needs AAB build 11. Later: UINavigationController, header crossfade.
