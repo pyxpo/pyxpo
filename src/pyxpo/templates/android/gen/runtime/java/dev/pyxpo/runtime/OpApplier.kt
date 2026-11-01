@@ -473,7 +473,10 @@ class OpApplier(
                         flush()
                         event("load", id, JSONObject().put("value", JSONObject()
                             .put("width", bmp.width / d.toDouble()).put("height", bmp.height / d.toDouble())))
-                    } else event("error", id, JSONObject().put("value", JSONObject().put("message", err ?: "error")))
+                    } else {
+                        imgReq.remove(id)  // let a later render of the same source try again
+                        event("error", id, JSONObject().put("value", JSONObject().put("message", err ?: "error")))
+                    }
                 }
             }
         }

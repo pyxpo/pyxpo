@@ -92,7 +92,7 @@ class Images(private val ctx: Context) {
                 }
                 if (code !in 200..299) throw RuntimeException("HTTP $code")
                 // Unique temp file: two loads of the same URL must not write into one .part file.
-                val tmp = File.createTempFile("dl", ".part", to.parentFile)
+                val tmp = File.createTempFile("pxdl", ".part", to.parentFile)
                 try {
                     c.inputStream.use { i -> tmp.outputStream().use { o -> i.copyTo(o) } }
                     if (!tmp.renameTo(to) && !to.exists()) throw RuntimeException("cache write failed")

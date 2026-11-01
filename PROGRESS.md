@@ -6,19 +6,10 @@
 
 ## AI Keyboard: pushed; keyboard/speech/translate on PyPI. Open: S23 iOS layout + ML Kit check; pyxpo-llm.
 
-## Package repos split (Oct 29)
-- packages/ removed from monorepo; clones in ../pyxpo-packages/pyxpo-<pkg> (PYXPO_PACKAGES overrides).
-- tools/build_packages.py --path/--tag, dev_install.sh clones missing + `--no-deps -e`. Core suite 564 pass; all 29 package suites pass.
-
-- Core a9-a11 on PyPI.
+- Oct 29: packages in own repos ../pyxpo-packages/pyxpo-<pkg>; dev_install.sh installs editable.
 
 
-## Oct 30 release batch
-- On PyPI: pyxpo-image-manipulator 0.1.0a2, pyxpo-image-cropper 0.1.0a1 (new repo pyxpo/pyxpo-image-cropper, settings+ruleset+pypi env+pvr done).
-- Core 0.1.0a12 on PyPI. `pypi` env in core repo has required reviewer: user approves each release.
-
-## 6 new package repos (Oct 30): all on PyPI 0.1.0a1
-- Core 0.1.0a13 on PyPI (Oct 30). Release = bump __version__ + regen editors/vscode/data/pyxpo.json.
+- Release = bump __version__ + regen editors/vscode/data/pyxpo.json; `pypi` env needs user approval.
 
 ## Stability pass (Oct 31, uncommitted): Gradle wedge auto-retry + `pyxpo clean [android|ios]`; include-package hot reload (iOS ok); iOS ships checked-hash .pyc (ios.compile_pyc), cmskite launch 30s->12s first, 8s->6s warm. Suite 603 pass.
 
@@ -38,3 +29,5 @@
 - Nov 1 cmskite AAB 2.0.0 build 10 (e791814 pushed; 3 was used on Play) at ~/Desktop/cmskite-2.0.0-10.aab. AAB = `./gradlew bundleRelease` in android/ with PYXPO_KEYSTORE_PASSWORD env; `pyxpo build android --release` gives APK only.
 - Nov 1 6185e34 (local): Android 16+ Back closed app; fix = OnBackInvokedCallback while router/Modal wants Back (`_Back` `can` predicate; root leaves Back to system).
 - Nov 1 native nav commit (local): Android Material shared-axis push/pop + predictive-back preview (scale/corners, verified API 37), no own edge drag. iOS spring push/pop, full-screen swipe w/ velocity, shadow (push checked; swipe untested). Not pushed. cmskite needs AAB build 11. Later: UINavigationController, header crossfade.
+- Nov 1 8857fe2 (local): core `ImageViewer` (from pyxpo import ImageViewer). Native iOS/Android in runtime (PxModuleHost.all / allModules), web Modal. pyxpo-image-viewer package dropped. Android checked: opens, loads, swipe-down + close button. Not device-checked: double-tap/pinch zoom, swipe between images. cmskite 23a1a9c uses it. Not pushed.
+- Nov 1 (local): Android core Image never loaded http(s) URLs: createTempFile("dl") threw "Prefix string too short" (prefix needs 3+ chars). Fixed to "pxdl"; failed loads now retry on re-render. cmskite banner verified on emulator.
