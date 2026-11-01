@@ -655,18 +655,47 @@
    },
    "build_properties": {
     "additionalProperties": false,
+    "description": "Native build settings applied at prebuild, like expo-build-properties.",
     "properties": {
      "android": {
       "additionalProperties": false,
       "properties": {
+       "build_archs": {
+        "description": "ABIs to build; same as top-level abis.",
+        "items": {
+         "type": "string"
+        },
+        "type": "array"
+       },
+       "compile_sdk_version": {
+        "description": "Same as android.compile_sdk.",
+        "minimum": 24,
+        "type": "integer"
+       },
+       "debug_symbol_level": {
+        "description": "Native debug symbols packed into the AAB for Play crash reports; default symbol_table.",
+        "enum": [
+         "none",
+         "symbol_table",
+         "full"
+        ]
+       },
        "enable_minify_in_release_builds": {
+        "description": "R8 code shrinking in release builds; default true.",
         "type": "boolean"
        },
        "enable_shrink_resources_in_release_builds": {
+        "description": "Remove unused resources; needs minify. Default false.",
         "type": "boolean"
        },
        "extra_proguard_rules": {
+        "description": "Lines added to pyxpo-gen/proguard-rules.pro.",
         "type": "string"
+       },
+       "min_sdk_version": {
+        "description": "Same as android.min_sdk.",
+        "minimum": 24,
+        "type": "integer"
        },
        "packaging_options": {
         "additionalProperties": false,
@@ -685,6 +714,25 @@
          }
         },
         "type": "object"
+       },
+       "target_sdk_version": {
+        "description": "Same as android.target_sdk.",
+        "minimum": 24,
+        "type": "integer"
+       },
+       "uses_cleartext_traffic": {
+        "description": "Same as android.uses_cleartext_traffic.",
+        "type": "boolean"
+       }
+      },
+      "type": "object"
+     },
+     "ios": {
+      "additionalProperties": false,
+      "properties": {
+       "deployment_target": {
+        "description": "Same as ios.deployment_target.",
+        "type": "string"
        }
       },
       "type": "object"
@@ -781,6 +829,10 @@
        "portrait",
        "landscape"
       ]
+     },
+     "privacy_manifests": {
+      "description": "Extra PrivacyInfo.xcprivacy keys (NSPrivacyAccessedAPITypes, NSPrivacyTracking, ...), merged with what pyxpo and the linked modules declare.",
+      "type": "object"
      },
      "require_full_screen": {
       "type": "boolean"
@@ -1535,7 +1587,7 @@
   "white": "#ffffff",
   "yellow": "#ffff00"
  },
- "pyxpo": "0.1.0a22",
+ "pyxpo": "0.1.0a23",
  "style": {
   "keys": {
    "align_content": {

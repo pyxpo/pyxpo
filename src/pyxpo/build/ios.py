@@ -116,7 +116,7 @@ def render_gen(native: Path, nc: Dict[str, object], linked: Optional[autolink.Li
     mods, opts = (linked.modules, linked.options) if linked else ([], {})
     # Module usage-description keys go through INFOPLIST_KEY_* (Xcode merges them into App/Info.plist); a build-phase edit is overwritten.
     pmods = config_plugins.load(nc, project)
-    xc = xcconfig_text(nc, ios_config.write(gen, native, nc, pmods), pmods.apply_xcconfig({})) + "".join("INFOPLIST_KEY_%s = %s\n" % (k, v.replace("//", "/$()/").replace("\r", " ").replace("\n", " "))
+    xc = xcconfig_text(nc, ios_config.write(gen, native, nc, pmods, autolink.privacy_manifests(mods)), pmods.apply_xcconfig({})) + "".join("INFOPLIST_KEY_%s = %s\n" % (k, v.replace("//", "/$()/").replace("\r", " ").replace("\n", " "))
                                     for k, v in sorted(autolink.info_plist(mods, opts).items()))
     (gen / "Pyxpo.xcconfig").write_text(xc)
     autolink.render_ios(gen, mods, opts)

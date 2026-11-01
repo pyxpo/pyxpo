@@ -107,6 +107,11 @@ def validate(meta: Any, where: str) -> Dict[str, Any]:
     wpk = web.get("packages", [])
     if not isinstance(wpk, list) or not all(isinstance(p, str) and p.strip() for p in wpk):
         raise bad("web.packages must be a list of package names (installed in the browser with micropip)")
+    pm = ios.get("privacyManifest") or {}
+    if not isinstance(pm, dict) or not all(isinstance(t, dict) and isinstance(t.get("NSPrivacyAccessedAPIType"), str)
+                                           for t in pm.get("NSPrivacyAccessedAPITypes", [])):
+        raise bad('ios.privacyManifest must be {"NSPrivacyAccessedAPITypes": [{"NSPrivacyAccessedAPIType": ..., '
+                  '"NSPrivacyAccessedAPITypeReasons": [...]}]}')
     if not isinstance(ios.get("infoPlist") or {}, dict):
         raise bad("ios.infoPlist must be a JSON object")
     for plat, spec in (("ios", ios), ("android", android)):
@@ -306,6 +311,11 @@ class Linked:
         self.modules, self.options = modules, options
 
 
+def privacy_manifests(mods: List[Module]) -> List[Dict[str, Any]]:
+    """Each linked module's `ios.privacyManifest` (PrivacyInfo.xcprivacy keys for the required-reason APIs it calls)."""
+    return [m.ios["privacyManifest"] for m in mods if m.ios.get("privacyManifest")]
+
+
 def info_plist(mods: List[Module], options: Dict[str, Any]) -> Dict[str, str]:
     """Usage-description keys the linked modules need. `options` is `[tool.pyxpo.module_options.<module>]`.
     A module's `infoPlist` table there sets any key directly. Two modules asking for the same key with
@@ -436,11 +446,14 @@ def _native_gradle(m: Module) -> str:
 def module_gradle(m: Module) -> str:
     deps = "".join('    implementation("%s")\n' % _gradle_str(d) for d in m.android.get("dependencies", []))
     return ('plugins {\n    id("com.android.library")\n    id("org.jetbrains.kotlin.android")\n}\n\n'
-            'android {\n    namespace = "%s"\n    compileSdk = 36\n    defaultConfig { minSdk = %d }\n%s'
+            'android {\n    namespace = "%s"\n    compileSdk = 36\n    defaultConfig {\n        minSdk = %d\n%s    }\n%s'
             '    compileOptions {\n        sourceCompatibility = JavaVersion.VERSION_17\n'
             '        targetCompatibility = JavaVersion.VERSION_17\n    }\n    kotlinOptions { jvmTarget = "17" }\n}\n\n'
             'dependencies {\n    implementation(project(":px-module-api"))\n%s}\n'
-            % (m.android["namespace"], int(m.android.get("minSdk", 24)), _native_gradle(m), deps))
+            % (m.android["namespace"], int(m.android.get("minSdk", 24)),
+               # R8 rules the module needs in the app (classes it finds by name); Gradle passes them to the app build
+               '        consumerProguardFiles("proguard-rules.pro")\n' if (m.root / "android" / "proguard-rules.pro").is_file() else "",
+               _native_gradle(m), deps))
 
 
 def render_android(gen: Path, mods: List[Module]) -> None:

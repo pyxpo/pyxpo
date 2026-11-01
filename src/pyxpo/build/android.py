@@ -242,7 +242,7 @@ def available_abis(requested: Optional[List[str]] = None) -> List[str]:
 
 
 def _cfg_abis(cfg: Dict[str, object]) -> Optional[List[str]]:
-    v = cfg.get("abis")
+    v = cfg.get("abis") or ((cfg.get("build_properties") or {}).get("android") or {}).get("build_archs")
     return [str(a) for a in v] if isinstance(v, (list, tuple)) and v else None
 
 

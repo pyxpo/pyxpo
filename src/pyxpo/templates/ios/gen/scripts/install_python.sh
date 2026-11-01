@@ -12,6 +12,8 @@ case "$PLATFORM_NAME" in
 esac
 
 mkdir -p "$DEST/python" "$DEST/app_root" "$DEST/app_packages"
+# Privacy manifest (pyxpo + modules + [tool.pyxpo.ios] privacy_manifests); App Store upload checks it.
+cp "$PROJECT_DIR/pyxpo-gen/PrivacyInfo.xcprivacy" "$DEST/PrivacyInfo.xcprivacy"
 rsync -a --delete "$STAGE/python-$SLICE/" "$DEST/python/"
 rsync -a --delete "$STAGE/app_root/" "$DEST/app_root/"
 rsync -a --delete "$STAGE/site-$SLICE/" "$DEST/app_packages/"

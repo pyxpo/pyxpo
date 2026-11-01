@@ -40,6 +40,13 @@ def _icon(v: Any) -> Dict[str, Any]:
     return {"light": v} if isinstance(v, str) else {k: x for k, x in v.items() if x}
 
 
+def _one(a: Dict[str, Any], ak: str, b: Dict[str, Any], bk: str, default: Any) -> Any:
+    """One setting that two keys can give (Expo has both, e.g. android.minSdk and build_properties minSdkVersion)."""
+    if ak in a and bk in b and a[ak] != b[bk]:
+        raise ConfigError("%s = %r and build_properties.%s = %r disagree; keep one" % (ak, a[ak], bk, b[bk]))
+    return b[bk] if bk in b else a.get(ak, default)
+
+
 def resolve(cfg: Dict[str, Any], project: Path, project_version: str = "") -> Dict[str, Any]:
     ios, android = cfg.get("ios") or {}, cfg.get("android") or {}
     name = str(cfg.get("name") or Path(project).name)
@@ -51,10 +58,17 @@ def resolve(cfg: Dict[str, Any], project: Path, project_version: str = "") -> Di
     style = cfg.get("user_interface_style", "automatic")
     sb, nb = cfg.get("status_bar") or {}, cfg.get("navigation_bar") or {}
     bp = (cfg.get("build_properties") or {}).get("android") or {}
+    bpi = (cfg.get("build_properties") or {}).get("ios") or {}
     pk = bp.get("packaging_options") or {}
-    if bp.get("enable_shrink_resources_in_release_builds") and not bp.get("enable_minify_in_release_builds"):
+    minify = bool(bp.get("enable_minify_in_release_builds", True))
+    if bp.get("enable_shrink_resources_in_release_builds") and not minify:
         raise ConfigError("build_properties.android: enable_shrink_resources_in_release_builds needs "
                           "enable_minify_in_release_builds = true (Android removes unused resources only with code shrinking)")
+    sdk = {k: _one(android, k, bp, k + "_version", d) for k, d in (("min_sdk", 24), ("target_sdk", 36), ("compile_sdk", 36))}
+    if sdk["target_sdk"] > sdk["compile_sdk"]:
+        raise ConfigError("android: target_sdk (%d) is above compile_sdk (%d); raise compile_sdk" % (sdk["target_sdk"], sdk["compile_sdk"]))
+    if sdk["min_sdk"] > sdk["target_sdk"]:
+        raise ConfigError("android: min_sdk (%d) is above target_sdk (%d)" % (sdk["min_sdk"], sdk["target_sdk"]))
     ic = cfg.get("icon")
     ai = android.get("adaptive_icon") or {}
     return {
@@ -70,7 +84,7 @@ def resolve(cfg: Dict[str, Any], project: Path, project_version: str = "") -> Di
             "bundle_id": ios.get("bundle_identifier", bundle), "build_number": str(ios.get("build_number", build)),
             "team_id": str(ios.get("team_id", "")), "supports_tablet": bool(ios.get("supports_tablet", True)),
             "require_full_screen": bool(ios.get("require_full_screen", False)),
-            "deployment_target": str(ios.get("deployment_target", "15.0")),
+            "deployment_target": str(_one(ios, "deployment_target", bpi, "deployment_target", "15.0")),
             "icon": _icon(ios.get("icon") or ic), "associated_domains": list(ios.get("associated_domains") or []),
             "uses_apple_sign_in": bool(ios.get("uses_apple_sign_in", False)),
             "background_color": ios.get("background_color") or bg,
@@ -78,13 +92,13 @@ def resolve(cfg: Dict[str, Any], project: Path, project_version: str = "") -> Di
             "orientation": ios.get("orientation", cfg.get("orientation", "default")),
             "uses_non_exempt_encryption": (ios.get("config") or {}).get("uses_non_exempt_encryption"),
             "info_plist": dict(ios.get("info_plist") or {}), "entitlements": dict(ios.get("entitlements") or {}),
+            "privacy_manifests": dict(ios.get("privacy_manifests") or {}),
             "splash": _splash(cfg, ios, ios.get("background_color") or bg),
         },
         "android": {
             "package": android.get("package", bundle), "version_code": int(android.get("version_code", build)),
             "keystore": str(android.get("keystore", "")), "key_alias": str(android.get("key_alias", "")),
-            "min_sdk": int(android.get("min_sdk", 24)), "target_sdk": int(android.get("target_sdk", 36)),
-            "compile_sdk": int(android.get("compile_sdk", 36)),
+            "min_sdk": int(sdk["min_sdk"]), "target_sdk": int(sdk["target_sdk"]), "compile_sdk": int(sdk["compile_sdk"]),
             "permissions": [perm(p) for p in android.get("permissions") or []],
             "blocked_permissions": [perm(p) for p in android.get("blocked_permissions") or []],
             "icon": android.get("icon") or ic,
@@ -92,17 +106,18 @@ def resolve(cfg: Dict[str, Any], project: Path, project_version: str = "") -> Di
             "intent_filters": list(android.get("intent_filters") or []),
             "software_keyboard_layout_mode": android.get("software_keyboard_layout_mode", "resize"),
             "allow_backup": bool(android.get("allow_backup", False)),
-            "uses_cleartext_traffic": android.get("uses_cleartext_traffic"),
+            "uses_cleartext_traffic": _one(android, "uses_cleartext_traffic", bp, "uses_cleartext_traffic", None),
             "predictive_back_gesture_enabled": bool(android.get("predictive_back_gesture_enabled", False)),
             "background_color": android.get("background_color") or bg,
             "user_interface_style": android.get("user_interface_style", style),
             "orientation": android.get("orientation", cfg.get("orientation", "default")),
             "splash": _splash(cfg, android, android.get("background_color") or bg),
             "build_properties": {
-                "minify": bool(bp.get("enable_minify_in_release_builds", False)),
+                "minify": minify,
                 "shrink": bool(bp.get("enable_shrink_resources_in_release_builds", False)),
                 "proguard_rules": str(bp.get("extra_proguard_rules", "")),
                 "pick_first": list(pk.get("pick_first") or []), "exclude": list(pk.get("exclude") or []),
+                "debug_symbol_level": str(bp.get("debug_symbol_level", "symbol_table")),
             },
         },
     }
@@ -112,6 +127,9 @@ def check_assets(r: Dict[str, Any], project: Path, cfg: Dict[str, Any]) -> List[
     """Cross-checks that need the filesystem. Returns warnings; raises ConfigError for missing or bad images."""
     warns: List[str] = []
     project = Path(project)
+    if r["android"]["target_sdk"] < 35:
+        warns.append("android.target_sdk is %d; Google Play needs 35 or higher for new apps and updates"
+                     % r["android"]["target_sdk"])
 
     def need(rel: str, where: str) -> Tuple[Path, Dict[str, Any]]:
         p = project / rel

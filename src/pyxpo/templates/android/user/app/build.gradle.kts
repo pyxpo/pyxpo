@@ -49,9 +49,8 @@ android {
             // Without a keystore in [tool.pyxpo.android] the release APK is signed with the debug key (as in
             // React Native) so it installs on a phone. Set a keystore before uploading to Google Play.
             signingConfig = signingConfigs.getByName(if (px.containsKey("keystore")) "pyxpo" else "debug")
-            // R8 shrinks the Kotlin/Java code, as Expo does; pyxpo-gen/proguard-rules.pro keeps what C calls by name.
-            isMinifyEnabled = true
-            proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "../pyxpo-gen/proguard-rules.pro")
+            // R8 shrinking, resource shrinking and native debug symbols come from [tool.pyxpo.build_properties.android]
+            // through pyxpo-gen/pyxpo.app.gradle (applied at the end of this file).
         }
     }
     packaging {

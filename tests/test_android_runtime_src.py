@@ -88,9 +88,8 @@ def test_text_defaults_to_primary_text_colour():
 
 
 def test_release_build_shrinks_with_r8_and_keeps_what_c_calls_by_name():
-    app = (droid.TEMPLATE / "user/app/build.gradle.kts").read_text()
-    assert "isMinifyEnabled = true" in app and "../pyxpo-gen/proguard-rules.pro" in app
-    rules = (droid.TEMPLATE / "gen/proguard-rules.pro").read_text()
+    from pyxpo.build import android_config
+    rules = "\n".join(android_config.KEEP_RULES)
     jni = (droid.TEMPLATE / "gen/cpp/pyxpo_jni.c").read_text() + (droid.TEMPLATE / "gen/cpp/pyxpo_layout_jni.c").read_text()
     assert '"onOps"' in jni and "void onOps(java.lang.String)" in rules
     assert '"measure", "(IFIFI)J"' in jni and "long measure(int, float, int, float, int)" in rules

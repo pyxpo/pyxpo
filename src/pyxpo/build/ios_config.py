@@ -4,7 +4,7 @@ from __future__ import annotations
 import copy
 import plistlib
 from pathlib import Path
-from typing import Any, Dict
+from typing import Any, Dict, List
 
 PORTRAIT = "UIInterfaceOrientationPortrait"
 LANDSCAPE = ["UIInterfaceOrientationLandscapeLeft", "UIInterfaceOrientationLandscapeRight"]
@@ -19,6 +19,35 @@ def deep_merge(base: Dict[str, Any], over: Dict[str, Any]) -> Dict[str, Any]:
         else:
             base[k] = copy.deepcopy(v)
     return base
+
+
+# Required-reason APIs the embedded CPython calls (os.stat, time.monotonic, os.statvfs). Without them App Store
+# Connect sends ITMS-91053 on upload.
+PYTHON_APIS = {
+    "NSPrivacyAccessedAPICategoryFileTimestamp": ["C617.1"],
+    "NSPrivacyAccessedAPICategorySystemBootTime": ["35F9.1"],
+    "NSPrivacyAccessedAPICategoryDiskSpace": ["E174.1"],
+}
+
+
+def privacy_manifest(nc: Dict[str, Any], parts: List[Dict[str, Any]] = ()) -> Dict[str, Any]:
+    """PrivacyInfo.xcprivacy: pyxpo's own entries, then each part (the user's App/PrivacyInfo.xcprivacy, linked modules),
+    then `ios.privacy_manifests`. API types merge by type with the reasons joined; lists of domains and data types join."""
+    out: Dict[str, Any] = {"NSPrivacyTracking": False, "NSPrivacyTrackingDomains": [], "NSPrivacyCollectedDataTypes": []}
+    apis: Dict[str, List[str]] = {k: list(v) for k, v in PYTHON_APIS.items()}
+    for part in list(parts) + [nc["ios"].get("privacy_manifests") or {}]:
+        for k, v in part.items():
+            if k == "NSPrivacyAccessedAPITypes":
+                for t in v:
+                    have = apis.setdefault(t["NSPrivacyAccessedAPIType"], [])
+                    have += [r for r in t.get("NSPrivacyAccessedAPITypeReasons", []) if r not in have]
+            elif isinstance(v, list):
+                out[k] = list(out.get(k) or []) + [x for x in v if x not in (out.get(k) or [])]
+            else:
+                out[k] = v
+    out["NSPrivacyAccessedAPITypes"] = [{"NSPrivacyAccessedAPIType": t, "NSPrivacyAccessedAPITypeReasons": r}
+                                        for t, r in apis.items()]
+    return out
 
 
 def info_plist(base: Dict[str, Any], nc: Dict[str, Any]) -> Dict[str, Any]:
@@ -86,9 +115,9 @@ def xcconfig_lines(nc: Dict[str, Any], has_entitlements: bool, extra: Dict[str, 
     return lines
 
 
-def write(gen: Path, native: Path, nc: Dict[str, Any], mods: Any = None) -> bool:
-    """Writes pyxpo-gen/Info.plist (+ App.entitlements when needed). Returns whether entitlements were written.
-    `mods` (config plugins) run after the app config is applied."""
+def write(gen: Path, native: Path, nc: Dict[str, Any], mods: Any = None, privacy: List[Dict[str, Any]] = ()) -> bool:
+    """Writes pyxpo-gen/Info.plist, PrivacyInfo.xcprivacy (+ App.entitlements when needed). Returns whether entitlements
+    were written. `mods` (config plugins) run after the app config is applied; `privacy` holds the linked modules' entries."""
     user = Path(native) / "App" / "Info.plist"
     base = plistlib.loads(user.read_bytes()) if user.is_file() else {}
     plist = info_plist(base, nc)
@@ -96,6 +125,9 @@ def write(gen: Path, native: Path, nc: Dict[str, Any], mods: Any = None) -> bool
     if mods is not None:
         plist, ent = mods.apply_info_plist(plist), mods.apply_entitlements(ent)
     (gen / "Info.plist").write_bytes(plistlib.dumps(plist))
+    user_privacy = Path(native) / "App" / "PrivacyInfo.xcprivacy"
+    parts = ([plistlib.loads(user_privacy.read_bytes())] if user_privacy.is_file() else []) + list(privacy or [])
+    (gen / "PrivacyInfo.xcprivacy").write_bytes(plistlib.dumps(privacy_manifest(nc, parts)))
     if ent:
         (gen / "App.entitlements").write_bytes(plistlib.dumps(ent))
     return bool(ent)

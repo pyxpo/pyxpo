@@ -281,22 +281,83 @@ def test_android_build_properties(tmp_path):
     from pyxpo.build import android_config
     p = project(tmp_path, 'name = "A"',
                 '[tool.pyxpo.build_properties.android]\nenable_minify_in_release_builds = true\nenable_shrink_resources_in_release_builds = true\n'
-                'extra_proguard_rules = "-keep class com.acme.** { *; }"\n'
+                'extra_proguard_rules = "-keep class com.acme.** { *; }"\ndebug_symbol_level = "full"\n'
                 'packaging_options = { pick_first = ["**/libc++_shared.so"], exclude = ["META-INF/it\'s.txt"] }\n')
     nc = native_config.resolve(load_config(p), p)
     g = android_config.gradle(nc)
-    assert "minifyEnabled true" in g and "shrinkResources true" in g and "proguard-pyxpo.pro" in g
+    assert "minifyEnabled true" in g and "shrinkResources true" in g and '"${rootDir}/pyxpo-gen/proguard-rules.pro"' in g
+    assert "debugSymbolLevel 'FULL'" in g
     assert "resources.pickFirsts.add('**/libc++_shared.so')" in g and "it\\'s.txt" in g
     android_config.write(tmp_path / "gen", nc, tmp_path)
-    pro = (tmp_path / "gen" / "proguard-pyxpo.pro").read_text()
-    assert "-keep class dev.pyxpo.**" in pro and "-keep class com.acme.**" in pro
-    (tmp_path / "b").mkdir()
-    q = project(tmp_path / "b", 'name = "B"')
-    assert "minifyEnabled" not in android_config.gradle(native_config.resolve(load_config(q), q))
+    pro = (tmp_path / "gen" / "proguard-rules.pro").read_text()
+    assert "void onOps(java.lang.String)" in pro and "-keep class com.acme.**" in pro
+    # names the runtime looks up with getIdentifier survive resource shrinking
+    assert "@drawable/pyxpo_splash_*" in (tmp_path / "gen/res/raw/pyxpo_keep.xml").read_text()
+    assert 'main.res.srcDir "${rootDir}/pyxpo-gen/res"' in (tmp_path / "gen/pyxpo.app.gradle").read_text()
     (tmp_path / "c").mkdir()
-    r = project(tmp_path / "c", 'name = "C"', '[tool.pyxpo.build_properties.android]\nenable_shrink_resources_in_release_builds = true\n')
+    r = project(tmp_path / "c", 'name = "C"', '[tool.pyxpo.build_properties.android]\nenable_minify_in_release_builds = false\n'
+                                             'enable_shrink_resources_in_release_builds = true\n')
     with pytest.raises(ConfigError, match="needs enable_minify"):
         native_config.resolve(load_config(r), r)
+
+
+def test_release_defaults_shrink_code_and_ship_native_symbols(tmp_path):
+    from pyxpo.build import android_config
+    p = project(tmp_path, 'name = "A"')
+    g = android_config.gradle(native_config.resolve(load_config(p), p))
+    assert "minifyEnabled true" in g and "shrinkResources false" in g and "proguard-android-optimize.txt" in g
+    assert "debugSymbolLevel 'SYMBOL_TABLE'" in g
+    (tmp_path / "b").mkdir()
+    q = project(tmp_path / "b", 'name = "B"', '[tool.pyxpo.build_properties.android]\nenableMinifyInReleaseBuilds = false\n'
+                                             'debugSymbolLevel = "none"\n')
+    g = android_config.gradle(native_config.resolve(load_config(q), q))
+    assert "minifyEnabled false" in g and "proguardFiles" not in g and "debugSymbolLevel" not in g
+
+
+def test_build_properties_sdk_levels_match_expo_names(tmp_path):
+    p = project(tmp_path, 'name = "A"', '[tool.pyxpo.build_properties.android]\nminSdkVersion = 26\ntargetSdkVersion = 36\n'
+                                       'compileSdkVersion = 36\nusesCleartextTraffic = true\nbuildArchs = ["arm64-v8a"]\n'
+                                       '[tool.pyxpo.build_properties.ios]\ndeploymentTarget = "16.0"\n')
+    cfg = load_config(p)
+    nc = native_config.resolve(cfg, p)
+    a = nc["android"]
+    assert (a["min_sdk"], a["target_sdk"], a["compile_sdk"], a["uses_cleartext_traffic"]) == (26, 36, 36, True)
+    assert nc["ios"]["deployment_target"] == "16.0"
+    from pyxpo.build import android as droid
+    assert droid._cfg_abis(cfg) == ["arm64-v8a"]
+    (tmp_path / "b").mkdir()
+    q = project(tmp_path / "b", 'name = "B"', '[tool.pyxpo.android]\nmin_sdk = 24\n'
+                                             '[tool.pyxpo.build_properties.android]\nmin_sdk_version = 26\n')
+    with pytest.raises(ConfigError, match="disagree"):
+        native_config.resolve(load_config(q), q)
+    (tmp_path / "c").mkdir()
+    r = project(tmp_path / "c", 'name = "C"', '[tool.pyxpo.android]\ntarget_sdk = 37\n')
+    with pytest.raises(ConfigError, match="above compile_sdk"):
+        native_config.resolve(load_config(r), r)
+
+
+def test_ios_privacy_manifest_covers_python_and_merges(tmp_path):
+    import plistlib
+    from pyxpo.build import ios_config
+    p = project(tmp_path, 'name = "A"', '[tool.pyxpo.ios.privacy_manifests]\nNSPrivacyTracking = false\n'
+                '[[tool.pyxpo.ios.privacy_manifests.NSPrivacyAccessedAPITypes]]\n'
+                'NSPrivacyAccessedAPIType = "NSPrivacyAccessedAPICategoryUserDefaults"\nNSPrivacyAccessedAPITypeReasons = ["CA92.1"]\n')
+    nc = native_config.resolve(load_config(p), p)
+    module = {"NSPrivacyAccessedAPITypes": [{"NSPrivacyAccessedAPIType": "NSPrivacyAccessedAPICategoryFileTimestamp",
+                                             "NSPrivacyAccessedAPITypeReasons": ["3B52.1", "C617.1"]}]}
+    native = tmp_path / "ios"
+    (native / "App").mkdir(parents=True)
+    (native / "App" / "PrivacyInfo.xcprivacy").write_bytes(plistlib.dumps({"NSPrivacyTrackingDomains": ["t.example.com"]}))
+    gen = tmp_path / "gen"
+    gen.mkdir()
+    ios_config.write(gen, native, nc, privacy=[module])
+    m = plistlib.loads((gen / "PrivacyInfo.xcprivacy").read_bytes())
+    apis = {t["NSPrivacyAccessedAPIType"]: t["NSPrivacyAccessedAPITypeReasons"] for t in m["NSPrivacyAccessedAPITypes"]}
+    assert apis["NSPrivacyAccessedAPICategoryFileTimestamp"] == ["C617.1", "3B52.1"]
+    assert apis["NSPrivacyAccessedAPICategorySystemBootTime"] == ["35F9.1"]
+    assert apis["NSPrivacyAccessedAPICategoryDiskSpace"] == ["E174.1"]
+    assert apis["NSPrivacyAccessedAPICategoryUserDefaults"] == ["CA92.1"]
+    assert m["NSPrivacyTracking"] is False and m["NSPrivacyTrackingDomains"] == ["t.example.com"]
 
 
 def test_ios_require_full_screen_without_base_orientations():

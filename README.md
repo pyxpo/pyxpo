@@ -151,6 +151,64 @@ without an emulator. `pyxpo build web` never includes it; `--no-devtools` hides 
   the device, or drag the grip at its bottom right corner. Cmd/Ctrl+Shift+M turns the device view on and off.
   Settings are kept per browser.
 
+## Native build settings (like `expo-build-properties`)
+
+Native build settings live in `[tool.pyxpo.build_properties]`. `pyxpo prebuild` (and every build) writes them into
+`pyxpo-gen/`, which the Android and iOS projects include. Ejected projects get them too, so you never edit Gradle or
+Xcode files for these. camelCase keys (as in Expo's `app.json`) work as well as snake_case.
+
+```toml
+[tool.pyxpo.build_properties.android]
+minSdkVersion = 24
+compileSdkVersion = 36
+targetSdkVersion = 36                    # Google Play needs 35 or higher
+enableMinifyInReleaseBuilds = true       # R8, on by default (Expo: off)
+enableShrinkResourcesInReleaseBuilds = true
+extraProguardRules = "-keep class com.vendor.sdk.** { *; }"
+debugSymbolLevel = "symbol_table"        # none | symbol_table | full; native crash stacks in Play Console
+buildArchs = ["arm64-v8a", "x86_64"]
+usesCleartextTraffic = false
+packagingOptions = { pick_first = ["**/libc++_shared.so"] }
+
+[tool.pyxpo.build_properties.ios]
+deploymentTarget = "15.0"
+```
+
+| Key | Default | Expo key |
+|---|---|---|
+| `android.minSdkVersion` / `compileSdkVersion` / `targetSdkVersion` | 24 / 36 / 36 | same |
+| `android.enableMinifyInReleaseBuilds` | `true` | same (Expo default `false`) |
+| `android.enableShrinkResourcesInReleaseBuilds` | `false` (needs minify) | same |
+| `android.extraProguardRules` | none | same |
+| `android.debugSymbolLevel` | `symbol_table` | not in Expo |
+| `android.buildArchs` | arm64-v8a, armeabi-v7a, x86_64 | same |
+| `android.usesCleartextTraffic` | not set (Android blocks plain HTTP) | same |
+| `android.packagingOptions` | none | same |
+| `ios.deploymentTarget` | `15.0` | same |
+
+R8 keep rules: pyxpo writes `pyxpo-gen/proguard-rules.pro` with the exact classes and methods that native code calls by
+name, plus your `extraProguardRules`. A native module adds its own rules with an `android/proguard-rules.pro` file;
+pyxpo passes it to R8 for every app that uses the module. Release builds keep `mapping.txt` in
+`android/app/build/outputs/mapping/release/`; upload it to Play Console for readable crash stacks.
+
+The same key set twice (for example `[tool.pyxpo.android] min_sdk` and `minSdkVersion` here) with different values is
+an error, and so is `targetSdkVersion` above `compileSdkVersion`.
+
+### iOS privacy manifest
+
+Every iOS build ships `PrivacyInfo.xcprivacy`, which the App Store requires. It already lists the required-reason APIs
+that the Python runtime uses. Native modules add theirs with `ios.privacyManifest` in `pyxpo-module.json`. Add your
+own entries in config, or keep an `ios/App/PrivacyInfo.xcprivacy` file; pyxpo merges all of them:
+
+```toml
+[tool.pyxpo.ios.privacy_manifests]
+NSPrivacyTracking = false
+
+[[tool.pyxpo.ios.privacy_manifests.NSPrivacyAccessedAPITypes]]
+NSPrivacyAccessedAPIType = "NSPrivacyAccessedAPICategoryUserDefaults"
+NSPrivacyAccessedAPITypeReasons = ["CA92.1"]
+```
+
 ## Responsive layout
 
 Breakpoints work like CSS media queries, mobile first: `xs` 0, `sm` 576, `md` 768, `lg` 992, `xl` 1200, `xxl` 1400

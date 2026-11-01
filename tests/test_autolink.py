@@ -340,3 +340,20 @@ def test_android_cmake_rejects_bad_specs(cmake):
     meta = {"name": "ok", "native": "X", "android": {"namespace": "a.b", "classes": ["a.b.C"], "cmake": cmake}}
     with pytest.raises(BuildError):
         autolink.validate(meta, "f")
+
+
+def test_module_ships_its_own_r8_rules(tmp_path):
+    m = make_module(tmp_path)
+    assert "consumerProguardFiles" not in autolink.module_gradle(m)
+    (m.root / "android" / "proguard-rules.pro").write_text("-keep class com.vendor.** { *; }\n")
+    assert 'consumerProguardFiles("proguard-rules.pro")' in autolink.module_gradle(m)
+
+
+def test_module_privacy_manifest(tmp_path):
+    api = {"NSPrivacyAccessedAPIType": "NSPrivacyAccessedAPICategorySystemBootTime",
+           "NSPrivacyAccessedAPITypeReasons": ["35F9.1"]}
+    ios = {"classes": ["DemoModule"], "privacyManifest": {"NSPrivacyAccessedAPITypes": [api]}}
+    m = make_module(tmp_path, ios=ios)
+    assert autolink.privacy_manifests([m, make_module(tmp_path / "b")]) == [{"NSPrivacyAccessedAPITypes": [api]}]
+    with pytest.raises(BuildError):
+        autolink.validate({"name": "x", "native": "X", "ios": {"privacyManifest": {"NSPrivacyAccessedAPITypes": ["bad"]}}}, "f")

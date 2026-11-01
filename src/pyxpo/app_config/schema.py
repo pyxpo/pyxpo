@@ -65,6 +65,8 @@ SCHEMA = table({
         "info_plist": T("dict", "Raw Info.plist keys (merged last)."),
         "infoPlist": T("dict", "Module Info.plist defaults (native-module convention)."),
         "entitlements": T("dict", "Raw entitlements."),
+        "privacy_manifests": T("dict", "Extra PrivacyInfo.xcprivacy keys (NSPrivacyAccessedAPITypes, NSPrivacyTracking, ...), "
+                                       "merged with what pyxpo and the linked modules declare."),
         "splash": table({"image": PNG, "background_color": HEX, "dark": table({"image": PNG, "background_color": HEX})}),
     }),
     "android": table({
@@ -94,12 +96,22 @@ SCHEMA = table({
     }, "Web app (`pyxpo build web`): a static single page app on Pyodide."),
     "build_properties": table({
         "android": table({
-            "enable_minify_in_release_builds": T("bool"),
-            "enable_shrink_resources_in_release_builds": T("bool"),
-            "extra_proguard_rules": T("str"),
+            "min_sdk_version": T("int", "Same as android.min_sdk.", min=24),
+            "compile_sdk_version": T("int", "Same as android.compile_sdk.", min=24),
+            "target_sdk_version": T("int", "Same as android.target_sdk.", min=24),
+            "build_archs": T("list", "ABIs to build; same as top-level abis.", item=T("str")),
+            "enable_minify_in_release_builds": T("bool", "R8 code shrinking in release builds; default true."),
+            "enable_shrink_resources_in_release_builds": T("bool", "Remove unused resources; needs minify. Default false."),
+            "extra_proguard_rules": T("str", "Lines added to pyxpo-gen/proguard-rules.pro."),
+            "debug_symbol_level": T("enum", "Native debug symbols packed into the AAB for Play crash reports; default symbol_table.",
+                                    values=["none", "symbol_table", "full"]),
+            "uses_cleartext_traffic": T("bool", "Same as android.uses_cleartext_traffic."),
             "packaging_options": table({"pick_first": STR_LIST, "exclude": STR_LIST}),
         }),
-    }),
+        "ios": table({
+            "deployment_target": T("version", "Same as ios.deployment_target.", min_version="15.0"),
+        }),
+    }, "Native build settings applied at prebuild, like expo-build-properties."),
     "module_options": T("dict", "Per-module options, keyed by module name."),
     "extra": T("dict", "Free-form values shipped inside the app (never put secrets here)."),
 }, "pyxpo app configuration")
