@@ -67,3 +67,15 @@ def test_text_input_has_no_theme_underline():
     kt = (RUNTIME / "OpApplier.kt").read_text()
     # the theme's EditText background drew an accent underline inside every styled field
     assert '"TextInput" -> EditText(ctx).also { it.background = null }' in kt
+
+
+def test_image_decodes_at_view_size_not_full_resolution():
+    img = (RUNTIME / "Images.kt").read_text()
+    # each target size gets its own cache entry, subsampled so cover still fills the view
+    assert 'val key = if (tw > 0 && th > 0) "$uri@${tw}x$th" else uri' in img
+    assert "while (w / (s * 2) >= tw && h / (s * 2) >= th) s *= 2" in img
+    kt = (RUNTIME / "OpApplier.kt").read_text()
+    # an Image measured from its bitmap has no frame to decode to: it keeps the full size
+    assert "if (v is ImageView && !(wm == 0 && hm == 0)) measuredImages.add(id)" in kt
+    assert "val sized = f != null && id !in measuredImages" in kt
+    assert "measuredImages.remove(id)" in kt
