@@ -144,6 +144,7 @@ class OpApplier(
         batching = false
         requestFlush()
         if (waitMark == 0) splash.batchApplied()  // not on a batch dropped for the old activity
+        syncBack()
     }
 
     private var flushPending = false
@@ -617,7 +618,7 @@ class OpApplier(
                 "Scroll.to_end" -> { scrollTo(args.getInt(0), null, null, args.optBoolean(1, true)); null }
                 "Back.exit" -> { (ctx as? android.app.Activity)?.finish(); null }
                 "StatusBar.set_style" -> { statusLight = args.optString(0, "dark") == "dark"; applyStatusBar(); null }
-                "Back.set_enabled" -> { backEnabled = args.optBoolean(0, false); null }
+                "Back.set_enabled" -> { backEnabled = args.optBoolean(0, false); syncBack(); null }
                 "Keyboard.dismiss" -> {
                     val act = ctx as? android.app.Activity
                     val f = act?.currentFocus
@@ -968,6 +969,20 @@ class OpApplier(
 
     /** Set by the Python `Back` module while a navigator has something to pop (a Stack past its root, an open Drawer). */
     private var backEnabled = false
+
+    /** Told whether `handleBack` would consume Back now. Android 16+ (targetSdk 36) never calls `onBackPressed`, so
+     *  the activity registers an OnBackInvokedCallback only while this is true; otherwise Back leaves the app. */
+    var onWantsBack: ((Boolean) -> Unit)? = null
+    private var wantsBack = false
+
+    private fun syncBack() {
+        val root = groupOf(1)
+        val modal = root != null && (0 until root.childCount).any { i ->
+            val c = root.getChildAt(i); views.entries.any { it.value === c && types[it.key] == "Modal" }
+        }
+        val w = backEnabled || modal
+        if (w != wantsBack) { wantsBack = w; onWantsBack?.invoke(w) }
+    }
 
     private fun insert(parent0: Int, id: Int, index0: Int) {
         val parent = host(id, parent0)

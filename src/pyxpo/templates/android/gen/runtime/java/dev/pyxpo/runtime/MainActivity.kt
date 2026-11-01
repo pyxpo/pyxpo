@@ -78,6 +78,7 @@ class MainActivity : Activity() {
         val rt = PyxpoRuntime.get(this)
         val applier = OpApplier(this, root) { json -> rt.sendEvent(json) }
         this.applier = applier
+        applier.onWantsBack = ::setBackCallback
         // Hidden bars and bar styles hold from the first frame (splash too), not only after window focus.
         applier.applyStatusBar()
         runtime = rt
@@ -150,6 +151,21 @@ class MainActivity : Activity() {
         applier?.let { runtime?.detach(it) }
         applier?.modules?.cancelPending()
         super.onDestroy()
+    }
+
+    /** Android 13+: Back reaches the app through this callback (Android 16 with targetSdk 36 never calls
+     *  `onBackPressed`). It is registered only while a navigator or Modal can take Back, so at the root the system
+     *  plays its predictive back-to-home animation. */
+    private val backCallback: Any? =
+        if (android.os.Build.VERSION.SDK_INT >= 33) android.window.OnBackInvokedCallback { applier?.handleBack() } else null
+    private var backRegistered = false
+
+    private fun setBackCallback(on: Boolean) {
+        if (android.os.Build.VERSION.SDK_INT < 33 || on == backRegistered) return
+        val cb = backCallback as android.window.OnBackInvokedCallback
+        if (on) onBackInvokedDispatcher.registerOnBackInvokedCallback(android.window.OnBackInvokedDispatcher.PRIORITY_DEFAULT, cb)
+        else onBackInvokedDispatcher.unregisterOnBackInvokedCallback(cb)
+        backRegistered = on
     }
 
     override fun onBackPressed() {
