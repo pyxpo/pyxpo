@@ -70,7 +70,7 @@ from .hooks import (HookError, createContext, create_context, use_async, use_cal
 
 useAnimatedValue = use_animated_value
 
-__version__ = "0.1.0a15"
+__version__ = "0.1.0a16"
 
 __all__ = [
     # app
