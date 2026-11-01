@@ -100,3 +100,16 @@ def test_stream_returns_tail(tmp_path):
     s = _script(tmp_path, 'i=0; while [ $i -lt 500 ]; do echo line$i; i=$((i+1)); done; exit 3\n')
     code, tail = android._stream([s], dict(os.environ))
     assert code == 3 and "line499" in tail and "line0\n" not in tail
+
+
+def test_refresh_shell_keeps_gradle_state(tmp_path):
+    native = tmp_path / "shell"
+    for rel in (".gradle/x", "app/build/out.apk", "app/.cxx/c", "pyxpo-gen/assets/a", "app/old.kt", "build.gradle.kts"):
+        (native / rel).parent.mkdir(parents=True, exist_ok=True)
+        (native / rel).write_text("old")
+    android._refresh_shell(native, {"build.gradle.kts": b"new", "app/src/A.kt": b"a", "gradlew": b"#!/bin/sh\n"})
+    for rel in (".gradle/x", "app/build/out.apk", "app/.cxx/c", "pyxpo-gen/assets/a"):
+        assert (native / rel).read_text() == "old"
+    assert not (native / "app" / "old.kt").exists()
+    assert (native / "build.gradle.kts").read_bytes() == b"new" and (native / "app/src/A.kt").is_file()
+    assert os.access(str(native / "gradlew"), os.X_OK)

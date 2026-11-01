@@ -246,10 +246,26 @@ def _cfg_abis(cfg: Dict[str, object]) -> Optional[List[str]]:
     return [str(a) for a in v] if isinstance(v, (list, tuple)) and v else None
 
 
-def _write_user(native: Path, rendered: Dict[str, bytes]) -> None:
+# Gradle output and caches in the throwaway shell, kept between builds so a Python-only change rebuilds incrementally
+SHELL_STATE = (".gradle", "build", "app/build", "app/.cxx", GEN, "local.properties")
+
+
+def _refresh_shell(native: Path, rendered: Dict[str, bytes]) -> None:
+    """Makes the throwaway shell match the template: stale files go, changed files are rewritten, Gradle state stays."""
+    keep = {native / rel for rel in SHELL_STATE}
+    want = {native / rel for rel in rendered}
+    if native.is_dir():
+        for root, dirs, files in os.walk(str(native), topdown=True):
+            dirs[:] = [d for d in dirs if Path(root) / d not in keep]
+            for name in files:
+                p = Path(root) / name
+                if p not in keep and p not in want:
+                    p.unlink()
     for rel, data in rendered.items():
-        (native / rel).parent.mkdir(parents=True, exist_ok=True)
-        (native / rel).write_bytes(data)
+        p = native / rel
+        if not p.is_file() or p.read_bytes() != data:
+            p.parent.mkdir(parents=True, exist_ok=True)
+            p.write_bytes(data)
     _make_gradlew_executable(native)
 
 
@@ -307,14 +323,23 @@ def prebuild(project: Path, clean: bool = False) -> Path:
     return dest
 
 
-def _zip_tree(zpath: Path, root: Path, arcprefix: str = "", skip=()) -> None:
+def _zip_tree(zpath: Path, root: Path, arcprefix: str = "", skip=(), only=None) -> None:
+    """Zips `root`; `skip` drops path parts (a part matches by name or as "<name>-" prefix), `only` filters by rel path."""
     zpath.parent.mkdir(parents=True, exist_ok=True)
     with zipfile.ZipFile(str(zpath), "w", zipfile.ZIP_DEFLATED) as z:
         for p in sorted(root.rglob("*")):
             rel = p.relative_to(root)
-            if p.is_dir() or "__pycache__" in rel.parts or any(part in skip for part in rel.parts):
+            if p.is_dir() or "__pycache__" in rel.parts or any(
+                    part == s or part.startswith(s + "-") for part in rel.parts for s in skip):
+                continue
+            if only is not None and not only(rel):
                 continue
             z.write(str(p), arcprefix + str(rel))
+
+
+def _abi_specific(rel: Path) -> bool:
+    """Stdlib files that differ per ABI: C extensions and the sysconfig data. The rest ships once for all ABIs."""
+    return rel.parts[0] == "lib-dynload" or rel.name.startswith("_sysconfigdata_")
 
 
 def install_requires(requires: List[str], abi: str, target: Path, index_args: List[str] = ()) -> None:
@@ -498,8 +523,12 @@ def stage(native: Path, project: Path, cfg: Dict[str, object], release: bool, ab
                       "this app. List abis in [tool.pyxpo] to make this an error." % (abi, ABI_TAGS[abi]))
             continue
         kept.append(abi)
-        _zip_tree(assets / ("stdlib-%s.zip" % abi), prefix / "lib" / "python3.13",
-                  arcprefix="lib/python3.13/", skip=STDLIB_SKIP)
+        stdlib = prefix / "lib" / "python3.13"
+        if len(kept) == 1:
+            _zip_tree(assets / "stdlib.zip", stdlib, arcprefix="lib/python3.13/", skip=STDLIB_SKIP,
+                      only=lambda rel: not _abi_specific(rel))
+        _zip_tree(assets / ("stdlib-%s.zip" % abi), stdlib, arcprefix="lib/python3.13/", skip=STDLIB_SKIP,
+                  only=_abi_specific)
         (jni / abi).mkdir(parents=True)
         _check_16kb(site, jni / abi, abi, bool(cfg.get("allow_4kb_libs", False)))
         _zip_tree(assets / ("site-%s.zip" % abi), site)
@@ -592,9 +621,7 @@ def build(project: Path, release: bool = False, install: bool = False, run: bool
 
     native = native_dir(project)
     if not prebuild_mod.is_ejected(native):  # implicit prebuild: a disposable project nobody edits
-        if native.exists():
-            shutil.rmtree(str(native))
-        _write_user(native, prebuild_mod.render(TEMPLATE / "user", {}))
+        _refresh_shell(native, prebuild_mod.render(TEMPLATE / "user", {}))
     _drop_moved_gradle_state(native)
     stage(native, project, cfg, release, abis)
 

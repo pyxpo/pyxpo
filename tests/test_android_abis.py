@@ -60,7 +60,7 @@ def test_stage_leaves_out_32bit_arm_without_wheels(tmp_path, monkeypatch, capsys
     gen = dest / "pyxpo-gen"
     assert "abis=arm64-v8a\n" in (gen / "pyxpo.properties").read_text()
     assert not (gen / "jniLibs" / "armeabi-v7a").exists()
-    assert sorted(p.name for p in assets.glob("*.zip")) == ["site-arm64-v8a.zip", "stdlib-arm64-v8a.zip"]
+    assert sorted(p.name for p in assets.glob("*.zip")) == ["site-arm64-v8a.zip", "stdlib-arm64-v8a.zip", "stdlib.zip"]
     assert "left out armeabi-v7a" in capsys.readouterr().out
 
 
@@ -106,3 +106,23 @@ def test_moved_project_drops_stale_gradle_state(tmp_path, capsys):
     assert (new / ".gradle" / "pyxpo-root").read_text().strip() == str(new.resolve())
     droid._drop_moved_gradle_state(new)  # same place again: nothing to do
     assert "moved from" not in capsys.readouterr().out
+
+
+def test_stdlib_ships_once_for_all_abis(tmp_path, monkeypatch):
+    proj = _setup(tmp_path, monkeypatch)
+    for abi in ("arm64-v8a", "armeabi-v7a"):
+        lib = droid.DIST / abi / "prefix" / "lib" / "python3.13"
+        for rel in ("os.py", "json/__init__.py", "lib-dynload/_ssl.so", "_sysconfigdata__android_%s.py" % abi,
+                    "config-3.13-%s/Makefile" % abi):
+            (lib / rel).parent.mkdir(parents=True, exist_ok=True)
+            (lib / rel).write_text("x")
+    dest = droid.prebuild(proj)
+    droid.stage(dest, proj, droid.load_config(proj), False, droid.available_abis())
+    assets = dest / "pyxpo-gen" / "assets" / "pyxpo"
+    shared = zipfile.ZipFile(str(assets / "stdlib.zip")).namelist()
+    assert shared and not any("lib-dynload" in n or "_sysconfigdata_" in n or "/config-3.13" in n for n in shared)
+    for abi in ("arm64-v8a", "armeabi-v7a"):
+        own = zipfile.ZipFile(str(assets / ("stdlib-%s.zip" % abi))).namelist()
+        assert all("lib-dynload/" in n or "_sysconfigdata_" in n for n in own)
+    kt = (droid.TEMPLATE / "gen" / "runtime" / "java" / "dev" / "pyxpo" / "runtime" / "PyxpoRuntime.kt").read_text()
+    assert 'unzip("pyxpo/stdlib.zip"' in kt

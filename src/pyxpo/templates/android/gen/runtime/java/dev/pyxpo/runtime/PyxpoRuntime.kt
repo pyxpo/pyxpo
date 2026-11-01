@@ -141,6 +141,7 @@ class PyxpoRuntime private constructor(context: Context) {
         if (done.exists()) return root
         File(ctx.filesDir, "pyxpo").deleteRecursively()
         root.mkdirs()
+        unzip("pyxpo/stdlib.zip", File(root, "home"))  // pure Python part, the same for every ABI
         unzip("pyxpo/stdlib-$abi.zip", File(root, "home"))
         unzip("pyxpo/site-$abi.zip", File(root, "site"))
         unzip("pyxpo/app.zip", File(root, "app"))
