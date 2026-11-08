@@ -67,6 +67,28 @@ def test_build_writes_static_spa(tmp_path):
     assert {"app/index.py", "pyxpo/_app_config.json", "pyxpo_image_manipulator/web.py"} <= files
 
 
+def test_build_writes_browser_icons_and_manifest(tmp_path):
+    from pyxpo.app_config import images
+    p = _project(tmp_path, 'icon = "icon.png"\n[tool.pyxpo.web]\nbase = "/admin"\n')
+    (p / "icon.png").write_bytes(images.solid_png(1024, 1024, (230, 57, 70, 255), alpha=False))
+    out = web.build(p)
+    for name, px in web.WEB_ICONS:
+        assert images.info(out / name)["width"] == px
+    man = json.loads((out / "manifest.webmanifest").read_text())
+    assert man["name"] == "Demo App" and man["start_url"] == "/admin/" and man["display"] == "standalone"
+    assert [i["src"] for i in man["icons"]] == ["/admin/icon-192.png", "/admin/icon-512.png"]
+    index = (out / "index.html").read_text(encoding="utf-8")
+    v = _config(out)["version"]
+    assert '<link rel="icon" type="image/png" sizes="48x48" href="/admin/favicon.png?v=%s">' % v in index
+    assert 'href="/admin/manifest.webmanifest?v=%s"' % v in index and "apple-touch-icon.png" in index
+    assert web._ctype("manifest.webmanifest") == "application/manifest+json"
+
+
+def test_build_without_icon_links_none(tmp_path):
+    out = web.build(_project(tmp_path))
+    assert not (out / "favicon.png").exists() and 'rel="icon"' not in (out / "index.html").read_text()
+
+
 def test_build_is_deterministic_and_base_aware(tmp_path):
     p = _project(tmp_path)
     first = _config(web.build(p))["bundle"]

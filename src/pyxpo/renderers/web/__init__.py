@@ -308,10 +308,10 @@ class WebRenderer(MockRenderer):
             self.clients.remove(q)
 
 
-def page_html(title: str, scripts: str, lost: str) -> str:
+def page_html(title: str, scripts: str, lost: str, head: str = "") -> str:
     """The page shell shared by the desktop window and the web build."""
     import html as _html
-    return ((_HERE / "index.html").read_text().replace("{{TITLE}}", _html.escape(title))
+    return ((_HERE / "index.html").read_text().replace("{{TITLE}}", _html.escape(title)).replace("{{HEAD}}", head)
             .replace("{{LOST}}", lost).replace("{{SCRIPTS}}", scripts))
 
 

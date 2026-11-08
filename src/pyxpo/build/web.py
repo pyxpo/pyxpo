@@ -4,6 +4,8 @@ keeps the address bar and browser history in step, so links, refresh and back/fo
 
     build/web/
         index.html               page shell; window.PYXPO_CONFIG says where everything is
+        favicon.png, apple-touch-icon.png, icon-192.png, icon-512.png, manifest.webmanifest
+                                 from the app icon, when [tool.pyxpo] icon is set
         404.html                 same page, so static hosts (GitHub Pages) serve deep links
         boot.js, app.js          loader and DOM renderer
         app.<hash>.zip           the project's app/ and assets/, the pyxpo package, linked modules
@@ -106,6 +108,9 @@ def build(project: Path, release: bool = False, base: Optional[str] = None, out:
             h.update((_WEB / name).read_bytes())
         for native in sorted(page):
             h.update(page[native].read_bytes())
+        icon = _icon_source(project, nc)
+        if icon is not None:
+            h.update(icon.read_bytes())
         version = h.hexdigest()[:12]
         if out.exists():
             shutil.rmtree(str(out))
@@ -124,11 +129,48 @@ def build(project: Path, release: bool = False, base: Optional[str] = None, out:
               "pyodide": str(web.get("pyodide_url") or PYODIDE_URL)}
     scripts = ('<script>window.PYXPO_CONFIG = %s;</script>\n<script src="%s/boot.js?v=%s"></script>'
                % (_script_json(config), base, version))
-    html = page_html(str(web.get("title") or nc["name"]), scripts, "Loading…")
+    title = str(web.get("title") or nc["name"])
+    head = _icons(icon, out, base, version, title, nc) if icon is not None else ""
+    html = page_html(title, scripts, "Loading…", head)
     (out / "index.html").write_text(html, encoding="utf-8")
     (out / "404.html").write_text(html, encoding="utf-8")
     print("built %s (%s)" % (out, bundle_name))
     return out
+
+
+WEB_ICONS = (("favicon.png", 48), ("apple-touch-icon.png", 180), ("icon-192.png", 192), ("icon-512.png", 512))
+
+
+def _icon_source(project: Path, nc: Dict[str, Any]) -> Optional[Path]:
+    """The light iOS icon (or the flat Android icon): the full-bleed square the browser icons are cut from."""
+    rel = (nc["ios"].get("icon") or {}).get("light") or nc["android"].get("icon")
+    if not rel:
+        return None
+    p = project / rel
+    return p if p.is_file() else None
+
+
+def _icons(src: Path, out: Path, base: str, version: str, title: str, nc: Dict[str, Any]) -> str:
+    """Writes the browser icons and a web app manifest next to the page; returns the <head> tags that link them."""
+    from ..app_config import images
+    for name, px in WEB_ICONS:
+        images.resize(src, out / name, px)
+    manifest = {"name": title, "short_name": nc["name"], "start_url": base + "/", "scope": base + "/",
+                "display": "standalone", "background_color": nc["background_color"],
+                "icons": [{"src": "%s/icon-%d.png" % (base, px), "sizes": "%dx%d" % (px, px), "type": "image/png"}
+                          for px in (192, 512)]}
+    (out / "manifest.webmanifest").write_text(json.dumps(manifest, indent=2), encoding="utf-8")
+    v = "?v=" + version
+    return ('<link rel="icon" type="image/png" sizes="48x48" href="%s/favicon.png%s">\n'
+            '<link rel="apple-touch-icon" href="%s/apple-touch-icon.png%s">\n'
+            '<link rel="manifest" href="%s/manifest.webmanifest%s">\n'
+            '<meta name="apple-mobile-web-app-title" content="%s">\n'
+            % (base, v, base, v, base, v, _html_attr(nc["name"])))
+
+
+def _html_attr(s: str) -> str:
+    import html
+    return html.escape(s, quote=True)
 
 
 # -- dev server ------------------------------------------------------------------------------------------------------
@@ -258,6 +300,8 @@ def _ctype(name: str) -> str:
     import mimetypes
     if name.endswith(".js"):
         return "text/javascript; charset=utf-8"
+    if name.endswith(".webmanifest"):
+        return "application/manifest+json"
     return mimetypes.guess_type(name)[0] or "application/octet-stream"
 
 
